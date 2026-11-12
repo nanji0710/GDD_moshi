@@ -17,3 +17,6 @@ desktop.ini
 *.log
 *.tmp
 npm-debug.log*
+
+# 发布产物（本地打包用，不入库）
+release/

@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { rmSync } from 'node:fs'
 
-const EDGE = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
+const EDGE = process.env.EDGE_PATH || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
 const PORT = Number(process.env.PORT || 9496)
 const PROFILE = join(tmpdir(), 'zt-smoke3-' + Date.now())
 const URL = 'file:///E:/github/sss/prototype/index.html'

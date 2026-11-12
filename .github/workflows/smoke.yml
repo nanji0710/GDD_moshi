@@ -1,0 +1,31 @@
+name: Smoke test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Locate Edge
+        shell: pwsh
+        run: |
+          $edge = "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
+          if (-not (Test-Path $edge)) { $edge = "${env:ProgramFiles}\Microsoft\Edge\Application\msedge.exe" }
+          if (-not (Test-Path $edge)) { throw "找不到 Edge，无法跑 CDP 测试" }
+          "EDGE_PATH=$edge" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Edge: $edge"
+
+      - name: Run smoke tests
+        shell: pwsh
+        run: node prototype/tools/smoke.mjs

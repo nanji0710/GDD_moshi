@@ -3,10 +3,12 @@
 > 火车推进 · 车厢编组 · 尸潮防御 —— 一个用原生 JavaScript 写的可玩原型，**零依赖、双击即玩**。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Smoke test](https://github.com/nanji0710/GDD_moshi/actions/workflows/smoke.yml/badge.svg)](https://github.com/nanji0710/GDD_moshi/actions/workflows/smoke.yml)
 [![No dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](./prototype)
 [![Lines](https://img.shields.io/badge/code-3800%20lines%20JS-blue.svg)](./prototype/js)
 
-**▶ [在线试玩](https://nanji0710.github.io/GDD_moshi/)**（开启 Pages 后可用，见下方「发布」）
+**▶ [在线试玩（GitHub Pages）](https://nanji0710.github.io/GDD_moshi/)**
+　想放到自己的域名上？见 [发布指南](docs/发布指南.md)（Cloudflare Pages / 直接上传 / 国内加速）。
 
 ![标题页](docs/img/title.png)
 
@@ -86,13 +88,16 @@ node tools/smoke.mjs        # 60 条断言，含存档往返、关卡变异、�
 node tools/shoot.mjs        # 出 17 张截图并审计 console 报错
 ```
 
-## 发布（GitHub Pages）
+## 发布
 
-仓库已内置 `.github/workflows/pages.yml`：
+游戏是纯静态站点，任何静态托管都能跑。**完整步骤见 [docs/发布指南.md](docs/发布指南.md)**，摘要：
 
-1. 推到 `main`；
-2. 仓库 `Settings → Pages → Source` 选 **GitHub Actions**；
-3. 等一次 Actions 跑完，站点就是 `https://<用户名>.github.io/<仓库名>/`。
+| 平台 | 做法 | 地址 |
+| --- | --- | --- |
+| **GitHub Pages**（已配好） | 已内置 `.github/workflows/pages.yml`，Settings → Pages → Source 选 **GitHub Actions** | https://nanji0710.github.io/GDD_moshi/ |
+| **Cloudflare Pages** | 连 Git 仓库：Framework preset = None、Build command 留空、Output = `prototype` | `https://<项目名>.pages.dev` |
+
+`release/last-train-prototype.zip` 是**只含游戏本体**的 62 KB 发布包，可直接拖进 Cloudflare Pages 的 Upload assets。
 
 ## 设计文档
 

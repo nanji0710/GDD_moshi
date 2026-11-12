@@ -8,7 +8,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const EDGE = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
+const EDGE = process.env.EDGE_PATH || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
 const PORT = Number(process.env.PORT || 9477)
 const OUT = process.argv[2] || 'tools/shots'
 const PROFILE = join(tmpdir(), 'zt-shoot3-' + Date.now())
