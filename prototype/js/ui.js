@@ -168,42 +168,92 @@ window.ZT = window.ZT || {};
     },
 
     // ---------------- 标题 / 关卡选择 / 局外 ----------------
-    showTitle: function () {
+    // ---------------- 开始界面 / 关卡地图 / 科技 ----------------
+    showStart: function () {
       this.showHUD(false);
       const R_ = this.refs;
       R_.screen.innerHTML = '';
       R_.screen.classList.remove('hidden');
-      R_.screen.appendChild(this.metaPanel(true));
+      const meta = Z.Meta;
+      const sum = Z.Save && Z.Save.summary();
+      const bigBtn = function (label, sub, fn, primary) {
+        return h('button', { class: 'start-btn' + (primary ? ' primary' : ''), onclick: fn },
+          h('b', null, label), sub ? h('span', { class: 'sub' }, sub) : null);
+      };
+      R_.screen.appendChild(h('div', { class: 'start-root' },
+        h('div', { class: 'start-wrap' },
+          h('h1', { class: 'start-title' }, '末世', h('span', { class: 'yu' }, '列'), '车'),
+          h('div', { class: 'start-sub' }, '把难民送到安全点 · 车厢顶上装的是你唯一的火力'),
+          h('div', { class: 'start-menu' },
+            bigBtn('开始游戏', '选择关卡 · 从温州出发', function () { Z.UI.showLevels(); }, true),
+            sum ? bigBtn('继续上一局', '第 ' + sum.level + ' 关 · ' + sum.city + ' · ' + sum.km + ' / ' + sum.total + ' km',
+              function () { Z.Game.continueRun(); }) : null,
+            bigBtn('科技', '里程点 ' + U.fmt(meta.points) + ' · 6 条强化线', function () { Z.UI.showTech(); })),
+          h('div', { class: 'start-foot' }, 'v' + CFG.VERSION + ' · 零依赖 · MIT'))));
     },
 
-    metaPanel: function (withStart) {
-      const meta = Z.Meta, R_ = this.refs;
+    showLevels: function () {
+      this.showHUD(false);
+      const R_ = this.refs;
+      R_.screen.innerHTML = '';
+      R_.screen.classList.remove('hidden');
+      const map = Z.MapScreen.build({
+        onPick: function (lv) { Z.Game.startLevel(lv); }
+      });
+      R_.screen.appendChild(h('div', { class: 'panel-map' },
+        h('div', { class: 'map-head' },
+          h('h2', null, '选择关卡'),
+          h('div', { class: 'sub' }, '沿铁路向西 · 每一站都比上一站更远')),
+        map,
+        h('div', { class: 'map-legend' },
+          h('i', { class: 'lg done' }), '已通关',
+          h('i', { class: 'lg current' }), '当前',
+          h('i', { class: 'lg locked' }), '未解锁'),
+        h('div', { class: 'map-foot' },
+          h('button', { class: 'btn', onclick: function () { Z.UI.showStart(); } }, '返回'),
+          h('button', { class: 'btn primary', onclick: function () { Z.UI.showTech(); } }, '科技'))));
+    },
+
+    showTech: function () {
+      this.showHUD(false);
+      const R_ = this.refs;
+      R_.screen.innerHTML = '';
+      R_.screen.classList.remove('hidden');
+      const meta = Z.Meta;
       const rows = meta.summary().map(function (row) {
         const m = CFG.META.find(function (x) { return x.key === row.key; });
         const btn = h('button', {
           class: 'btn sm' + (row.maxed ? '' : (meta.points >= row.cost ? ' primary' : '')),
           onclick: function () {
-            if (meta.buy(row.key)) { Z.UI.toast(m.name + ' 升到 Lv' + meta.levels[row.key], 'good'); Z.UI.showTitle(); }
-            else Z.UI.toast('里程点不足（需要 ' + row.cost + '）', 'bad');
+            const before = meta.levels[row.key];
+            if (meta.buy(row.key)) {
+              const lv = meta.levels[row.key];
+              if (before < 5 && lv >= 5 && m.ms) Z.UI.toast('质变解锁：' + m.ms, 'good');
+              else Z.UI.toast(m.name + ' 升到 Lv' + lv, 'good');
+              Z.UI.showTech();
+            } else Z.UI.toast('里程点不足（需要 ' + row.cost + '）', 'bad');
           }
         }, row.maxed ? '已满级' : '升级 · ' + row.cost);
         return h('div', { class: 'mrow' },
-          h('div', { class: 'mrow-l' }, h('b', null, m.name), h('span', null, m.desc)),
+          h('div', { class: 'mrow-l' },
+            h('b', null, m.name, m.ms ? h('em', { class: 'milestone' }, 'Lv5') : null),
+            h('span', null, m.desc),
+            m.ms ? h('span', { class: 'ms' }, m.ms) : null),
           h('div', { class: 'mrow-r' },
             h('div', { class: 'pips' }, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (i) {
-              return h('i', { class: 'pip' + (i < row.lv ? ' on' : '') });
+              return h('i', { class: 'pip' + (i < row.lv ? ' on' : '') + (i === 4 ? ' mark' : '') });
             })),
             h('span', { class: 'lv' }, 'Lv' + row.lv + '/10'), btn));
       });
-      const panel = h('div', { class: 'panel-title' },
-        h('h1', null, '末世列车'),
-        h('div', { class: 'tagline' }, '把难民送到安全点。车厢顶上装的是你唯一的火力。'),
+      R_.screen.appendChild(h('div', { class: 'panel-tech' },
+        h('h1', null, '科技'),
         h('div', { class: 'points' }, '里程点 ', h('b', null, U.fmt(meta.points))),
         h('div', { class: 'meta-grid' }, rows),
-        h('div', { class: 'meta-foot' }, '6 条强化线全满需约 176 000 点；12 关全通一次约 82 000 点 —— 单周目不可能满级。'),
         this.skinRow(),
-        withStart ? this.levelSelect() : null);
-      return panel;
+        h('div', { class: 'meta-foot' }, '6 条强化线全满需约 176 000 点；12 关全通一次约 82 000 点 —— 单周目不可能满级。每条线练到 Lv5 会解锁一次质变。'),
+        h('div', { class: 'acts' },
+          h('button', { class: 'btn', onclick: function () { Z.UI.showStart(); } }, '返回'),
+          h('button', { class: 'btn primary', onclick: function () { Z.UI.showLevels(); } }, '开始游戏'))));
     },
 
     skinRow: function () {
@@ -217,7 +267,7 @@ window.ZT = window.ZT || {};
             if (owned) { meta.setSkin(sk.key); Z.UI.toast('涂装：' + sk.name, 'good'); }
             else if (meta.buySkin(sk.key)) { Z.UI.toast('解锁涂装：' + sk.name, 'good'); }
             else { Z.UI.toast('里程点不足（需要 ' + sk.cost + '）', 'bad'); return; }
-            Z.UI.showTitle();
+            Z.UI.showTech();
           }
         },
           h('i', { class: 'swatch', style: { background: sk.hull } }),
@@ -239,26 +289,12 @@ window.ZT = window.ZT || {};
           h('button', { class: 'btn primary', onclick: function () { Z.Game.continueRun(); } }, '继续'),
           h('button', {
             class: 'btn sm ghost', onclick: function () {
-              Z.Save.clear(); Z.UI.toast('已放弃存档', 'info'); Z.UI.showTitle();
+              Z.Save.clear(); Z.UI.toast('已放弃存档', 'info'); Z.UI.showStart();
             }
           }, '放弃')));
     },
 
-    levelSelect: function () {
-      const meta = Z.Meta, R_ = this.refs;
-      const grid = h('div', { class: 'levels' });
-      CFG.LEVELS.forEach(function (L) {
-        const unlocked = L.n <= Math.max(1, meta.selectedLevel);
-        grid.appendChild(h('button', {
-          class: 'lvl' + (unlocked ? '' : ' locked'),
-          onclick: function () {
-            if (!unlocked) { Z.UI.toast('先通关前面的关卡解锁', 'bad'); return; }
-            Z.Game.startLevel(L.n);
-          }
-        }, h('b', null, '第 ' + L.n + ' 关'), h('span', null, L.city), h('i', null, (L.km).toFixed(1) + ' km')));
-      });
-      return h('div', { class: 'lvls' }, this.continuePanel(), h('div', { class: 'dw-sec' }, '选择关卡'), grid);
-    },
+
 
     // ---------------- 站台 ----------------
     openStation: function (st) {
@@ -573,7 +609,7 @@ window.ZT = window.ZT || {};
               const meta = Z.Meta;
               if (win) meta.selectedLevel = Math.max(meta.selectedLevel, Math.min(12, res.level + 1));
               meta.save();
-              Z.UI.showTitle();
+              Z.UI.showStart();
             }
           }, '返回基地'),
           h('button', { class: 'btn', onclick: function () { Z.Game.startLevel(res.level); } }, '重打本关'))));

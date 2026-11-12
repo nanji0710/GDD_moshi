@@ -78,7 +78,7 @@ window.ZT = window.ZT || {};
         w.retarget -= dt;
         const Rvis = Math.min(R, run.visRange || 1e9);
         if (w.retarget <= 0 || (w.target && (w.target.dead || d2(w.target, mount) > Rvis * Rvis))) {
-          w.retarget = 0.25;
+          w.retarget = (Z.Meta && Z.Meta.has5 && Z.Meta.has5('rof')) ? 0.12 : 0.25;
           w.target = pickTarget(zs, mount, Rvis, true);
         }
         if (!w.target) { w.aim = U.turnTo(w.aim, lay.a, 1.4, dt); continue; }
@@ -182,6 +182,8 @@ window.ZT = window.ZT || {};
   }
   function hit(zb, dmg, run) {
     if (!zb || zb.dead) return;
+    // 攻击力 Lv5：对精英/Boss 额外 +20%
+    if ((zb.elite || zb.boss || zb.mini) && Z.Meta && Z.Meta.has5 && Z.Meta.has5('dmg')) dmg *= 1.2;
     if (Z.Sound) Z.Sound.play('hit', { vol: 0.35 });
     zb.hp -= dmg; zb.flash = 1;
     if (zb.hp <= 0) {

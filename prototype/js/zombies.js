@@ -108,17 +108,13 @@ window.ZT = window.ZT || {};
               const nb = run.cars[k];
               if (nb && !nb.dead && nb.type === 'armor') { dmg *= 1 - CFG.CAR_TYPES.armor.adjacentGuard; break; }
             }
-            car.hp = Math.max(0, car.hp - dmg);
-            car.flash = 1;
             if (Z.Sound) Z.Sound.play('claw', { vol: 0.45 });
             Fx.shake = Math.min(1, Fx.shake + 0.05);
             Fx.text(tgt.x, tgt.y, 3.6, '-' + Math.round(dmg), '#ff8f8f');
-            if (car.hp <= 0) {
-              car.dead = true;
+            run.damageCar(car, dmg);
+            if (car.dead) {
               if (Z.Sound) Z.Sound.play('boom', { vol: 0.8 });
               Fx.boom(tgt.x, tgt.y, 2.2, 10);
-              Fx.shake = 1;
-              if (Z.UI) Z.UI.toast(CFG.CAR_TYPES[car.type].name + ' 损毁', 'bad');
             }
           }
         }

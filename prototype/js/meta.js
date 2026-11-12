@@ -71,6 +71,7 @@ window.ZT = window.ZT || {};
       return s;
     },
     maxed: function (key) { return this.levels[key] >= 10; },
+    has5: function (key) { return (this.levels[key] || 0) >= 5; },
     skinDef: function () {
       const k = this.skins && this.skins.active;
       return CFG.SKINS.find(function (x) { return x.key === k; }) || CFG.SKINS[0];

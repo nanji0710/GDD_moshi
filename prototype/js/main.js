@@ -302,7 +302,7 @@ window.ZT = window.ZT || {};
       Z.World.generate(1717, 11870);   // 标题页背景
       const run = Z.Run;
       Z.UI.init(run);
-      Z.UI.showTitle();
+      Z.UI.showStart();
 
       // ---- 输入 ----
       let drag = null, down = null;

@@ -515,3 +515,69 @@ button.carline.on { border-color: var(--accent); background: rgba(255,179,71,0.1
 .statcell span { font-size: .74em; color: var(--ink-3); }
 .statcell b { font-size: .98em; font-variant-numeric: tabular-nums; }
 .bestline { margin: 8px 0 2px; color: var(--accent); font-size: .9em; }
+
+/* ================= 开始界面 ================= */
+.start-root {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(120% 90% at 50% 40%, #141a20 0%, #0b0e12 70%);
+}
+.start-wrap { width: min(420px, 88vw); text-align: center; }
+.start-title { font-size: 2.7em; letter-spacing: .16em; margin: 0 0 8px; font-weight: 800; }
+.start-title .yu { color: var(--accent); font-size: .78em; margin: 0 1px; }
+.start-sub { color: var(--ink-2); font-size: .88em; margin-bottom: 26px; }
+.start-menu { display: flex; flex-direction: column; gap: 10px; }
+.start-btn {
+  display: flex; flex-direction: column; gap: 3px; align-items: flex-start; width: 100%;
+  padding: 13px 18px; font: inherit; color: var(--ink); cursor: pointer; text-align: left;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--line); border-radius: 12px;
+  transition: background .12s, border-color .12s, transform .08s;
+}
+.start-btn:hover { background: rgba(255,255,255,0.10); transform: translateY(-1px); }
+.start-btn.primary { border-color: rgba(255,179,71,0.55); background: rgba(255,179,71,0.12); }
+.start-btn.primary:hover { background: rgba(255,179,71,0.20); }
+.start-btn b { font-size: 1.12em; letter-spacing: .04em; }
+.start-btn .sub { color: var(--ink-2); font-size: .8em; }
+.start-foot { margin-top: 24px; color: var(--ink-3); font-size: .74em; }
+
+/* ================= 关卡地图 ================= */
+.panel-map {
+  width: min(940px, calc(100vw - 36px)); max-height: calc(100vh - 36px);
+  display: flex; flex-direction: column; gap: 8px; overflow: hidden;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 18px; padding: 16px 20px 14px;
+}
+.map-head h2 { margin: 0 0 2px; font-size: 1.2em; letter-spacing: .06em; }
+.map-head .sub { color: var(--ink-3); font-size: .82em; }
+.china-map { width: 100%; height: auto; max-height: calc(100vh - 230px); display: block; }
+.map-sea { fill: #0c1116; }
+.map-land { fill: #1b2320; stroke: #41544a; stroke-width: 2; }
+.map-route { stroke: #6b7f74; stroke-width: 2; stroke-dasharray: 5 5; }
+.map-route.detour { stroke: #48564f; stroke-dasharray: 2 7; }
+.map-city { cursor: pointer; }
+.map-city .mc-dot { fill: #2c3a34; stroke: #6b7f74; stroke-width: 2; }
+.map-city.done .mc-dot { fill: #c98a2e; stroke: #ffd479; }
+.map-city.current .mc-dot { fill: var(--accent); stroke: #ffe2a0; }
+.mc-ring { fill: none; stroke: rgba(255,179,71,0.45); stroke-width: 2; }
+.map-city.locked { opacity: .45; cursor: not-allowed; }
+.mc-name { fill: #dfe5ec; font-size: 15px; paint-order: stroke; stroke: #0c1116; stroke-width: 3.5; stroke-linejoin: round; }
+.mc-num { fill: #0c1116; font-size: 10px; font-weight: 700; text-anchor: middle; pointer-events: none; }
+.map-city.locked .mc-name { fill: #8a949e; }
+.map-legend { display: flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: .76em; }
+.map-legend .lg { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-left: 10px; }
+.map-legend .lg.done { background: #c98a2e; }
+.map-legend .lg.current { background: var(--accent); }
+.map-legend .lg.locked { background: #2c3a34; border: 1px solid #6b7f74; }
+.map-foot { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ================= 科技页 ================= */
+.panel-tech {
+  width: min(760px, calc(100vw - 36px)); max-height: calc(100vh - 40px); overflow-y: auto;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px;
+  text-align: center;
+}
+.panel-tech h1 { margin: 0 0 4px; font-size: 1.6em; letter-spacing: .12em; }
+.milestone {
+  margin-left: 6px; padding: 0 5px; border-radius: 4px; font-style: normal;
+  font-size: .68em; font-weight: 700; color: #0c1116; background: var(--accent);
+  vertical-align: middle;
+}
+.pip.mark { box-shadow: 1px 0 0 0 rgba(255,179,71,0.6); }

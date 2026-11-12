@@ -199,7 +199,8 @@ window.ZT = window.ZT || {};
         if (this.state === 'run' && this.train) this.train.updateWeapons(dt, this);
       }
       // 自动回血
-      const regen = Z.Meta ? Z.Meta.regen() : 0;
+      let regen = Z.Meta ? Z.Meta.regen() : 0;
+      if (regen > 0 && this.state === 'parked' && Z.Meta && Z.Meta.has5 && Z.Meta.has5('regen')) regen *= 2.5;
       if (regen > 0) for (const c of this.cars) if (!c.dead && c.hp < c.maxHp) c.hp = Math.min(c.maxHp, c.hp + regen * dt);
 
       if (Z.Zombies) Z.Zombies.update(dt, this);
@@ -219,7 +220,8 @@ window.ZT = window.ZT || {};
       }
       if (this.skills.active.brake) limit = Math.min(limit, cap * 0.3);
       const t = CFG.TRAIN;
-      if (this.speed < limit) this.speed = Math.min(limit, this.speed + t.accel * dt);
+      const accelMul = (Z.Meta && Z.Meta.has5 && Z.Meta.has5('speed')) ? 1.4 : 1;
+      if (this.speed < limit) this.speed = Math.min(limit, this.speed + t.accel * accelMul * dt);
       else this.speed = Math.max(limit, this.speed - t.brake * (this.brakeMul || 1) * dt);
       const ds = this.speed * dt;
       this.km += ds;
@@ -270,6 +272,24 @@ window.ZT = window.ZT || {};
       this.state = 'run';
       this.speed = Math.max(this.speed, 2);
       if (Z.UI) Z.UI.closeStation();
+    },
+
+    // 车厢受伤：统一入口（血量科技的"免死一次"在这里）
+    damageCar: function (car, dmg) {
+      if (!car || car.dead) return;
+      car.hp = Math.max(0, car.hp - dmg);
+      car.flash = 1;
+      if (car.hp <= 0 && !car.revived && Z.Meta && Z.Meta.has5 && Z.Meta.has5('hp')) {
+        car.hp = Math.round(car.maxHp * 0.15);
+        car.revived = true;
+        if (Z.UI) Z.UI.toast(CFG.CAR_TYPES[car.type].name + ' 撑住了（科技·免死）', 'good');
+      }
+      if (car.hp <= 0) {
+        car.dead = true;
+        Fx.boom(0, 0, 2.2, 10);
+        Fx.shake = 1;
+        if (Z.UI) Z.UI.toast(CFG.CAR_TYPES[car.type].name + ' 损毁', 'bad');
+      }
     },
 
     // ---- 难民 ----
@@ -405,7 +425,7 @@ window.ZT = window.ZT || {};
       this.speed = 0;
       this.parkT = 0;
       const metaRepair = Z.Meta ? Z.Meta.repairMul() : 1;
-      this.parkDur = CFG.TRAIN.repairSec * metaRepair;
+      this.parkDur = CFG.TRAIN.repairSec * metaRepair * ((Z.Meta && Z.Meta.has5 && Z.Meta.has5('repair')) ? 0.85 : 1);
       if (this.stats) this.stats.repairs++;
       if (Z.UI) Z.UI.toast('轨道被撬断 · 停车防守 ' + Math.round(this.parkDur) + ' 秒', 'bad');
       if (Z.Sound) Z.Sound.play('alarm');

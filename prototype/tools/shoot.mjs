@@ -78,6 +78,18 @@ try {
   console.log('场景 1：标题 + 局外成长')
   await shot('01-title')
 
+  console.log('场景 1b：关卡地图')
+  await evJs('window.ZT.UI.showLevels()')
+  await sleep(700)
+  await shot('01b-map')
+
+  console.log('场景 1c：科技')
+  await evJs('window.ZT.UI.showTech()')
+  await sleep(500)
+  await shot('01c-tech')
+  await evJs('window.ZT.UI.showStart()')
+  await sleep(300)
+
   console.log('场景 2：站台（停靠 · 购物暂停）')
   await evJs('window.ZT.Game.startLevel(1)')
   await sleep(700)

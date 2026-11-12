@@ -153,18 +153,18 @@ window.ZT = window.ZT || {};
     // ---------------- 12 关 ----------------
     // km / 每公里击杀 / 精英率 / Boss（比例位置）/ 招牌
     LEVELS: [
-      { n: 1,  city: '温州',   km: 10.7,  dens: 90,  elite: 0.02, bosses: [0.55], tag: '教学', biome: 'temperate', lm: { s: 0.62, type: 'tower', side: 1, off: 95 } },
-      { n: 2,  city: '芜湖',   km: 12.7,  dens: 100, elite: 0.024, bosses: [0.55], tag: '第一座铁桥', mods: ['bridge'] },
-      { n: 3,  city: '洛阳',   km: 14.7, dens: 110, elite: 0.028, bosses: [0.55], tag: '首次撬轨', biome: 'loess', lm: { s: 0.66, type: 'twin', side: -1, off: 110 } },
-      { n: 4,  city: '徐州',   km: 16.7, dens: 120, elite: 0.032, bosses: [0.55], tag: '编组场', biome: 'loess', lm: { s: 0.70, type: 'cluster', side: 1, off: 105 } },
-      { n: 5,  city: '合肥',   km: 18.7, dens: 130, elite: 0.036, bosses: [0.55], tag: '双波夹击', biome: 'temperate', lm: { s: 0.60, type: 'tower', side: -1, off: 100 } },
-      { n: 6,  city: '南昌',   km: 20.7, dens: 140, elite: 0.040, bosses: [0.55], tag: '夜间段', mods: ['night'], biome: 'temperate', lm: { s: 0.64, type: 'cluster', side: 1, off: 100 } },
-      { n: 7,  city: '长沙',   km: 22.7, dens: 150, elite: 0.044, bosses: [0.40, 0.78], tag: '隧道群', mods: ['tunnel'], biome: 'mountain', lm: { s: 0.58, type: 'twin', side: 1, off: 120 } },
-      { n: 8,  city: '贵阳',   km: 24.7, dens: 160, elite: 0.048, bosses: [0.40, 0.78], tag: '高桥', biome: 'mountain', lm: { s: 0.62, type: 'cluster', side: -1, off: 110 } },
-      { n: 9,  city: '重庆',   km: 26.7, dens: 170, elite: 0.052, bosses: [0.40, 0.78], tag: '连续弯道', biome: 'mountain', mods: ['canyon'], lm: { s: 0.72, type: 'cluster', side: 1, off: 130 } },
-      { n: 10, city: '昆明',   km: 28.7, dens: 180, elite: 0.056, bosses: [0.40, 0.78], tag: '雨战', mods: ['rain'], biome: 'mountain', lm: { s: 0.66, type: 'tower', side: 1, off: 95 } },
-      { n: 11, city: '兰州',   km: 30.7, dens: 190, elite: 0.060, bosses: [0.40, 0.78], tag: '长直道', biome: 'loess', mods: ['straight'], lm: { s: 0.68, type: 'twin', side: -1, off: 105 } },
-      { n: 12, city: '乌鲁木齐', km: 32.7, dens: 200, elite: 0.064, bosses: [0.40, 0.78], tag: '终章', biome: 'desert', lm: { s: 0.70, type: 'dome', side: 1, off: 120 } }
+      { n: 1,  city: '温州',     lon: 120.70, lat: 28.00, km: 10.7,  dens: 90,  elite: 0.020, bosses: [0.55], tag: '教学', biome: 'temperate', lm: { s: 0.62, type: 'tower', side: 1, off: 95 } },
+      { n: 2,  city: '芜湖',     lon: 118.43, lat: 31.33, km: 12.7,  dens: 100, elite: 0.024, bosses: [0.55], tag: '第一座铁桥', mods: ['bridge'], biome: 'temperate', lm: { s: 0.64, type: 'twin', side: 1, off: 100 } },
+      { n: 3,  city: '合肥',     lon: 117.23, lat: 31.82, km: 14.7,  dens: 110, elite: 0.028, bosses: [0.55], tag: '双波夹击', biome: 'temperate', lm: { s: 0.60, type: 'tower', side: -1, off: 100 } },
+      { n: 4,  city: '徐州',     lon: 117.18, lat: 34.26, km: 16.7,  dens: 120, elite: 0.032, bosses: [0.55], tag: '编组场', biome: 'loess', lm: { s: 0.70, type: 'cluster', side: 1, off: 105 } },
+      { n: 5,  city: '洛阳',     lon: 112.45, lat: 34.62, km: 18.7,  dens: 130, elite: 0.036, bosses: [0.55], tag: '首次撬轨', biome: 'loess', lm: { s: 0.66, type: 'twin', side: -1, off: 110 } },
+      { n: 6,  city: '南昌',     lon: 115.89, lat: 28.68, km: 20.7,  dens: 140, elite: 0.040, bosses: [0.55], tag: '夜间段', mods: ['night'], biome: 'temperate', lm: { s: 0.64, type: 'cluster', side: 1, off: 100 } },
+      { n: 7,  city: '长沙',     lon: 112.94, lat: 28.23, km: 22.7,  dens: 150, elite: 0.044, bosses: [0.40, 0.78], tag: '隧道群', mods: ['tunnel'], biome: 'mountain', lm: { s: 0.58, type: 'twin', side: 1, off: 120 } },
+      { n: 8,  city: '贵阳',     lon: 106.63, lat: 26.65, km: 24.7,  dens: 160, elite: 0.048, bosses: [0.40, 0.78], tag: '高桥', biome: 'mountain', lm: { s: 0.62, type: 'cluster', side: -1, off: 110 } },
+      { n: 9,  city: '重庆',     lon: 106.55, lat: 29.56, km: 26.7,  dens: 170, elite: 0.052, bosses: [0.40, 0.78], tag: '连续弯道', mods: ['canyon'], biome: 'mountain', lm: { s: 0.72, type: 'cluster', side: 1, off: 130 } },
+      { n: 10, city: '昆明',     lon: 102.83, lat: 24.88, km: 28.7,  dens: 180, elite: 0.056, bosses: [0.40, 0.78], tag: '雨战', mods: ['rain'], biome: 'mountain', lm: { s: 0.66, type: 'tower', side: 1, off: 95 } },
+      { n: 11, city: '兰州',     lon: 103.83, lat: 36.06, km: 30.7,  dens: 190, elite: 0.060, bosses: [0.40, 0.78], tag: '长直道', mods: ['straight'], biome: 'loess', lm: { s: 0.68, type: 'twin', side: -1, off: 105 } },
+      { n: 12, city: '乌鲁木齐', lon: 87.62,  lat: 43.83, km: 32.7,  dens: 200, elite: 0.064, bosses: [0.40, 0.78], tag: '终章', biome: 'desert', lm: { s: 0.70, type: 'dome', side: 1, off: 120 } }
     ],
 
     // 每关站台（按比例放在里程上）
@@ -198,12 +198,12 @@ window.ZT = window.ZT || {};
     // 价格 = base × 1.42^(lv-1)；满一条 = base × 77.4
     // 设计约束：12 关全通一次约 62 000 点，**不足以点满 6 条**（需约 132 000）
     META: [
-      { key: 'speed',  name: '列车速度', base: 375, per: 0.02, max: 0.20, unit: '%', desc: '最高速度 +2%/级' },
-      { key: 'hp',     name: '列车血量', base: 505, per: 0.03, max: 0.30, unit: '%', desc: '车厢耐久 +3%/级' },
-      { key: 'rof',    name: '武器攻速', base: 375, per: 0.02, max: 0.20, unit: '%', desc: '全武器射速 +2%/级' },
-      { key: 'dmg',    name: '武器攻击力', base: 505, per: 0.03, max: 0.30, unit: '%', desc: '全武器伤害 +3%/级' },
-      { key: 'repair', name: '维修速度', base: 265, per: 0.04, max: 0.40, unit: '%', desc: '修轨时长 -4%/级' },
-      { key: 'regen',  name: '列车自动回血', base: 265, per: 0.4, max: 4, unit: 'HP/s', desc: '每节车厢 +0.4 HP/s' }
+      { key: 'speed',  name: '列车速度', base: 375, per: 0.02, max: 0.20, unit: '%', desc: '最高速度 +2%/级', ms: 'Lv5：起步加速度 +40%' },
+      { key: 'hp',     name: '列车血量', base: 505, per: 0.03, max: 0.30, unit: '%', desc: '车厢耐久 +3%/级', ms: 'Lv5：每节车厢每局免死一次（15% 复活）' },
+      { key: 'rof',    name: '武器攻速', base: 375, per: 0.02, max: 0.20, unit: '%', desc: '全武器射速 +2%/级', ms: 'Lv5：换目标间隔 0.25 → 0.12 秒' },
+      { key: 'dmg',    name: '武器攻击力', base: 505, per: 0.03, max: 0.30, unit: '%', desc: '全武器伤害 +3%/级', ms: 'Lv5：对精英/Boss 额外 +20%' },
+      { key: 'repair', name: '维修速度', base: 265, per: 0.04, max: 0.40, unit: '%', desc: '修轨时长 -4%/级', ms: 'Lv5：修轨时长再 -15%' },
+      { key: 'regen',  name: '列车自动回血', base: 265, per: 0.4, max: 4, unit: 'HP/s', desc: '每节车厢 +0.4 HP/s', ms: 'Lv5：停车时回血 ×2.5' }
     ],
     META_GROWTH: 1.42,
 
