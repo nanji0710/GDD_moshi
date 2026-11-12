@@ -6,7 +6,7 @@
 [![No dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](./prototype)
 [![Lines](https://img.shields.io/badge/code-3800%20lines%20JS-blue.svg)](./prototype/js)
 
-**▶ [在线试玩](https://YOUR-NAME.github.io/YOUR-REPO/)**（开启 Pages 后可用，见下方「发布」）
+**▶ [在线试玩](https://nanji0710.github.io/GDD_moshi/)**（开启 Pages 后可用，见下方「发布」）
 
 ![标题页](docs/img/title.png)
 
@@ -110,5 +110,5 @@ node tools/shoot.mjs        # 出 17 张截图并审计 console 报错
 ## 许可
 
 代码 MIT（见 [LICENSE](./LICENSE)）。原型**不含**第三方源码、美术或音频；
-玩法与技术方案参考了 [city-and-metro](https://github.com/) 的公开实现思路，其源码为禁止商用许可，
+玩法与技术方案参考了 `city-and-metro` 的公开实现思路，其源码为禁止商用许可，
 本项目为独立重写，商用前请自行复核。详见 LICENSE 末尾的「第三方与致谢」。
