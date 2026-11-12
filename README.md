@@ -4,11 +4,11 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Smoke test](https://github.com/nanji0710/GDD_moshi/actions/workflows/smoke.yml/badge.svg)](https://github.com/nanji0710/GDD_moshi/actions/workflows/smoke.yml)
+[![Deploy](https://github.com/nanji0710/GDD_moshi/actions/workflows/deploy-cloudflare.yml/badge.svg)](https://github.com/nanji0710/GDD_moshi/actions/workflows/deploy-cloudflare.yml)
 [![No dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](./prototype)
-[![Lines](https://img.shields.io/badge/code-3800%20lines%20JS-blue.svg)](./prototype/js)
 
-**▶ [在线试玩（GitHub Pages）](https://nanji0710.github.io/GDD_moshi/)**
-　想放到自己的域名上？见 [发布指南](docs/发布指南.md)（Cloudflare Pages / 直接上传 / 国内加速）。
+**▶ 在线试玩：[last-train-87y.pages.dev](https://last-train-87y.pages.dev)**（Cloudflare Pages，推 `main` 自动部署）
+　备用：[GitHub Pages](https://nanji0710.github.io/GDD_moshi/) ｜ 想绑自己的域名？见 [发布指南](docs/发布指南.md)。
 
 ![标题页](docs/img/title.png)
 
@@ -90,14 +90,24 @@ node tools/shoot.mjs        # 出 17 张截图并审计 console 报错
 
 ## 发布
 
-游戏是纯静态站点，任何静态托管都能跑。**完整步骤见 [docs/发布指南.md](docs/发布指南.md)**，摘要：
+游戏是纯静态站点（一个 `index.html` + `css/` + `js/`，零构建），推 `main` 会自动发到两个地方：
 
-| 平台 | 做法 | 地址 |
+| 平台 | 触发方式 | 地址 |
 | --- | --- | --- |
-| **GitHub Pages**（已配好） | 已内置 `.github/workflows/pages.yml`，Settings → Pages → Source 选 **GitHub Actions** | https://nanji0710.github.io/GDD_moshi/ |
-| **Cloudflare Pages** | 连 Git 仓库：Framework preset = None、Build command 留空、Output = `prototype` | `https://<项目名>.pages.dev` |
+| **Cloudflare Pages** | `.github/workflows/deploy-cloudflare.yml`（wrangler 直传 `prototype/`） | https://last-train-87y.pages.dev |
+| **GitHub Pages** | `.github/workflows/pages.yml` | https://nanji0710.github.io/GDD_moshi/ |
 
-`release/last-train-prototype.zip` 是**只含游戏本体**的 62 KB 发布包，可直接拖进 Cloudflare Pages 的 Upload assets。
+CI 需要两个仓库密钥（Settings → Secrets and variables → Actions）：
+
+| Name | 值 |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | API 令牌，权限仅 `Account · Cloudflare Pages · Edit` |
+| `CLOUDFLARE_ACCOUNT_ID` | 账户 ID（Workers & Pages 页右侧） |
+
+本地手动发一次：`$env:CF_API_TOKEN=...; $env:CF_ACCOUNT_ID=...; pwsh -File tools/deploy-cloudflare.ps1`
+
+`release/last-train-prototype.zip` 是**只含游戏本体**的 60 KB 发布包，可直接拖进 Cloudflare Pages 的 Upload assets。
+完整步骤（含绑域名、国内加速取舍）见 [docs/发布指南.md](docs/发布指南.md)。
 
 ## 设计文档
 
