@@ -296,6 +296,32 @@ try {
   await sleep(2200)
   await shot('17-canyon')
 
+  console.log('场景：手机横屏 844x390')
+  await send('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, deviceScaleFactor: 2, mobile: true })
+  await evJs(`(() => {
+    ZT.Game.startLevel(1);
+    const R = ZT.Run;
+    R.scrap = 2000; R.ammo = 3000; R.nextCarKm = 1e9;
+    for (const t of ['weapon','power','passenger']) R.cars.push(new ZT.Car(t));
+    let n = 0;
+    for (const c of R.cars) for (let j = 0; j < c.slots.length; j++) { c.slots[j] = new ZT.Weapon(['mg','flak','flamer'][n++ % 3], 3); }
+    document.querySelector('.drawer').classList.add('hidden');
+    R.state = 'run'; R.stationIdx = 1; R.km = R.totalKm * 0.3; R.train.s = R.km; R.speed = 22;
+    const lay = R.train.layout(ZT.World); const c0 = lay[(lay.length / 2) | 0];
+    ZT.R.cam.cx = c0.x; ZT.R.cam.cy = c0.y; ZT.R.compute();
+    ZT.Game.setSpeed(2);
+    return 1;
+  })()`)
+  await sleep(1500)
+  await shot('18-mobile-landscape')
+
+  console.log('场景：手机竖屏 390x844')
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true })
+  await sleep(1200)
+  await shot('19-mobile-portrait')
+  await send('Emulation.clearDeviceMetricsOverride')
+  await sleep(300)
+
   const stat = await evJs(`(() => {
     const R = ZT.Run, Z = window.ZT;
     return JSON.stringify({ state: R.state, level: R.level, cars: R.cars.length, weapons: R.weaponCount(),

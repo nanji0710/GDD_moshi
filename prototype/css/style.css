@@ -648,3 +648,72 @@ button.carline.on { border-color: var(--accent); background: rgba(255,179,71,0.1
 .set-foot { color: var(--ink-3); font-size: .76em; margin: 8px 0 12px; }
 .btn.danger { border-color: rgba(224,90,74,0.5); color: #ff9a8a; }
 .btn.danger:hover { background: rgba(224,90,74,0.16); }
+
+/* ================= 移动端适配 ================= */
+@media (max-width: 900px) {
+  .hud.top { flex-wrap: wrap; gap: 6px 10px; padding: 6px 9px; }
+  .brand { min-width: auto; }
+  .brand b { font-size: 1em; }
+  .route { order: 4; flex-basis: 100%; min-width: 0; max-width: none; }
+  .route-now { font-size: .78em; }
+  .stats { gap: 9px; font-size: .82em; }
+  .stat { gap: 3px; }
+  .ctrls { gap: 4px; margin-left: auto; }
+  .btn.sm { padding: 4px 8px; font-size: .76em; border-radius: 7px; }
+  .btn.sm kbd { display: none; }
+  .skillsbar { top: auto; bottom: 96px; right: 9px; gap: 5px; }
+  .skillsbar .skill { min-width: 56px; padding: 5px 6px; font-size: .72em; border-radius: 8px; }
+  .carbar { padding: 6px 8px 8px; gap: 5px; }
+  .ccard { width: 70px; padding: 4px 6px 5px; }
+  .cc-name { font-size: .72em; }
+  .drawer { left: 8px; right: 8px; width: auto; top: auto; bottom: 84px; height: 56vh; max-height: 56vh; }
+  .fab { bottom: 92px; right: 12px; padding: 9px 14px; font-size: .86em; }
+  .start-title { font-size: 2.1em; }
+  .start-btn { padding: 11px 15px; }
+  .panel-map { padding: 12px 12px 10px; }
+  .china-map { max-height: 44vh; }
+  .map-card { left: 10px; right: 10px; width: auto; bottom: 52px; }
+  .mc-name { font-size: 12px; }
+  .panel-title, .panel-tech { padding: 16px 15px; }
+  .statgrid { grid-template-columns: repeat(2, 1fr); }
+  .skill .sk-key { font-size: .85em; }
+}
+
+/* 横屏手机：高度紧张 */
+@media (max-height: 520px) and (orientation: landscape) {
+  .skillsbar { top: 52px; bottom: auto; }
+  .drawer { top: 52px; bottom: 76px; height: auto; max-height: none; }
+  .ccard { width: 62px; }
+  .carbar { padding: 4px 8px 6px; }
+  .fab { bottom: 78px; }
+  .panel-map { padding: 8px 10px; }
+  .china-map { max-height: 58vh; }
+  .map-card { bottom: 44px; }
+}
+
+/* 触摸设备：去掉 hover 残留样式，按钮加触摸反馈 */
+@media (pointer: coarse) {
+  .btn:active, .card, .ccard:active, .lvl:active, .skin:active, .start-btn:active { transform: scale(.98); }
+  .ccard:hover, .btn:hover { background: rgba(255,255,255,0.06); }
+  .toast { font-size: .85em; }
+}
+
+/* 矮屏（手机横屏）再压一档：把车厢条压薄，给战场让位置 */
+@media (max-height: 560px) {
+  .hud.top { padding: 4px 8px; gap: 4px 8px; }
+  .brand b { font-size: .92em; }
+  .brand span { font-size: .6em; }
+  .stats { font-size: .74em; gap: 8px; }
+  .route-track { height: 4px; }
+  .route-now { font-size: .72em; margin-top: 1px; }
+  .carbar { padding: 3px 7px 5px; }
+  .ccard { width: 58px; padding: 3px 5px; gap: 2px; border-radius: 7px; }
+  .cc-name { font-size: .64em; }
+  .cc-hp { display: none; }
+  .cc-ref { display: none; }
+  .cc-slots { height: 4px; }
+  .slotp { height: 4px; }
+  .fab { bottom: 66px; padding: 7px 12px; font-size: .8em; }
+  .skillsbar { bottom: 68px; }
+  .drawer { bottom: 62px; }
+}

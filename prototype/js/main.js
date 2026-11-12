@@ -305,33 +305,57 @@ window.ZT = window.ZT || {};
       Z.UI.init(run);
       Z.UI.showStart();
 
-      // ---- 输入 ----
+      // ---- 输入（鼠标 + 触摸共用一套逻辑）----
       let drag = null, down = null;
-      cv.addEventListener('mousedown', function (e) {
-        down = { x: e.clientX, y: e.clientY };
+      cv.style.touchAction = 'none';            // 手机上拖拽不要触发页面滚动/缩放
+
+      function onDown(x, y) {
+        down = { x: x, y: y };
         // 注意：这里**不能**立刻解除跟随，否则任何一次点击都会停住镜头
-        drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false };
-      });
-      window.addEventListener('mousemove', function (e) {
+        drag = { x: x, y: y, sx: x, sy: y, moved: false };
+      }
+      function onMove(x, y) {
         if (!drag) return;
         if (!drag.moved) {
-          if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 6) return;
+          if (Math.hypot(x - drag.sx, y - drag.sy) < 8) return;
           drag.moved = true;
-          R.follow = false;            // 只有拖动才切到自由视角
+          R.follow = false;                     // 只有拖动才切到自由视角
           cv.style.cursor = 'grabbing';
         }
-        const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-        drag.x = e.clientX; drag.y = e.clientY;
+        const dx = x - drag.x, dy = y - drag.y;
+        drag.x = x; drag.y = y;
         R.cam.cx -= dx / R.z; R.cam.cy -= dy / (R.cosT * R.z);
-      });
-      window.addEventListener('mouseup', function (e) {
+      }
+      function onUp(x, y) {
         const wasClick = drag && !drag.moved;
         if (wasClick) {
-          const k = pickCar(R, run, e.clientX, e.clientY);
+          const k = pickCar(R, run, x, y);
           if (k >= 0 && Z.UI.canOpenRefit()) Z.UI.openRefit(k);
         }
         drag = null; down = null; cv.style.cursor = '';
-      });
+      }
+
+      cv.addEventListener('mousedown', function (e) { onDown(e.clientX, e.clientY); });
+      window.addEventListener('mousemove', function (e) { onMove(e.clientX, e.clientY); });
+      window.addEventListener('mouseup', function (e) { onUp(e.clientX, e.clientY); });
+
+      cv.addEventListener('touchstart', function (e) {
+        if (e.touches.length !== 1) return;
+        const t = e.touches[0];
+        onDown(t.clientX, t.clientY);
+      }, { passive: true });
+      cv.addEventListener('touchmove', function (e) {
+        if (!drag || e.touches.length !== 1) return;
+        const t = e.touches[0];
+        onMove(t.clientX, t.clientY);
+        if (e.cancelable) e.preventDefault();
+      }, { passive: false });
+      cv.addEventListener('touchend', function (e) {
+        const t = e.changedTouches && e.changedTouches[0];
+        if (t) onUp(t.clientX, t.clientY);
+      }, { passive: true });
+      cv.addEventListener('touchcancel', function () { drag = null; down = null; }, { passive: true });
+
       cv.addEventListener('wheel', function (e) {
         e.preventDefault();
         const before = R.screenToWorld(e.clientX, e.clientY);
@@ -358,6 +382,13 @@ window.ZT = window.ZT || {};
         }
       });
       window.addEventListener('resize', function () { R.resize(); });
+      // 手机竖屏提示
+      setTimeout(function () {
+        const portrait = window.innerHeight > window.innerWidth * 1.1;
+        if (portrait && Math.min(window.innerWidth, window.innerHeight) < 900 && Z.UI) {
+          Z.UI.toast('竖屏能玩，但横屏更好操作（旋转手机试试）', 'info');
+        }
+      }, 2500);
       window.addEventListener('beforeunload', function () { if (Z.Save) Z.Save.save(run); });
 
       // ---- 循环 ----

@@ -464,6 +464,15 @@ try {
   check('跑到走廊尽头结束', over.state === 'over', over)
   check('无尽模式不写局内存档', over.saveOk === false, over)
   check('无尽最佳里程已记录', await ev('!!ZT.Save.endlessBest() && ZT.Save.endlessBest().km > 50'))
+  console.log('\n[20] 移动端')
+  check('画布禁用默认触摸手势（可拖动）', await ev('document.getElementById("map").style.touchAction') === 'none')
+  check('移动端媒体查询可用', await ev(`(() => {
+    // file:// 下读不到 cssRules，用 matchMedia 验证两条关键查询能被正确解析
+    const a = window.matchMedia('(max-width: 900px)');
+    const b = window.matchMedia('(pointer: coarse)');
+    const c = window.matchMedia('(max-height: 560px)');
+    return a.media === '(max-width: 900px)' && b.media === '(pointer: coarse)' && c.media === '(max-height: 560px)';
+  })()`))
 } catch (e) {
   fail++
   console.error('冒烟测试中断：', e.message)
