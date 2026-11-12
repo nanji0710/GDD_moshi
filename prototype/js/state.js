@@ -148,6 +148,7 @@ window.ZT = window.ZT || {};
       Z.World.generate(20261112 + L.n * 7, this.totalKm, L.biome, L.lm, (L.mods || []));
       if (Z.Zombies && Z.Zombies.reset) Z.Zombies.reset();
       if (Z.Skills) Z.Skills.reset(this);
+      if (Z.Tips) Z.Tips.tip('start');
       return this;
     },
 
@@ -162,6 +163,7 @@ window.ZT = window.ZT || {};
       }
       this.darkness = dark;
       this.visRange = vis;
+      if (Z.Tips) for (const mm of mods) Z.Tips.tip(mm);
       this.brakeMul = mods.indexOf('rain') >= 0 ? CFG.WEATHER.rainBrake : 1;
       this.flamerMul = mods.indexOf('rain') >= 0 ? CFG.WEATHER.rainFlamer : 1;
       this.straight = mods.indexOf('straight') >= 0;
@@ -263,6 +265,7 @@ window.ZT = window.ZT || {};
       this.state = 'station';
       this.boardAcc = 0;
       if (Z.Sound) Z.Sound.play('chime', { vol: 0.7 });
+      if (idx > 0 && Z.Tips) Z.Tips.tip('station');
       if (Z.UI) Z.UI.openStation(this.station);
       if (Z.Save) Z.Save.save(this);
     },
@@ -289,6 +292,7 @@ window.ZT = window.ZT || {};
         Fx.boom(0, 0, 2.2, 10);
         Fx.shake = 1;
         if (Z.UI) Z.UI.toast(CFG.CAR_TYPES[car.type].name + ' 损毁', 'bad');
+        if (Z.Tips) Z.Tips.tip('cardead');
       }
     },
 
@@ -315,6 +319,7 @@ window.ZT = window.ZT || {};
           const d = Math.min(c.refugees, CFG.REFUGEE.deathPerTier);
           c.refugees -= d;
           if (this.stats) this.stats.deaths += d;
+          if (d > 0 && Z.Tips) Z.Tips.tip('refugee');
           if (d > 0 && Z.UI) Z.UI.toast('难民死亡 -' + d + '（车厢 ' + Math.round(frac * 100) + '%）', 'bad');
         }
         if (c.hp <= 0 && !c.dead) {
@@ -342,6 +347,7 @@ window.ZT = window.ZT || {};
       if (this.km < this.nextCarKm) return;
       this.nextCarKm += CFG.TRAIN.carGainKm * 1000;
       this.offer = this.rollCars();
+      if (Z.Tips) Z.Tips.tip('caroffer');
       if (Z.UI) Z.UI.openCarOffer(this.offer);
     },
     rollCars: function () {
@@ -429,6 +435,7 @@ window.ZT = window.ZT || {};
       if (this.stats) this.stats.repairs++;
       if (Z.UI) Z.UI.toast('轨道被撬断 · 停车防守 ' + Math.round(this.parkDur) + ' 秒', 'bad');
       if (Z.Sound) Z.Sound.play('alarm');
+      if (Z.Tips) Z.Tips.tip('repair');
       if (Z.Zombies) Z.Zombies.spawnMiniBossChance(this, CFG.PARK.miniBossChance);
       if (Z.Fx) Z.Fx.shake = 1;
     },

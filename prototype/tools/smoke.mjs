@@ -401,6 +401,18 @@ try {
   await ev('window.ZT.UI.depart()')
   await sleep(250)
   check('出发后按钮消失并进入行驶', await ev(`ZT.Run.state === 'run' && document.querySelector('.fab').classList.contains('hidden')`))
+  console.log('\n[17] 新手提示')
+  check('提示只弹一次', await ev(`(() => {
+    ZT.Tips.reset();
+    const a = ZT.Tips.show('__probe', 'x');
+    const b = ZT.Tips.show('__probe', 'x');
+    return a === true && b === false;
+  })()`))
+  check('提示写进 localStorage', await ev('!!JSON.parse(localStorage.getItem("zt.tips.v1") || "{}").__probe'))
+  await ev('window.ZT.Game.startLevel(1)')
+  await sleep(300)
+  check('开局提示已触发', await ev('ZT.Tips.has("start")'))
+  await ev('ZT.Tips.reset()')
 } catch (e) {
   fail++
   console.error('冒烟测试中断：', e.message)

@@ -7,6 +7,7 @@ window.ZT = window.ZT || {};
     ensure: function (run, level) {
       const want = level <= 1 ? 0 : Math.min(3, level - 1);
       run.skills.owned = CFG.SKILLS.slice(0, want).map(function (s) { return s.key; });
+      if (want > 0 && Z.Tips) Z.Tips.tip('skills');
       for (const s of CFG.SKILLS) {
         if (run.skills.cd[s.key] == null) run.skills.cd[s.key] = 0;
         if (run.skills.active[s.key] == null) run.skills.active[s.key] = 0;

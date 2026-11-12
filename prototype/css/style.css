@@ -625,3 +625,11 @@ button.carline.on { border-color: var(--accent); background: rgba(255,179,71,0.1
   70% { opacity: 0; transform: scale(1.5); }
   100% { opacity: 0; transform: scale(1.5); }
 }
+
+/* 新手提示 */
+.toast.tip {
+  border-color: rgba(255,179,71,0.55);
+  background: rgba(255,179,71,0.14);
+  color: #ffe2a0;
+  max-width: 420px;
+}

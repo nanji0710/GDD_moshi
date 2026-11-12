@@ -192,6 +192,7 @@ window.ZT = window.ZT || {};
       const p = U.posAt(P, U.clamp(run.km + 140, 6, P.len - 6), {});
       const nx = -Math.sin(p.a), ny = Math.cos(p.a);
       if (Z.Sound) Z.Sound.play('roar');
+      if (Z.Tips) Z.Tips.tip('boss');
       const zb = this.make(p.x + nx * 16, p.y + ny * 16, { boss: true, kind: kind || 'armor' });
       zb.kind = kind || 'armor';
       this.list.push(zb);
