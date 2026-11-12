@@ -458,6 +458,22 @@ window.ZT = window.ZT || {};
       if (Z.Save) Z.Save.save(this);
       if (Z.UI) { Z.UI.closeCarOffer(); Z.UI.toast('获得 ' + CFG.CAR_TYPES[type].name, 'good'); }
     },
+    // 站台里调整编组顺序（车头永远在最前）
+    moveCar: function (idx, dir) {
+      if (this.state !== 'station') return false;
+      const j = idx + dir;
+      if (idx <= 0 || j <= 0) {
+        if (Z.UI) Z.UI.toast('车头必须留在最前面', 'bad');
+        return false;
+      }
+      if (j < 0 || j >= this.cars.length) return false;
+      const tmp = this.cars[idx];
+      this.cars[idx] = this.cars[j];
+      this.cars[j] = tmp;
+      if (Z.Save) Z.Save.save(this);
+      return true;
+    },
+
     discardCar: function (idx) {
       const c = this.cars[idx];
       if (!c || this.cars.length <= 2) return false;

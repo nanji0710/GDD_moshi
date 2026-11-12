@@ -585,6 +585,32 @@ try {
     const f2 = R.cars[0].slots[0] && R.cars[0].slots[0].form;
     return f === 'A' && f2 === 'A';
   })()`))
+  console.log('\n[24] 站台调序')
+  const reorder = JSON.parse(await ev(`(() => {
+    const R = ZT.Run, Z = window.ZT;
+    ZT.Game.startLevel(1);
+    R.cars = [new Z.Car('engine'), new Z.Car('weapon'), new Z.Car('repair'), new Z.Car('passenger')];
+    R.state = 'station';
+    const before = R.cars.map(c => c.type).join(',');
+    const ok = R.moveCar(2, -1);
+    const after = R.cars.map(c => c.type).join(',');
+    const engineBlocked = R.moveCar(0, 1) === false;
+    const pushIntoHead = R.moveCar(1, -1) === false;
+    const headStill = R.cars[0].type === 'engine';
+    R.state = 'run';
+    const notAtStation = R.moveCar(2, -1) === false;
+    return JSON.stringify({ ok: ok, before: before, after: after, engineBlocked: engineBlocked,
+      pushIntoHead: pushIntoHead, headStill: headStill, notAtStation: notAtStation });
+  })()`))
+  check('站台可以交换相邻车厢', reorder.ok === true && reorder.before !== reorder.after, reorder)
+  check('车头不能挪动', reorder.engineBlocked === true && reorder.headStill === true, reorder)
+  check('别的车厢不能挤到车头前面', reorder.pushIntoHead === true, reorder)
+  check('行驶中不能调序', reorder.notAtStation === true, reorder)
+  check('站台面板有上下移按钮', await ev(`(() => {
+    const R = ZT.Run; R.state = 'station'; R.station = { idx: 1, isStart: false };
+    ZT.UI.openStation(R.station);
+    return document.querySelectorAll('.carline .btn.mv').length >= 2;
+  })()`))
 } catch (e) {
   fail++
   console.error('冒烟测试中断：', e.message)

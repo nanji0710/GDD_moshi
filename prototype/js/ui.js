@@ -424,6 +424,33 @@ window.ZT = window.ZT || {};
         h('span', null, '燃料 ' + Math.round(run.fuel) + '%'),
         h('span', null, '难民 ' + run.refugees() + '/' + run.capacity())));
 
+      box.appendChild(h('div', { class: 'dw-sec' }, '编组（可调顺序 · 点车厢改装 · 丢弃）'));
+      const cars = h('div', { class: 'carlist' });
+      run.cars.forEach(function (c, idx) {
+        const t = CFG.CAR_TYPES[c.type];
+        cars.appendChild(h('div', { class: 'carline' + (c.dead ? ' dead' : '') },
+          h('button', { class: 'car-main', onclick: function () { Z.UI.openRefit(idx); } },
+            h('b', null, (idx === 0 ? '① ' : (idx + 1) + ' ') + t.name),
+            h('span', null, c.dead ? '损毁' : Math.round(c.hp / c.maxHp * 100) + '%')),
+          h('button', {
+            class: 'btn sm ghost mv', title: '往前挪', onclick: function () {
+              if (run.moveCar(idx, -1)) Z.UI.renderStation();
+            }
+          }, '▲'),
+          h('button', {
+            class: 'btn sm ghost mv', title: '往后挪', onclick: function () {
+              if (run.moveCar(idx, 1)) Z.UI.renderStation();
+            }
+          }, '▼'),
+          h('button', {
+            class: 'btn sm ghost', onclick: function () {
+              if (run.cars.length <= 2) return Z.UI.toast('至少要留车头和 1 节', 'bad');
+              if (run.discardCar(idx)) { run.offer = null; Z.UI.renderStation(); }
+            }
+          }, '丢弃')));
+      });
+      box.appendChild(cars);
+
       // 补给
       const unlimited = CFG.ECON.infiniteAmmo && CFG.ECON.infiniteFuel;
       box.appendChild(h('div', { class: 'dw-sec' }, unlimited ? '维修与救助' : '补给'));
@@ -491,21 +518,6 @@ window.ZT = window.ZT || {};
           + (run.capacity() ? '' : '（需要人员车厢）') + ' · 每 0.5 秒 1 人')));
 
       // 车厢
-      box.appendChild(h('div', { class: 'dw-sec' }, '编组（点车厢改装 / 丢弃）'));
-      const cars = h('div', { class: 'carlist' });
-      run.cars.forEach(function (c, idx) {
-        const t = CFG.CAR_TYPES[c.type];
-        cars.appendChild(h('div', { class: 'carline' + (c.dead ? ' dead' : '') },
-          h('button', { class: 'car-main', onclick: function () { Z.UI.openRefit(idx); } },
-            h('b', null, t.name), h('span', null, c.dead ? '损毁' : Math.round(c.hp / c.maxHp * 100) + '%')),
-          h('button', {
-            class: 'btn sm ghost', onclick: function () {
-              if (run.cars.length <= 2) return Z.UI.toast('至少要留车头和 1 节', 'bad');
-              if (run.discardCar(idx)) { run.offer = null; Z.UI.renderStation(); }
-            }
-          }, '丢弃')));
-      });
-      box.appendChild(cars);
 
       box.appendChild(h('div', { class: 'dw-sticky' }, h('button', { class: 'btn primary big', onclick: function () { Z.UI.depart(); } }, '继续出发 →')));
     },
