@@ -123,7 +123,8 @@ window.ZT = window.ZT || {};
 
     // ---------------- 局内经济 ----------------
     ECON: {
-      startScrap: 300, startAmmo: 1200, startFuel: 100,
+      startScrap: 500, startAmmo: 1200, startFuel: 100,
+      starterWeapon: 'mg',      // 开局白送一把，否则第一个站之前杀不了怪 = 没有收入
       fuelPerKm: 9.5,
       ammoBuy: { size: 300, cost: 75 },
       fuelBuy: { size: 25, cost: 55 },

@@ -308,17 +308,24 @@ window.ZT = window.ZT || {};
       let drag = null, down = null;
       cv.addEventListener('mousedown', function (e) {
         down = { x: e.clientX, y: e.clientY };
-        drag = { x: e.clientX, y: e.clientY };
-        R.follow = false; cv.style.cursor = 'grabbing';
+        // 注意：这里**不能**立刻解除跟随，否则任何一次点击都会停住镜头
+        drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false };
       });
       window.addEventListener('mousemove', function (e) {
         if (!drag) return;
+        if (!drag.moved) {
+          if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 6) return;
+          drag.moved = true;
+          R.follow = false;            // 只有拖动才切到自由视角
+          cv.style.cursor = 'grabbing';
+        }
         const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
         drag.x = e.clientX; drag.y = e.clientY;
         R.cam.cx -= dx / R.z; R.cam.cy -= dy / (R.cosT * R.z);
       });
       window.addEventListener('mouseup', function (e) {
-        if (down && Math.abs(e.clientX - down.x) < 5 && Math.abs(e.clientY - down.y) < 5) {
+        const wasClick = drag && !drag.moved;
+        if (wasClick) {
           const k = pickCar(R, run, e.clientX, e.clientY);
           if (k >= 0 && Z.UI.canOpenRefit()) Z.UI.openRefit(k);
         }

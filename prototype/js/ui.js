@@ -527,14 +527,45 @@ window.ZT = window.ZT || {};
       const R_ = this.refs;
       R_.screen.innerHTML = '';
       R_.screen.classList.remove('hidden');
+
+      const mm = Math.floor((res.timeSec || 0) / 60);
+      const ss = Math.floor((res.timeSec || 0) % 60);
+      const timeStr = mm + ':' + String(ss).padStart(2, '0');
+      const gradeCls = res.grade === '稳' ? 'good' : (res.grade === '险' ? 'warn' : 'bad');
+      const cell = function (k, v) { return h('div', { class: 'statcell' }, h('span', null, k), h('b', null, v)); };
+
+      const grid = h('div', { class: 'statgrid' },
+        cell('里程', res.km.toFixed(1) + ' km'),
+        cell('最高车速', Math.round((res.maxSpeed || 0) * 3.6) + ' km/h'),
+        cell('最大编组', (res.maxCars || 0) + ' 节'),
+        cell('击杀', U.fmt(res.kills) + (res.bossKills ? ' · Boss ' + res.bossKills : '')),
+        cell('难民', res.refugees + ' / ' + res.capacity),
+        cell('伤亡', (res.deadRefugees || 0) + ' 人'),
+        cell('损毁车厢', res.deadCars + ' 节'),
+        cell('修轨', (res.repairs || 0) + ' 次'),
+        cell('用时', timeStr));
+
       const rows = [
-        ['里程', res.miles], ['护送（' + res.refugees + ' 人）', res.esc], ['战果（' + res.kills + ' 杀 / ' + res.bossKills + ' Boss）', res.combat],
+        ['里程', res.miles], ['护送（' + res.refugees + ' 人）', res.esc],
+        ['战果（' + res.kills + ' 杀 / ' + res.bossKills + ' Boss）', res.combat],
         ['完美', res.perfect], ['剩余折算', res.leftover], ['损毁扣分', -res.penalty]
       ].map(function (r) { return h('div', { class: 'resrow' }, h('span', null, r[0]), h('b', null, (r[1] >= 0 ? '+' : '') + U.fmt(r[1]))); });
+
+      const bestLine = h('div', { class: 'bestline' },
+        res.prevBest
+          ? (res.isBest
+            ? ('本关最佳 ' + U.fmt(res.points) + ' · 刷新纪录 ↑')
+            : ('本关最佳 ' + U.fmt(res.bestPoints) + '（本局 ' + U.fmt(res.points) + '）'))
+          : ('首次通关 · 已记录最佳 ' + U.fmt(res.points)));
+
       R_.screen.appendChild(h('div', { class: 'panel-title ' + (win ? 'win' : 'lose') },
         h('h1', null, win ? '抵达安全点' : '列车停下了'),
         h('div', { class: 'tagline' }, win ? '墙后的人打开了道口。' : '最后一节车厢的灯灭掉时，铁轨上只剩下脚步声。'),
+        h('div', { class: 'grade ' + gradeCls }, res.grade),
+        h('div', { class: 'gradeline' }, res.line),
+        grid,
         h('div', { class: 'reslist' }, rows),
+        bestLine,
         h('div', { class: 'points' }, '获得里程点 ', h('b', null, U.fmt(res.points))),
         h('div', { class: 'acts' },
           h('button', {
@@ -544,7 +575,7 @@ window.ZT = window.ZT || {};
               meta.save();
               Z.UI.showTitle();
             }
-          }, win ? '返回基地' : '返回基地'),
+          }, '返回基地'),
           h('button', { class: 'btn', onclick: function () { Z.Game.startLevel(res.level); } }, '重打本关'))));
     },
 

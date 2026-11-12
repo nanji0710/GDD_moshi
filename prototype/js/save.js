@@ -27,6 +27,12 @@ window.ZT = window.ZT || {};
         return true;
       } catch (e) { return false; }
     },
+    best: function (level) {
+      try { return JSON.parse(localStorage.getItem('zt.best.' + level) || 'null'); } catch (e) { return null; }
+    },
+    setBest: function (level, rec) {
+      try { localStorage.setItem('zt.best.' + level, JSON.stringify(rec)); return true; } catch (e) { return false; }
+    },
     clear: function () {
       try { localStorage.removeItem(KEY); } catch (e) {}
     },

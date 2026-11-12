@@ -126,8 +126,14 @@ window.ZT = window.ZT || {};
       this.ammo = CFG.ECON.startAmmo;
       this.fuel = CFG.ECON.startFuel;
       this.kills = 0; this.shots = 0; this.bossKills = 0;
+      this.stats = { t: 0, maxSpeed: 0, maxCars: 2, deaths: 0, repairs: 0 };
       this.buffs = {}; this.log = [];
       this.cars = CFG.TRAIN.startCars.map(function (t) { return new Car(t); });
+      // 开局送一把最便宜的武器：没有火力就没有废料，第一个站会"什么都买不起"
+      {
+        const host = this.cars.find(function (c) { return c.slots.length > 0; });
+        if (host && CFG.ECON.starterWeapon) host.slots[0] = new Weapon(CFG.ECON.starterWeapon, 1);
+      }
       this.train = new Z.Train(this);
       this.stationIdx = 0; this.station = null;
       this.parkT = 0; this.trackDamage = 0;
@@ -174,6 +180,11 @@ window.ZT = window.ZT || {};
       this.checkWin();
       if (this.state === 'win' || this.state === 'over') return;
       if (this.state !== 'run' && this.state !== 'parked') return;
+      if (this.stats) {
+        this.stats.t += dt;
+        if (this.speed > this.stats.maxSpeed) this.stats.maxSpeed = this.speed;
+        if (this.cars.length > this.stats.maxCars) this.stats.maxCars = this.cars.length;
+      }
       // 技能冷却
       if (Z.Skills) Z.Skills.update(this, dt);
 
@@ -283,10 +294,12 @@ window.ZT = window.ZT || {};
           c.tier++;
           const d = Math.min(c.refugees, CFG.REFUGEE.deathPerTier);
           c.refugees -= d;
+          if (this.stats) this.stats.deaths += d;
           if (d > 0 && Z.UI) Z.UI.toast('难民死亡 -' + d + '（车厢 ' + Math.round(frac * 100) + '%）', 'bad');
         }
         if (c.hp <= 0 && !c.dead) {
           c.dead = true; c.hp = 0;
+          if (c.refugees > 0 && this.stats) this.stats.deaths += c.refugees;
           if (c.refugees > 0 && Z.UI) Z.UI.toast('人员车厢损毁，-' + c.refugees + ' 难民', 'bad');
           c.refugees = 0;
         }
@@ -393,6 +406,7 @@ window.ZT = window.ZT || {};
       this.parkT = 0;
       const metaRepair = Z.Meta ? Z.Meta.repairMul() : 1;
       this.parkDur = CFG.TRAIN.repairSec * metaRepair;
+      if (this.stats) this.stats.repairs++;
       if (Z.UI) Z.UI.toast('轨道被撬断 · 停车防守 ' + Math.round(this.parkDur) + ' 秒', 'bad');
       if (Z.Sound) Z.Sound.play('alarm');
       if (Z.Zombies) Z.Zombies.spawnMiniBossChance(this, CFG.PARK.miniBossChance);
@@ -439,7 +453,19 @@ window.ZT = window.ZT || {};
       if (Z.Sound) Z.Sound.play(win ? 'win' : 'lose');
       if (Z.Sound) Z.Sound.rumble(0);
       const res = this.settle(win);
-      if (Z.Save) Z.Save.clear();
+      if (Z.Save) {
+        const prev = Z.Save.best ? Z.Save.best(this.level) : null;
+        res.prevBest = prev;
+        res.bestPoints = Math.max(prev ? prev.points : 0, res.points);
+        res.isBest = !prev || res.points > prev.points;
+        if (res.isBest && Z.Save.setBest) {
+          Z.Save.setBest(this.level, {
+            points: res.points, km: res.km, refugees: res.refugees,
+            kills: res.kills, grade: res.grade, at: Date.now()
+          });
+        }
+        Z.Save.clear();
+      }
       if (Z.Meta) Z.Meta.addPoints(res.points);
       if (Z.UI) Z.UI.showResult(res, win);
     },
@@ -457,7 +483,26 @@ window.ZT = window.ZT || {};
       const penalty = deadCars * 120;
       const base = miles + esc + combat + perfect + leftover - penalty;
       const points = Math.max(0, Math.round(base * (win ? 1 : 0.35)));
+      const st = this.stats || { t: 0, maxSpeed: 0, maxCars: this.cars.length, deaths: 0, repairs: 0 };
+      const carLoss = this.cars.length ? deadCars / this.cars.length : 0;
+      const refRate = ref / Math.max(1, this.capacity());
+      let grade = '崩', line = '';
+      if (carLoss <= 0.15 && refRate >= 0.5) {
+        grade = '稳';
+        line = '一节车厢都没丢，' + ref + ' 个人全须全尾进了墙。';
+      } else if (carLoss <= 0.45 || refRate >= 0.25) {
+        grade = '险';
+        line = deadCars === 0
+          ? '一节车厢都没丢，可只有 ' + ref + ' 个人赶上了车。'
+          : '你丢了 ' + deadCars + ' 节车厢，但 ' + ref + ' 个人还是到了墙后。';
+      } else {
+        grade = '崩';
+        line = '车散了不少，人也走散了——最后只有 ' + ref + ' 个人活着到站。';
+      }
       return {
+        grade: grade, line: line, stats: st, carLoss: carLoss, refRate: refRate,
+        capacity: this.capacity(), deadRefugees: st.deaths, repairs: st.repairs,
+        maxSpeed: st.maxSpeed, maxCars: st.maxCars, timeSec: st.t,
         win: !!win, km: km, refugees: ref, kills: this.kills, bossKills: this.bossKills,
         deadCars: deadCars, perfect: perfect, leftover: leftover, penalty: penalty,
         miles: miles, esc: esc, combat: combat, points: points,

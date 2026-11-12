@@ -491,3 +491,27 @@ button.carline.on { border-color: var(--accent); background: rgba(255,179,71,0.1
 .skin b { font-size: .9em; }
 .skin span { font-size: .76em; color: var(--ink-2); }
 .skin .swatch { width: 26px; height: 10px; border-radius: 3px; display: block; }
+
+/* 战后报告 */
+.grade {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 54px; height: 54px; margin: 6px auto 2px; border-radius: 50%;
+  font-size: 1.5em; font-weight: 800; letter-spacing: .04em;
+  border: 2px solid currentColor;
+}
+.grade.good { color: #5fc47a; background: rgba(95,196,122,0.10); }
+.grade.warn { color: #e0b04a; background: rgba(224,176,74,0.10); }
+.grade.bad  { color: #e05a4a; background: rgba(224,90,74,0.10); }
+.gradeline { margin: 6px 0 12px; color: var(--ink-2); font-size: .95em; }
+.statgrid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+  margin: 0 auto 12px; max-width: 560px;
+}
+.statcell {
+  display: flex; flex-direction: column; gap: 2px; align-items: center;
+  padding: 7px 4px; border-radius: 8px;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--line);
+}
+.statcell span { font-size: .74em; color: var(--ink-3); }
+.statcell b { font-size: .98em; font-variant-numeric: tabular-nums; }
+.bestline { margin: 8px 0 2px; color: var(--accent); font-size: .9em; }

@@ -300,6 +300,42 @@ try {
     const bx = h.x + h.r * 3, by = h.y;
     return ZT.World.losBlocked(ax, ay, bx, by) === true && ZT.World.losBlocked(ax, ay, h.x, h.y - h.r * 4) === false;
   })()`))
+  console.log('\n[14] 手感与战后报告')
+  await ev('window.ZT.Game.startLevel(1)')
+  await sleep(300)
+  check('开局白送一把武器', await ev('window.ZT.Run.weaponCount() >= 1'))
+  check('起始废料 500', await ev('window.ZT.Run.scrap') === 500)
+  check('点击画布不会停住镜头', await ev(`(() => {
+    const cv = document.getElementById('map');
+    ZT.R.follow = true;
+    cv.dispatchEvent(new MouseEvent('mousedown', { clientX: 400, clientY: 300, bubbles: true }));
+    window.dispatchEvent(new MouseEvent('mouseup', { clientX: 400, clientY: 300, bubbles: true }));
+    return ZT.R.follow === true;
+  })()`))
+  check('拖动才会切到自由视角', await ev(`(() => {
+    const cv = document.getElementById('map');
+    ZT.R.follow = true;
+    cv.dispatchEvent(new MouseEvent('mousedown', { clientX: 400, clientY: 300, bubbles: true }));
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 470, clientY: 340, bubbles: true }));
+    window.dispatchEvent(new MouseEvent('mouseup', { clientX: 470, clientY: 340, bubbles: true }));
+    const freed = ZT.R.follow === false;
+    ZT.R.follow = true;
+    return freed;
+  })()`))
+  await ev(`(() => { const R = ZT.Run; R.state = 'run'; R.km = R.totalKm; return 1 })()`)
+  await waitFor('window.ZT.Run.state === "win"', 8000)
+  const rep = JSON.parse(await ev(`(() => {
+    const st = ZT.Run.settle(true);
+    return JSON.stringify({ grade: st.grade, hasLine: !!st.line, timeSec: st.timeSec, maxSpeed: st.maxSpeed, maxCars: st.maxCars })
+  })()`))
+  check('结算有评价与一句话', ['稳','险','崩'].indexOf(rep.grade) >= 0 && rep.hasLine === true, rep)
+  check('结算带统计（用时/最高车速/最大编组）', rep.timeSec >= 0 && rep.maxCars >= 2, rep)
+  check('最佳记录可读写', await ev(`(() => {
+    ZT.Save.setBest(9, { points: 1234 });
+    const ok = ZT.Save.best(9) && ZT.Save.best(9).points === 1234;
+    localStorage.removeItem('zt.best.9');
+    return ok;
+  })()`))
 } catch (e) {
   fail++
   console.error('冒烟测试中断：', e.message)
