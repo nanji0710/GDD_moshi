@@ -413,6 +413,21 @@ try {
   await sleep(300)
   check('开局提示已触发', await ev('ZT.Tips.has("start")'))
   await ev('ZT.Tips.reset()')
+  console.log('\n[18] 设置页')
+  await ev('window.ZT.UI.showSettings()')
+  await sleep(250)
+  check('设置页有 7 个开关/操作行', await ev('document.querySelectorAll(".panel-settings .set-row").length') === 7)
+  const setRes = JSON.parse(await ev(`(() => {
+    const S = ZT.Settings;
+    const before = S.data.sound !== false;
+    S.set('sound', !before);
+    const saved = JSON.parse(localStorage.getItem('zt.settings.v1') || '{}');
+    const soundOff = ZT.Sound.enabled === false;
+    S.set('sound', before);
+    return JSON.stringify({ changed: saved.sound === !before, soundOff: soundOff });
+  })()`))
+  check('音效开关写进存档且同步到音频', setRes.changed === true && setRes.soundOff === true, setRes)
+  check('音量可写', await ev(`(() => { const S = ZT.Settings; S.set('volume', 0.5); const ok = Math.abs(ZT.Sound.volume - 0.5) < 1e-6; S.set('volume', 0.9); return ok })()`))
 } catch (e) {
   fail++
   console.error('冒烟测试中断：', e.message)

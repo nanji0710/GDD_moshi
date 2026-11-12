@@ -299,6 +299,7 @@ window.ZT = window.ZT || {};
       const R = new Renderer(cv);
       Z.R = R;
       Z.Meta.load();
+      if (Z.Settings) { Z.Settings.load(); Z.Settings.apply(); }
       Z.World.generate(1717, 11870);   // 标题页背景
       const run = Z.Run;
       Z.UI.init(run);

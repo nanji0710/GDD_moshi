@@ -196,7 +196,8 @@ window.ZT = window.ZT || {};
             bigBtn('开始游戏', '选择关卡 · 从温州出发', function () { Z.UI.showLevels(); }, true),
             sum ? bigBtn('继续上一局', '第 ' + sum.level + ' 关 · ' + sum.city + ' · ' + sum.km + ' / ' + sum.total + ' km',
               function () { Z.Game.continueRun(); }) : null,
-            bigBtn('科技', '里程点 ' + U.fmt(meta.points) + ' · 6 条强化线', function () { Z.UI.showTech(); })),
+            bigBtn('科技', '里程点 ' + U.fmt(meta.points) + ' · 6 条强化线', function () { Z.UI.showTech(); }),
+            bigBtn('设置', '音效 · 镜头 · 重看教学 · 清存档', function () { Z.UI.showSettings(); })),
           h('div', { class: 'start-foot' }, 'v' + CFG.VERSION + ' · 零依赖 · MIT'))));
     },
 
@@ -287,6 +288,72 @@ window.ZT = window.ZT || {};
         h('div', { class: 'meta-grid' }, rows),
         this.skinRow(),
         h('div', { class: 'meta-foot' }, '6 条强化线全满需约 176 000 点；12 关全通一次约 82 000 点 —— 单周目不可能满级。每条线练到 Lv5 会解锁一次质变。'),
+        h('div', { class: 'acts' },
+          h('button', { class: 'btn', onclick: function () { Z.UI.showStart(); } }, '返回'),
+          h('button', { class: 'btn primary', onclick: function () { Z.UI.showLevels(); } }, '开始游戏'))));
+    },
+
+    showSettings: function () {
+      this.showHUD(false);
+      const R_ = this.refs;
+      R_.screen.innerHTML = '';
+      R_.screen.classList.remove('hidden');
+      const S = Z.Settings;
+      const on = function (k) { return S.data[k] !== false; };
+      const toggle = function (label, key, onText, offText) {
+        const val = on(key);
+        return h('div', { class: 'set-row' },
+          h('span', null, label),
+          h('button', {
+            class: 'btn sm' + (val ? ' primary' : ''),
+            onclick: function () { S.set(key, !on(key)); Z.UI.showSettings(); }
+          }, val ? (onText || '开') : (offText || '关')));
+      };
+      const vol = h('input', {
+        type: 'range', min: '0', max: '100', class: 'set-range',
+        value: String(Math.round((S.data.volume || 0) * 100)),
+        oninput: function (e) { S.set('volume', (+e.target.value) / 100); }
+      });
+
+      R_.screen.appendChild(h('div', { class: 'panel-tech panel-settings' },
+        h('h1', null, '设置'),
+        h('div', { class: 'set-list' },
+          toggle('音效', 'sound'),
+          h('div', { class: 'set-row' }, h('span', null, '音量'), vol),
+          toggle('镜头跟随列车', 'follow'),
+          toggle('2.5D 斜视角', 'tilt', '开', '平铺'),
+          h('div', { class: 'set-sep' }),
+          h('div', { class: 'set-row' },
+            h('span', null, '新手提示'),
+            h('button', {
+              class: 'btn sm', onclick: function () {
+                Z.Tips.reset(); Z.UI.toast('新手提示已重置，下次进入会重新出现', 'good');
+              }
+            }, '重看')),
+          h('div', { class: 'set-row' },
+            h('span', null, '局内存档'),
+            h('button', {
+              class: 'btn sm ghost', onclick: function () {
+                Z.Settings.clearRun(); Z.UI.toast('已清除局内存档', 'info');
+              }
+            }, '清除')),
+          h('div', { class: 'set-row' },
+            h('span', null, '全部进度'),
+            h('button', {
+              class: 'btn sm danger', onclick: function () {
+                if (!Z.UI._confirmClear) {
+                  Z.UI._confirmClear = true;
+                  Z.UI.toast('再点一次确认清除全部进度', 'bad');
+                  setTimeout(function () { Z.UI._confirmClear = false; }, 4000);
+                  return;
+                }
+                Z.UI._confirmClear = false;
+                Z.Settings.clearAll();
+                Z.UI.toast('全部进度已清除', 'bad');
+                Z.UI.showStart();
+              }
+            }, '清除'))),
+        h('div', { class: 'set-foot' }, 'v' + CFG.VERSION + ' · 零依赖 · MIT · 游戏内按 M 也可静音'),
         h('div', { class: 'acts' },
           h('button', { class: 'btn', onclick: function () { Z.UI.showStart(); } }, '返回'),
           h('button', { class: 'btn primary', onclick: function () { Z.UI.showLevels(); } }, '开始游戏'))));

@@ -633,3 +633,18 @@ button.carline.on { border-color: var(--accent); background: rgba(255,179,71,0.1
   color: #ffe2a0;
   max-width: 420px;
 }
+
+/* 设置页 */
+.panel-settings { width: min(520px, calc(100vw - 36px)); }
+.set-list { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 10px; text-align: left; }
+.set-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 9px 12px; border-radius: 10px;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--line);
+}
+.set-row span { color: var(--ink-2); font-size: .9em; }
+.set-range { flex: 1; max-width: 220px; accent-color: var(--accent); }
+.set-sep { height: 1px; background: var(--line); margin: 4px 0; }
+.set-foot { color: var(--ink-3); font-size: .76em; margin: 8px 0 12px; }
+.btn.danger { border-color: rgba(224,90,74,0.5); color: #ff9a8a; }
+.btn.danger:hover { background: rgba(224,90,74,0.16); }

@@ -5,7 +5,7 @@ window.ZT = window.ZT || {};
 (function (Z) {
   const S = Z.Sound = {
     ctx: null, master: null, comp: null, sfxBus: null, ambBus: null, noiseBuf: null,
-    enabled: true, unlocked: false, voices: 0, maxVoices: 16,
+    enabled: true, volume: 0.9, unlocked: false, voices: 0, maxVoices: 16,
     last: {}, rumbleGain: null, rumbleNode: null,
 
     init: function () {
@@ -17,7 +17,7 @@ window.ZT = window.ZT || {};
         this.comp = ctx.createDynamicsCompressor();
         this.comp.threshold.value = -18; this.comp.knee.value = 24; this.comp.ratio.value = 6;
         this.comp.attack.value = 0.004; this.comp.release.value = 0.22;
-        this.master = ctx.createGain(); this.master.gain.value = this.enabled ? 0.9 : 0;
+        this.master = ctx.createGain(); this.master.gain.value = this.enabled ? 0.9 * this.volume : 0;
         this.sfxBus = ctx.createGain(); this.sfxBus.gain.value = 1.0;
         this.ambBus = ctx.createGain(); this.ambBus.gain.value = 0.55;
         this.sfxBus.connect(this.comp); this.ambBus.connect(this.comp);
@@ -44,8 +44,15 @@ window.ZT = window.ZT || {};
 
     setEnabled: function (on) {
       this.enabled = !!on;
-      try { if (this.master) this.master.gain.value = this.enabled ? 0.9 : 0; } catch (e) {}
+      this.applyGain();
       try { localStorage.setItem('zt.sound', this.enabled ? '1' : '0'); } catch (e) {}
+    },
+    setVolume: function (v) {
+      this.volume = Math.max(0, Math.min(1, +v || 0));
+      this.applyGain();
+    },
+    applyGain: function () {
+      try { if (this.master) this.master.gain.value = this.enabled ? 0.9 * this.volume : 0; } catch (e) {}
     },
     loadPref: function () {
       try { const v = localStorage.getItem('zt.sound'); if (v === '0') this.enabled = false; } catch (e) {}

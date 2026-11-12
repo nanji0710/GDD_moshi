@@ -92,6 +92,11 @@ try {
   await evJs('window.ZT.UI.showTech()')
   await sleep(500)
   await shot('01c-tech')
+  console.log('场景 1e：设置')
+  await evJs('window.ZT.UI.showSettings()')
+  await sleep(400)
+  await shot('01e-settings')
+
   await evJs('window.ZT.UI.showStart()')
   await sleep(300)
 
