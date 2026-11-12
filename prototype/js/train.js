@@ -124,10 +124,11 @@ window.ZT = window.ZT || {};
     run.shots++;
     if (def.mode === 'hitscan' || def.mode === 'burst') {
       const t = w.target, n = def.burst || 1;
+      const fw = f === 'B' ? 2.8 : (f === 'A' ? 1.1 : 1.5);
       for (let i = 0; i < n; i++) {
-        Fx.tracer(mount.x, mount.y, mount.h, t.x + (Math.random() - 0.5) * 3, t.y + (Math.random() - 0.5) * 3, 1.4, def.color, 1.5);
+        Fx.tracer(mount.x, mount.y, mount.h, t.x + (Math.random() - 0.5) * 3, t.y + (Math.random() - 0.5) * 3, 1.4, def.color, fw);
       }
-      Fx.flash(mount.x, mount.y, mount.h, def.color, 2.6);
+      Fx.flash(mount.x, mount.y, mount.h, def.color, f === 'B' ? 3.6 : 2.6);
       hit(t, dmg * n * (run.buffs.ap && t.elite ? CFG.BUFFS.ap.ap : 1), run);
       w.target = null;
     } else if (def.mode === 'cone') {
@@ -155,7 +156,7 @@ window.ZT = window.ZT || {};
         cur = best;
       }
       Fx.chain(pts, def.color);
-      Fx.flash(mount.x, mount.y, mount.h, def.color, 3.4);
+      Fx.flash(mount.x, mount.y, mount.h, def.color, f === 'B' ? 4.4 : 3.4);
       w.target = null;
     } else if (def.mode === 'shell') {
       const t = w.target, salvo = f.salvo || 1;
@@ -166,7 +167,7 @@ window.ZT = window.ZT || {};
           radius: def.splash * (f.splashMul || 1), dmg: dmg * 1.6
         });
       }
-      Fx.flash(mount.x, mount.y, mount.h, def.color, 3);
+      Fx.flash(mount.x, mount.y, mount.h, def.color, f === 'B' ? 4.2 : 3);
       w.target = null;
     }
   };

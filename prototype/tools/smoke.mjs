@@ -562,6 +562,29 @@ try {
   check('沿线两个资源点都会停车', runRes.stops.length === 2, runRes)
   check('安全点在线路末端结束（而非中途）', runRes.state === 'win' && runRes.km === runRes.total, runRes)
   check('中间站位置符合 30% / 62%', Math.abs(runRes.stops[0] / runRes.total - 0.30) < 0.02 && Math.abs(runRes.stops[1] / runRes.total - 0.62) < 0.02, runRes)
+  console.log('\n[23] 武器形态')
+  const forms = JSON.parse(await ev(`(() => {
+    const R = ZT.Run, Z = window.ZT;
+    const w = new Z.Weapon('mg', 5);
+    w.form = null; const d0 = w.dps(), r0 = w.rof();
+    w.form = 'A'; const dA = w.dps(), rA = w.rof(), nA = dA / rA;
+    w.form = 'B'; const dB = w.dps(), rB = w.rof(), nB = dB / rB;
+    return JSON.stringify({ d0: +d0.toFixed(1), dA: +dA.toFixed(1), dB: +dB.toFixed(1),
+      r0: +r0.toFixed(1), rA: +rA.toFixed(1), rB: +rB.toFixed(1),
+      nA: +nA.toFixed(1), nB: +nB.toFixed(1) });
+  })()`))
+  check('两种形态都明显强于无形态', forms.dA > forms.d0 * 1.2 && forms.dB > forms.d0 * 1.2, forms)
+  check('A 高射速低单发 / B 低射速高单发', forms.rA > forms.r0 && forms.rB < forms.r0 && forms.nB > forms.nA * 2, forms)
+  check('形态写进存档', await ev(`(() => {
+    const R = ZT.Run;
+    R.cars[0].slots[0] = new ZT.Weapon('mg', 3);
+    R.cars[0].slots[0].form = 'A';
+    const snap = R.snapshot();
+    const f = snap.cars[0].s[0] && snap.cars[0].s[0].f;
+    R.restore(snap);
+    const f2 = R.cars[0].slots[0] && R.cars[0].slots[0].form;
+    return f === 'A' && f2 === 'A';
+  })()`))
 } catch (e) {
   fail++
   console.error('冒烟测试中断：', e.message)

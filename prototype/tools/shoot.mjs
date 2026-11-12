@@ -322,6 +322,27 @@ try {
   await send('Emulation.clearDeviceMetricsOverride')
   await sleep(300)
 
+  console.log('场景：武器形态特写（左 A 双联 / 右 B 重管）')
+  await evJs(`(() => {
+    ZT.Game.startLevel(1);
+    const R = ZT.Run;
+    R.nextCarKm = 1e9; R.scrap = 9999;
+    R.cars = [new ZT.Car('engine'), new ZT.Car('weapon'), new ZT.Car('weapon')];
+    R.cars[1].slots[0] = new ZT.Weapon('mg', 6); R.cars[1].slots[0].form = 'A';
+    R.cars[2].slots[0] = new ZT.Weapon('mg', 6); R.cars[2].slots[0].form = 'B';
+    R.cars[2].slots[1] = new ZT.Weapon('flak', 6); R.cars[2].slots[1].form = 'B';
+    document.querySelector('.drawer').classList.add('hidden');
+    R.state = 'run'; R.stationIdx = 3; R.km = R.totalKm * 0.45; R.train = new ZT.Train(R); R.train.s = R.km; R.speed = 14;
+    for (let i = 0; i < 12; i++) ZT.Zombies.spawnOne(R);
+    const lay = R.train.layout(ZT.World); const c0 = lay[1];
+    ZT.R.cam.cx = c0.x; ZT.R.cam.cy = c0.y; ZT.R.cam.zoom = 5.0; ZT.R.compute();
+    ZT.Game.setSpeed(1);
+    return 1;
+  })()`)
+  await sleep(1800)
+  await shot('20-forms')
+  await evJs('ZT.R.cam.zoom = ZT.CFG.CAM.zoom; ZT.R.compute()')
+
   const stat = await evJs(`(() => {
     const R = ZT.Run, Z = window.ZT;
     return JSON.stringify({ state: R.state, level: R.level, cars: R.cars.length, weapons: R.weaponCount(),

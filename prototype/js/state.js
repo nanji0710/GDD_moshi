@@ -20,7 +20,9 @@ window.ZT = window.ZT || {};
     const d = W[this.key];
     let v = d.dps * (1 + CFG.WEAPON.dpsPerLevel * (this.level - 1));
     const f = this.formDef();
-    if (f) v *= (f.dmgMul || 1) * CFG.WEAPON.formDpsMul;
+    // 形态总 DPS = 单发加成 × 射速加成 × 形态基准上修
+    // （旧写法只乘 dmgMul，A 形态反而比不选形态更弱，看起来"没变化"）
+    if (f) v *= (f.dmgMul || 1) * (f.rofMul || 1) * CFG.WEAPON.formDpsMul;
     if (Z.Meta) v *= Z.Meta.mult('dmg');
     return v;
   };

@@ -263,11 +263,30 @@ window.ZT = window.ZT || {};
         ctx.beginPath(); ctx.arc(p.x, p.y, r0 * 1.3, 0, 6.2832); ctx.fill();
         ctx.fillStyle = w.def().color;
         ctx.beginPath(); ctx.arc(p.x, p.y, r0 * 0.58, 0, 6.2832); ctx.fill();
-        const bx = mp.x + Math.cos(w.aim) * 6.2, by = mp.y + Math.sin(w.aim) * 6.2;
-        const q = R.P(bx, by, mp.h, {});
-        ctx.strokeStyle = '#20262c'; ctx.lineWidth = Math.max(1.6, z * 0.9);
-        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
-        ctx.strokeStyle = w.def().color; ctx.lineWidth = Math.max(0.8, z * 0.42); ctx.stroke();
+        // 形态外观：A = 双联短管，B = 加粗加长的单管
+        const form = w.form;
+        const barrels = form === 'A' ? 2 : 1;
+        const lenM = form === 'B' ? 8.6 : (form === 'A' ? 5.4 : 6.2);
+        const wmul = form === 'B' ? 1.9 : (form === 'A' ? 0.85 : 1);
+        for (let bi = 0; bi < barrels; bi++) {
+          const off = barrels === 1 ? 0 : (bi === 0 ? -1.5 : 1.5);
+          const ox = mp.x + (-Math.sin(w.aim)) * off, oy = mp.y + Math.cos(w.aim) * off;
+          const bx = ox + Math.cos(w.aim) * lenM, by = oy + Math.sin(w.aim) * lenM;
+          const q = R.P(bx, by, mp.h, {});
+          const p0 = R.P(ox, oy, mp.h, {});
+          ctx.strokeStyle = '#20262c';
+          ctx.lineWidth = Math.max(1.6, z * 0.9 * wmul);
+          ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+          ctx.strokeStyle = w.def().color;
+          ctx.lineWidth = Math.max(0.8, z * 0.42 * wmul);
+          ctx.stroke();
+        }
+        // 选了形态：底座加一圈亮环
+        if (form) {
+          ctx.strokeStyle = 'rgba(255,212,121,0.75)';
+          ctx.lineWidth = Math.max(1, z * 0.3);
+          ctx.beginPath(); ctx.arc(p.x, p.y, r0 * 1.15, 0, 6.2832); ctx.stroke();
+        }
         const lvDots = Math.min(5, w.level);
         for (let l = 0; l < lvDots; l++) {
           const a0 = -Math.PI / 2 + (l - (lvDots - 1) / 2) * 0.5;
