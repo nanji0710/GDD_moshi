@@ -102,8 +102,8 @@ window.ZT = window.ZT || {};
       R_.routeNow.textContent = (run.km / 1000).toFixed(2) + ' / ' + (run.totalKm / 1000).toFixed(1) + ' km'
         + (nx ? ' · 下一站 ' + (nx.km).toFixed(1) + ' km' : '');
       R_.scrap.textContent = U.fmt(run.scrap);
-      R_.ammo.textContent = U.fmt(run.ammo);
-      R_.fuel.textContent = Math.round(run.fuel) + '%';
+      R_.ammo.textContent = CFG.ECON.infiniteAmmo ? '∞' : U.fmt(run.ammo);
+      R_.fuel.textContent = CFG.ECON.infiniteFuel ? '∞' : (Math.round(run.fuel) + '%');
       R_.fuel.className = run.fuel < 25 ? 'bad' : (run.fuel < 50 ? 'warn' : '');
       const hpFrac = run.maxHp() ? run.totalHp() / run.maxHp() : 0;
       R_.hp.textContent = Math.round(hpFrac * 100) + '%';
@@ -425,28 +425,31 @@ window.ZT = window.ZT || {};
         h('span', null, '难民 ' + run.refugees() + '/' + run.capacity())));
 
       // 补给
-      box.appendChild(h('div', { class: 'dw-sec' }, '补给'));
+      const unlimited = CFG.ECON.infiniteAmmo && CFG.ECON.infiniteFuel;
+      box.appendChild(h('div', { class: 'dw-sec' }, unlimited ? '维修与救助' : '补给'));
       const shop = h('div', { class: 'shop' });
-      shop.appendChild(this.shopRow('一键补给（弹药+燃料补满）', '按量计', function () {
-        const needAmmo = Math.max(0, 6000 - run.ammo);
-        const packs = Math.ceil(needAmmo / CFG.ECON.ammoBuy.size);
-        const fuelPacks = Math.ceil(Math.max(0, 100 - run.fuel) / CFG.ECON.fuelBuy.size);
-        const cost = packs * CFG.ECON.ammoBuy.cost + fuelPacks * CFG.ECON.fuelBuy.cost;
-        if (run.scrap < cost) { Z.UI.toast('废料不足：需要 ' + cost, 'bad'); return; }
-        run.scrap -= cost; run.ammo = 6000; run.fuel = 100;
-        Z.UI.toast('补给完成（-' + cost + '）', 'good'); Z.UI.renderStation();
-      }));
-      shop.appendChild(this.shopRow('弹药 +' + CFG.ECON.ammoBuy.size, CFG.ECON.ammoBuy.cost, function () {
-        if (run.scrap < CFG.ECON.ammoBuy.cost) return Z.UI.toast('废料不足', 'bad');
-        run.scrap -= CFG.ECON.ammoBuy.cost; run.ammo += CFG.ECON.ammoBuy.size;
-        Z.UI.renderStation();
-      }));
-      shop.appendChild(this.shopRow('燃料 +' + CFG.ECON.fuelBuy.size + '%', CFG.ECON.fuelBuy.cost, function () {
-        if (run.scrap < CFG.ECON.fuelBuy.cost) return Z.UI.toast('废料不足', 'bad');
-        if (run.fuel >= 100) return Z.UI.toast('油箱已满', 'info');
-        run.scrap -= CFG.ECON.fuelBuy.cost; run.fuel = Math.min(100, run.fuel + CFG.ECON.fuelBuy.size);
-        Z.UI.renderStation();
-      }));
+      if (!unlimited) {
+        shop.appendChild(this.shopRow('一键补给（弹药+燃料补满）', '按量计', function () {
+          const needAmmo = Math.max(0, 6000 - run.ammo);
+          const packs = Math.ceil(needAmmo / CFG.ECON.ammoBuy.size);
+          const fuelPacks = Math.ceil(Math.max(0, 100 - run.fuel) / CFG.ECON.fuelBuy.size);
+          const cost = packs * CFG.ECON.ammoBuy.cost + fuelPacks * CFG.ECON.fuelBuy.cost;
+          if (run.scrap < cost) { Z.UI.toast('废料不足：需要 ' + cost, 'bad'); return; }
+          run.scrap -= cost; run.ammo = 6000; run.fuel = 100;
+          Z.UI.toast('补给完成（-' + cost + '）', 'good'); Z.UI.renderStation();
+        }));
+        shop.appendChild(this.shopRow('弹药 +' + CFG.ECON.ammoBuy.size, CFG.ECON.ammoBuy.cost, function () {
+          if (run.scrap < CFG.ECON.ammoBuy.cost) return Z.UI.toast('废料不足', 'bad');
+          run.scrap -= CFG.ECON.ammoBuy.cost; run.ammo += CFG.ECON.ammoBuy.size;
+          Z.UI.renderStation();
+        }));
+        shop.appendChild(this.shopRow('燃料 +' + CFG.ECON.fuelBuy.size + '%', CFG.ECON.fuelBuy.cost, function () {
+          if (run.scrap < CFG.ECON.fuelBuy.cost) return Z.UI.toast('废料不足', 'bad');
+          if (run.fuel >= 100) return Z.UI.toast('油箱已满', 'info');
+          run.scrap -= CFG.ECON.fuelBuy.cost; run.fuel = Math.min(100, run.fuel + CFG.ECON.fuelBuy.size);
+          Z.UI.renderStation();
+        }));
+      }
       shop.appendChild(this.shopRow('整车维修', '按耐久', function () {
         let need = 0;
         for (const c of run.cars) if (!c.dead) need += c.maxHp - c.hp;

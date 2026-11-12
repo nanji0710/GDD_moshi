@@ -103,9 +103,9 @@ try {
 
   console.log('   [errs]\n[3] 补给与出发')
   const s0 = await ev('window.ZT.Run.scrap')
-  await ev(`(() => { const b=[...document.querySelectorAll('.shop-item')].find(x=>/弹药 \\+/.test(x.textContent)); b.click(); return 1 })()`)
+  await ev(`(() => { const b=[...document.querySelectorAll('.shop-item')].find(x=>/弹链加速/.test(x.textContent)); b.click(); return 1 })()`)
   await sleep(200)
-  check('买弹药扣废料', await ev('window.ZT.Run.scrap') < s0)
+  check('买增益扣废料', await ev('window.ZT.Run.scrap') < s0)
   await ev(`(() => { const b=[...document.querySelectorAll('button')].find(x=>/继续出发/.test(x.textContent)); b.click(); return 1 })()`)
   await sleep(300)
   check('点「继续出发」进入行驶', await ev('window.ZT.Run.state') === 'run')
@@ -246,13 +246,13 @@ try {
     R.straight = true; const b = R.speedCap();
     return Math.abs(b / a - 1.2) < 0.001;
   })()`))
-  check('长直道冲锋者更快（5.5 → 7.15）', await ev(`(() => {
+  check('长直道冲锋者更快（13 → 16.9）', await ev(`(() => {
     ZT.Run.straight = true;
     ZT.Run.level = 11; ZT.Run.levelDef = ZT.CFG.LEVELS[10];
     ZT.Zombies.reset();
     const z = ZT.Zombies.make(0, 0, { kind: 'runner' });
     ZT.Run.level = 1; ZT.Run.levelDef = ZT.CFG.LEVELS[0];
-    return z.speed > 7 && z.speed < 7.3;
+    return z.speed > 16 && z.speed < 18;
   })()`))
   const skin = JSON.parse(await ev(`(() => {
     const M = ZT.Meta;
@@ -473,6 +473,95 @@ try {
     const c = window.matchMedia('(max-height: 560px)');
     return a.media === '(max-width: 900px)' && b.media === '(pointer: coarse)' && c.media === '(max-height: 560px)';
   })()`))
+  console.log('\n[21] 新规则：掉落 / 无限弹油 / 减重 / 车头 / 修理车厢')
+  await ev('window.ZT.Game.startLevel(1)')
+  await sleep(300)
+  const rules = JSON.parse(await ev(`(() => {
+    const R = ZT.Run, Z = window.ZT;
+    R.state = 'run';
+    // 掉落
+    const s0 = R.scrap;
+    const wz = Z.Zombies.make(0, 0, {});
+    wz.hp = 1; wz.dead = false;
+    Z.Zombies.list.length = 0; Z.Zombies.list.push(wz);
+    Z.damageArea(Z.Zombies.list, 0, 0, 10, 999, R);
+    const drop = R.scrap - s0;
+    // 弹药 / 燃料
+    const ammo0 = R.ammo, fuel0 = R.fuel;
+    for (let i = 0; i < 120; i++) R.tick(1 / 60);
+    const ammoKept = R.ammo === ammo0, fuelKept = R.fuel === fuel0;
+    // 减重提速
+    R.state = 'run';
+    const keep = R.cars;
+    R.cars = [new Z.Car('engine'), new Z.Car('weapon'), new Z.Car('weapon')];
+    const v3 = R.speedCap();
+    R.cars[1].dead = true;
+    const v2 = R.speedCap();
+    R.cars = keep;
+    // 车头在后面？
+    R.cars = [new Z.Car('engine'), new Z.Car('weapon'), new Z.Car('passenger')];
+    R.state = 'run'; R.speed = 10; R.km = 100; R.train.s = 100;
+    const lay = R.train.layout(Z.World);
+    const headFront = lay[0].cs > lay[2].cs;
+    return JSON.stringify({ drop: drop, ammoKept: ammoKept, fuelKept: fuelKept, v3: v3, v2: v2, headFront: headFront });
+  })()`))
+  check('杀一只普通丧尸 +2 废料', rules.drop === 2, rules)
+  check('弹药不再消耗', rules.ammoKept === true, rules)
+  check('燃料不再消耗', rules.fuelKept === true, rules)
+  check('车厢损毁后减重提速', rules.v2 > rules.v3, rules)
+  check('车头在最前面（新车挂后面）', rules.headFront === true, rules)
+
+  const repairRes = JSON.parse(await ev(`(() => {
+    const R = ZT.Run, Z = window.ZT;
+    R.cars = [new Z.Car('engine'), new Z.Car('weapon'), new Z.Car('repair'), new Z.Car('passenger')];
+    R.state = 'run'; R.km = 100; R.train = new Z.Train(R); R.train.s = 100; R.speed = 0;
+    const w = R.cars[1];
+    R.cars[2].dead = false;
+    w.hp = 100;
+    for (let i = 0; i < 120; i++) R.tick(1 / 60);
+    const healed = w.hp > 100;
+    // 修轨加速
+    R.cars[2].dead = true;
+    R.state = 'run'; R.trackDamage = 0; R.ripTrack(200); const slowDur = R.parkDur;
+    R.cars[2].dead = false;
+    R.state = 'run'; R.trackDamage = 0; R.ripTrack(200); const fastDur = R.parkDur;
+    R.state = 'run'; R.trackDamage = 0;
+    return JSON.stringify({ healed: healed, slow: slowDur, fast: fastDur });
+  })()`))
+  check('修理车厢给相邻车厢回血', repairRes.healed === true, repairRes)
+  check('修理车厢让修轨更快', repairRes.fast < repairRes.slow * 0.95, repairRes)
+
+  const eng = JSON.parse(await ev(`(() => {
+    const R = ZT.Run, Z = window.ZT;
+    R.cars = [new Z.Car('engine'), new Z.Car('weapon')];
+    R.state = 'run'; R.speed = 40; R.km = 200; R.train = new Z.Train(R); R.train.s = 200;
+    R.cars[0].dead = true;
+    const cap = R.speedCap();
+    const before = R.speed;
+    for (let i = 0; i < 200; i++) R.tick(1 / 60);
+    return JSON.stringify({ cap: cap, before: before, after: Math.round(R.speed), state: R.state, hasEngine: R.hasEngine() });
+  })()`))
+  check('车头损毁后没有牵引力', eng.hasEngine === false && eng.cap === 0, eng)
+  check('车头损毁 2.5 秒后判负', eng.state === 'over', eng)
+  console.log('\n[22] 站点与终点')
+  check('安全点在线路终点（比例 1.0）', await ev('ZT.CFG.STATION_AT[ZT.CFG.STATION_AT.length - 1]') === 1)
+  const runRes = JSON.parse(await ev(`(() => {
+    const R = ZT.Run;
+    ZT.Game.startLevel(1);
+    R.bossAt = []; R.bossSpawned = 0;
+    R.departStation();
+    const stops = [];
+    for (let i = 0; i < 20000; i++) {
+      R.tick(1 / 60);
+      ZT.Zombies.list.length = 0;
+      if (R.state === 'station') { stops.push(Math.round(R.km)); R.departStation(); }
+      if (R.state === 'win' || R.state === 'over') break;
+    }
+    return JSON.stringify({ stops: stops, state: R.state, km: Math.round(R.km), total: R.totalKm, idx: R.stationIdx });
+  })()`))
+  check('沿线两个资源点都会停车', runRes.stops.length === 2, runRes)
+  check('安全点在线路末端结束（而非中途）', runRes.state === 'win' && runRes.km === runRes.total, runRes)
+  check('中间站位置符合 30% / 62%', Math.abs(runRes.stops[0] / runRes.total - 0.30) < 0.02 && Math.abs(runRes.stops[1] / runRes.total - 0.62) < 0.02, runRes)
 } catch (e) {
   fail++
   console.error('冒烟测试中断：', e.message)

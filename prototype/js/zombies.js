@@ -19,7 +19,7 @@ window.ZT = window.ZT || {};
       const kind = opt.kind || 'walker';
       const base = { walker: 1, runner: 0.72, climber: 1.3, ripper: 1.45, spitter: 1.05, screamer: 0.85, bloater: 1.7 }[kind] || 1;
       let hp = CFG.ZOMBIE.hp * hpMul * base * (0.9 + Math.random() * 0.22);
-      let speed = { walker: 2.5, runner: 5.5, climber: 3.0, ripper: 3.8, spitter: 2.0, screamer: 3.2, bloater: 2.2 }[kind] || 2.5;
+      let speed = { walker: 6.0, runner: 13.0, climber: 7.5, ripper: 8.5, spitter: 5.0, screamer: 7.0, bloater: 4.5 }[kind] || 6.0;
       const lvDef = (Z.Run && Z.Run.levelDef) || null;
       if (kind === 'runner' && lvDef && (lvDef.mods || []).indexOf('straight') >= 0) speed *= 1.3;
       let atk = CFG.ZOMBIE.attack * atkMul;
@@ -92,9 +92,15 @@ window.ZT = window.ZT || {};
           }
         }
         if (dist > reach) {
-          const inv = 1 / (dist || 1);
-          zb.x += dx * inv * zb.speed * dt;
-          zb.y += dy * inv * zb.speed * dt;
+          // 预判：按"我跑到那儿要多久"，瞄列车届时的位置（最多预判 2 秒）
+          const lead = Math.min(2.0, dist / Math.max(0.1, zb.speed));
+          const dirS = run.speed || 0;
+          const aimX = tgt.x + Math.cos(tgt.a || 0) * dirS * lead * 0.85;
+          const aimY = tgt.y + Math.sin(tgt.a || 0) * dirS * lead * 0.85;
+          let ax = aimX - zb.x, ay = aimY - zb.y;
+          const alen = Math.hypot(ax, ay) || 1;
+          zb.x += ax / alen * zb.speed * dt;
+          zb.y += ay / alen * zb.speed * dt;
           zb.phase += dt * (3.2 + zb.speed * 0.4);
         } else if (zb.cd <= 0) {
           zb.cd = 1 / CFG.ZOMBIE.attackRate;

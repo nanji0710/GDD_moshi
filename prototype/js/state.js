@@ -91,10 +91,16 @@ window.ZT = window.ZT || {};
     boardAcc: 0,
 
     // ---- 速度 ----
+    hasEngine: function () {
+      for (const c of this.cars) if (c.type === 'engine' && !c.dead) return true;
+      return false;
+    },
     speedCap: function () {
-      const n = this.cars.length;
+      if (!this.hasEngine()) return 0;          // 没有车头 = 没有牵引力
+      // 只算"活着"的车厢：被打烂的车不再拖后腿，反而让你跑得更快
+      const n = this.aliveCars();
       const t = CFG.TRAIN;
-      const power = this.cars.filter(function (c) { return c.type === 'power'; }).length;
+      const power = this.cars.filter(function (c) { return c.type === 'power' && !c.dead; }).length;
       // 不设上限、不设下限：纯由车厢数决定（越挂越慢，加速车厢往回拉）
       let v = t.maxSpeed * (1 - t.speedPerCar * (n - 1)) * (1 + t.powerBonus * power);
       if (v < 0) v = 0;                      // 太重开不动（无尽模式里就是死局）
@@ -126,6 +132,10 @@ window.ZT = window.ZT || {};
       this.ammo = CFG.ECON.startAmmo;
       this.fuel = CFG.ECON.startFuel;
       this.kills = 0; this.shots = 0; this.bossKills = 0;
+      // 从无尽模式切回闯关时必须清掉这些标记，否则关卡里不刷站台、终点会被判成失败
+      this.endless = false;
+      this.stallT = 0;
+      this.noEngineT = 0;
       this.stats = { t: 0, maxSpeed: 0, maxCars: 2, deaths: 0, repairs: 0 };
       this.buffs = {}; this.log = [];
       this.cars = CFG.TRAIN.startCars.map(function (t) { return new Car(t); });
@@ -213,6 +223,14 @@ window.ZT = window.ZT || {};
         if (this.speed > this.stats.maxSpeed) this.stats.maxSpeed = this.speed;
         if (this.cars.length > this.stats.maxCars) this.stats.maxCars = this.cars.length;
       }
+      if (!this.hasEngine()) {
+        this.noEngineT = (this.noEngineT || 0) + dt;
+        if (this.noEngineT > 2.5 && this.state !== 'over') {
+          if (Z.UI) Z.UI.toast('车头被打坏，列车停下', 'bad');
+          this.gameOver();
+          return;
+        }
+      } else this.noEngineT = 0;
       if (this.endless) {
         const lv = this.endlessLevel();
         if (lv !== this.level) { this.level = lv; this.levelDef = CFG.LEVELS[lv - 1]; }
@@ -235,6 +253,16 @@ window.ZT = window.ZT || {};
         if (this.state === 'run' && this.train) this.train.updateWeapons(dt, this);
       }
       // 自动回血
+      // 修理车厢：给相邻车厢持续回血
+      for (let i = 0; i < this.cars.length; i++) {
+        const rc = this.cars[i];
+        if (rc.type !== 'repair' || rc.dead) continue;
+        const rate = CFG.CAR_TYPES.repair.repairAura;
+        for (const k of [i - 1, i + 1]) {
+          const nb = this.cars[k];
+          if (nb && !nb.dead && nb.hp < nb.maxHp) nb.hp = Math.min(nb.maxHp, nb.hp + rate * dt);
+        }
+      }
       let regen = Z.Meta ? Z.Meta.regen() : 0;
       if (regen > 0 && this.state === 'parked' && Z.Meta && Z.Meta.has5 && Z.Meta.has5('regen')) regen *= 2.5;
       if (regen > 0) for (const c of this.cars) if (!c.dead && c.hp < c.maxHp) c.hp = Math.min(c.maxHp, c.hp + regen * dt);
@@ -248,7 +276,7 @@ window.ZT = window.ZT || {};
     },
 
     move: function (dt) {
-      const cap = this.speedCap();
+      const cap = this.hasEngine() ? this.speedCap() : 0;   // 车头没了就跑不动
       // 轨道损坏限速
       let limit = cap;
       if (this.trackDamage >= CFG.PARK.slowAtDamage) {
@@ -272,8 +300,10 @@ window.ZT = window.ZT || {};
           if (Z.UI) Z.UI.toast('下桥 · 小心两翼', 'info');
         }
       }
-      this.fuel -= ds / 1000 * CFG.ECON.fuelPerKm * (this.buffs.tank ? CFG.BUFFS.tank.fuel : 1);
-      if (this.fuel <= 0) { this.fuel = 0; }
+      if (!CFG.ECON.infiniteFuel) {
+        this.fuel -= ds / 1000 * CFG.ECON.fuelPerKm * (this.buffs.tank ? CFG.BUFFS.tank.fuel : 1);
+        if (this.fuel <= 0) { this.fuel = 0; }
+      }
       if (this.train) this.train.s = this.km;
       // 无尽模式：固定里程一个补给站，跑到走廊尽头就结束
       if (this.endless) {
@@ -429,6 +459,10 @@ window.ZT = window.ZT || {};
     discardCar: function (idx) {
       const c = this.cars[idx];
       if (!c || this.cars.length <= 2) return false;
+      if (c.type === 'engine') {
+        if (Z.UI) Z.UI.toast('车头丢不得——没有它列车根本走不了', 'bad');
+        return false;
+      }
       this.cars.splice(idx, 1);
       const buff = { passenger: 'wrath', weapon: 'salvage', power: 'light', armor: 'recast', repair: 'medkit' }[c.type];
       const names = { wrath: '悲愤（攻速 +15%）', salvage: '回收（+400 废料）', light: '轻装（速度 +8%）', recast: '重铸（耐久上限 +12%）', medkit: '急救包（全车回 150）' };
@@ -485,7 +519,12 @@ window.ZT = window.ZT || {};
       this.speed = 0;
       this.parkT = 0;
       const metaRepair = Z.Meta ? Z.Meta.repairMul() : 1;
-      this.parkDur = CFG.TRAIN.repairSec * metaRepair * ((Z.Meta && Z.Meta.has5 && Z.Meta.has5('repair')) ? 0.85 : 1);
+      let repairCars = 0;
+      for (const c of this.cars) if (c.type === 'repair' && !c.dead) repairCars++;
+      const parkBonus = Math.max(0.55, 1 - CFG.CAR_TYPES.repair.parkSpeedup * repairCars);
+      this.parkDur = CFG.TRAIN.repairSec * metaRepair
+        * ((Z.Meta && Z.Meta.has5 && Z.Meta.has5('repair')) ? 0.85 : 1)
+        * parkBonus;
       if (this.stats) this.stats.repairs++;
       if (Z.UI) Z.UI.toast('轨道被撬断 · 停车防守 ' + Math.round(this.parkDur) + ' 秒', 'bad');
       if (Z.Sound) Z.Sound.play('alarm');

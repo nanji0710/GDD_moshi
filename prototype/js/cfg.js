@@ -29,7 +29,9 @@ window.ZT = window.ZT || {};
       weapon:    { name: '武器车厢', hp: 600,  slots: 2, mass: 1, color: '#7d8794' },
       power:     { name: '动力车厢', hp: 500,  slots: 0, mass: 1, color: '#8a7a5e', power: 1 },
       armor:     { name: '装甲车厢', hp: 1400, slots: 1, mass: 1, color: '#5f6b78', adjacentGuard: 0.4 },
-      repair:    { name: '修理车厢', hp: 500,  slots: 0, mass: 1, color: '#7a8a74', repairAura: 8 }
+      repair:    { name: '修理车厢', hp: 500,  slots: 0, mass: 1, color: '#7a8a74',
+                   repairAura: 9,      // 每秒给相邻车厢回 9 点
+                   parkSpeedup: 0.15 } // 停车修轨再快 15%（多节可叠加，最多 45%）
     },
     // 随机三选一权重
     CAR_WEIGHT: { weapon: 32, passenger: 26, power: 16, armor: 16, repair: 10 },
@@ -94,7 +96,7 @@ window.ZT = window.ZT || {};
     ZOMBIE: {
       hp: 26, speed: 2.5, attack: 7, attackRate: 1.1, attackRange: 6,
       maxAliveBase: 120, maxAlivePerLevel: 18,
-      scrap: 1, eliteScrap: 3,
+      scrap: 2, eliteScrap: 5, bossScrap: 250, miniScrap: 200,
       eliteHpMul: 3.4, eliteAtkMul: 2.2
     },
     WAVE: { baseInterval: 28, intervalPerLevel: 1.2, minInterval: 12 },
@@ -124,6 +126,7 @@ window.ZT = window.ZT || {};
     // ---------------- 局内经济 ----------------
     ECON: {
       startScrap: 500, startAmmo: 1200, startFuel: 100,
+      infiniteAmmo: true, infiniteFuel: true,   // 不再为弹药/燃料发愁，废料是唯一资源
       starterWeapon: 'mg',      // 开局白送一把，否则第一个站之前杀不了怪 = 没有收入
       fuelPerKm: 9.5,
       ammoBuy: { size: 300, cost: 75 },
@@ -168,7 +171,8 @@ window.ZT = window.ZT || {};
     ],
 
     // 每关站台（按比例放在里程上）
-    STATION_AT: [0, 0.28, 0.55, 0.80],
+    // 站台位置（按里程比例）：0 = 出发站，最后一项 = 安全点（必须在线路终点 1.0）
+    STATION_AT: [0, 0.30, 0.62, 1.0],
 
     // 城市色调（明度都压在地面 10–18% / 建筑 20–28%）
     PAL: {

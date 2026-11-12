@@ -22,7 +22,8 @@ window.ZT = window.ZT || {};
     const pitch = this.pitch(), half = CFG.TRAIN.carLenM / 2;
     const n = cars.length;
     for (let k = 0; k < n; k++) {
-      const cs = this.s + (k - (n - 1) / 2) * pitch;
+      // 列车中心在 this.s；k=0 是车头（在最前面），k 越大越靠后
+      const cs = this.s + ((n - 1) / 2 - k) * pitch;
       const c = out[k] || (out[k] = {});
       const p = U.posAt(world.path, U.clamp(cs, 0, world.path.len), {});
       const pf = U.posAt(world.path, U.clamp(cs + half, 0, world.path.len), {});
@@ -88,8 +89,10 @@ window.ZT = window.ZT || {};
         if (!aligned || w.cd > 0) continue;
         // 弹药
         const cost = Math.max(1, Math.round(w.def().ammoPerShot * (over > 1 ? 2 : 1)));
-        if (run.ammo < cost) { w.cd = 0.6; continue; }
-        run.ammo -= cost;
+        if (!CFG.ECON.infiniteAmmo) {
+          if (run.ammo < cost) { w.cd = 0.6; continue; }
+          run.ammo -= cost;
+        }
         w.cd = 1 / (w.rof() * rofBuff * wrath * salvo);
         w.heat = Math.min(1, w.heat + 0.16);
         this.fire(w, k, lay, mount, run, zs, over);
@@ -189,11 +192,13 @@ window.ZT = window.ZT || {};
     if (zb.hp <= 0) {
       zb.dead = true; zb.deadT = 0;
       run.kills++;
-      run.scrap += (zb.boss ? 150 : zb.mini ? 150 : (zb.elite ? CFG.ZOMBIE.eliteScrap : CFG.ZOMBIE.scrap))
+      run.scrap += (zb.boss ? (CFG.ZOMBIE.bossScrap || 250)
+        : zb.mini ? (CFG.ZOMBIE.miniScrap || 200)
+        : (zb.elite ? CFG.ZOMBIE.eliteScrap : CFG.ZOMBIE.scrap))
         * (run.state === 'parked' ? CFG.PARK.scrapMul : 1);
       if (zb.boss) run.bossKills++;
       Fx.blood(zb.x, zb.y, 1.2);
-      Fx.text(zb.x, zb.y, 1.2, '+' + (zb.boss ? 150 : zb.elite ? 3 : 1), '#ffd479');
+      Fx.text(zb.x, zb.y, 1.2, '+' + (zb.boss ? (CFG.ZOMBIE.bossScrap || 250) : zb.mini ? (CFG.ZOMBIE.miniScrap || 200) : zb.elite ? CFG.ZOMBIE.eliteScrap : CFG.ZOMBIE.scrap), '#ffd479');
     } else if (Math.random() < 0.2) Fx.blood(zb.x, zb.y, 1.2);
   }
   function areaDamage(zs, x, y, r, dmg, run) {
