@@ -379,6 +379,28 @@ try {
   })()`))
   check('血量 Lv5：车厢免死一次并以 15% 复活', ms.rescued === true, ms)
   check('维修 Lv5：修轨时长再缩短', ms.d5 < ms.d0 * 0.72, ms)
+  console.log('\n[16] 站台不会卡死')
+  await ev('window.ZT.Game.startLevel(1)')
+  await sleep(350)
+  check('进站自动打开站台面板', await ev('window.ZT.UI.drawerState') === 'station')
+  await ev('window.ZT.UI.closeTop()')          // 模拟按 Esc 关掉面板
+  await sleep(250)
+  check('关掉面板后出现「回到站台」按钮', await ev(`(() => {
+    const f = document.querySelector('.fab');
+    return !!f && !f.classList.contains('hidden') && ZT.Run.state === 'station';
+  })()`))
+  await ev('document.querySelector(".fab").click()')
+  await sleep(250)
+  check('点按钮能重新打开站台面板', await ev('window.ZT.UI.drawerState') === 'station')
+  check('重开面板不会误触发出发', await ev('window.ZT.Run.state') === 'station')
+  await ev('window.ZT.UI.openRefit(0)')
+  await sleep(200)
+  await ev('window.ZT.UI.closeDrawer()')
+  await sleep(250)
+  check('站台里关掉改装页会退回站台面板', await ev('window.ZT.UI.drawerState') === 'station')
+  await ev('window.ZT.UI.depart()')
+  await sleep(250)
+  check('出发后按钮消失并进入行驶', await ev(`ZT.Run.state === 'run' && document.querySelector('.fab').classList.contains('hidden')`))
 } catch (e) {
   fail++
   console.error('冒烟测试中断：', e.message)

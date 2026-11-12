@@ -79,9 +79,14 @@ try {
   await shot('01-title')
 
   console.log('场景 1b：关卡地图')
-  await evJs('window.ZT.UI.showLevels()')
-  await sleep(700)
+  await evJs('ZT.Meta.selectedLevel = 4; window.ZT.UI.showLevels(4)')
+  await sleep(800)
   await shot('01b-map')
+
+  console.log('场景 1d：节点信息卡')
+  await evJs(`(() => { const n = document.querySelector('.map-city[data-level="2"]'); if (n) n.dispatchEvent(new MouseEvent('click', { bubbles: true })); return 1 })()`)
+  await sleep(500)
+  await shot('01d-card')
 
   console.log('场景 1c：科技')
   await evJs('window.ZT.UI.showTech()')

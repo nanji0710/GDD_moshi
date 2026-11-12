@@ -49,6 +49,7 @@ window.ZT = window.ZT || {};
       for (const p of pts) { if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y; }
       const W = maxX + pad * 2, H = maxY + pad * 2;
 
+      const just = opts.justLevel || 0;
       const root = svg('svg', {
         class: 'china-map', viewBox: '0 0 ' + W + ' ' + H,
         preserveAspectRatio: 'xMidYMid meet', role: 'img', 'aria-label': '关卡地图'
@@ -70,9 +71,10 @@ window.ZT = window.ZT || {};
       for (let k = 0; k < nodes.length - 1; k++) {
         const a = nodes[k], b = nodes[k + 1];
         const dist = Math.hypot(b.L.lon - a.L.lon, b.L.lat - a.L.lat);
+        const done = b.L.n <= unlockedTo;
         root.appendChild(svg('line', {
           x1: a.x, y1: a.y, x2: b.x, y2: b.y,
-          class: 'map-route' + (dist > 7 ? ' detour' : '')
+          class: 'map-route' + (dist > 7 ? ' detour' : '') + (done ? ' done' : '')
         }));
       }
 
@@ -81,7 +83,8 @@ window.ZT = window.ZT || {};
       nodes.forEach(function (n) {
         const done = n.L.n < unlockedTo;
         const open = n.L.n <= unlockedTo;
-        const cls = 'map-city' + (done ? ' done' : '') + (open ? '' : ' locked') + (n.L.n === unlockedTo ? ' current' : '');
+        const cls = 'map-city' + (done ? ' done' : '') + (open ? '' : ' locked')
+          + (n.L.n === unlockedTo ? ' current' : '') + (n.L.n === just ? ' just' : '');
         const node = svg('g', { class: cls, 'data-level': n.L.n });
         node.appendChild(svg('circle', { cx: n.x, cy: n.y, r: 7.5, class: 'mc-dot' }));
         if (n.L.n === unlockedTo) node.appendChild(svg('circle', { cx: n.x, cy: n.y, r: 13, class: 'mc-ring' }));

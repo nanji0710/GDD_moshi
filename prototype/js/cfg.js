@@ -39,7 +39,7 @@ window.ZT = window.ZT || {};
     WEAPONS: {
       mg: {
         name: '12.7mm 机枪塔', short: '机枪', cost: 90, tier: 1,
-        range: 95, dps: 46, rof: 9, ammoPerShot: 1, mode: 'hitscan', color: '#ffd479', aimRate: 5.0,
+        range: 95, dps: 68, rof: 9, ammoPerShot: 1, mode: 'hitscan', color: '#ffd479', aimRate: 5.0,
         forms: {
           A: { name: '双联装', rofMul: 1.9, dmgMul: 0.55, desc: '泼水式压制，打群' },
           B: { name: '重弹', rofMul: 0.65, dmgMul: 1.7, desc: '点爆，打精英' }
@@ -92,7 +92,7 @@ window.ZT = window.ZT || {};
 
     // ---------------- 丧尸 ----------------
     ZOMBIE: {
-      hp: 42, speed: 2.5, attack: 7, attackRate: 1.1, attackRange: 6,
+      hp: 26, speed: 2.5, attack: 7, attackRate: 1.1, attackRange: 6,
       maxAliveBase: 120, maxAlivePerLevel: 18,
       scrap: 1, eliteScrap: 3,
       eliteHpMul: 3.4, eliteAtkMul: 2.2

@@ -24,7 +24,7 @@ window.ZT = window.ZT || {};
       if (kind === 'runner' && lvDef && (lvDef.mods || []).indexOf('straight') >= 0) speed *= 1.3;
       let atk = CFG.ZOMBIE.attack * atkMul;
       if (opt.elite) { hp *= CFG.ZOMBIE.eliteHpMul; atk *= CFG.ZOMBIE.eliteAtkMul; speed *= 0.85; }
-      if (opt.boss) { hp = 600 * hpMul * 2.2; atk *= 2.4; speed *= 0.72; }
+      if (opt.boss) { hp = 600 * hpMul * 2.2 * (lv <= 2 ? 0.5 : 1); atk *= 2.4; speed *= 0.72; }
       if (opt.mini) { hp = CFG.PARK.miniBossHp * hpMul; atk *= 1.6; speed *= 0.8; }
       return {
         x: x, y: y, hp: hp, maxHp: hp, speed: speed, attack: atk,

@@ -18,6 +18,12 @@ window.ZT = window.ZT || {};
       this.root.appendChild(this.refs.toasts);
       this.refs.screen = h('div', { class: 'screen hidden' });
       this.root.appendChild(this.refs.screen);
+      // 站台期间常驻的"回到站台"按钮：关掉面板也不会被困住
+      this.refs.fab = h('button', {
+        class: 'fab hidden',
+        onclick: function () { if (Z.Run.station) Z.UI.openStation(Z.Run.station); }
+      }, '回到站台');
+      this.root.appendChild(this.refs.fab);
     },
 
     // ---------------- HUD ----------------
@@ -117,6 +123,8 @@ window.ZT = window.ZT || {};
         it.cd.style.height = (cd > 0 ? Math.min(100, cd / (it.def.cd + it.def.dur) * 100) : 0) + '%';
         it.el.style.setProperty('--sk', it.def.color);
       }
+      const atStation = run.state === 'station';
+      if (this.refs.fab) this.refs.fab.classList.toggle('hidden', !atStation || this.drawerState === 'station');
       this.renderCarStrip();
       if (this.drawerState === 'station') this.tickStation();
       if (this.drawerState === 'refit') this.tickRefit();
@@ -192,19 +200,47 @@ window.ZT = window.ZT || {};
           h('div', { class: 'start-foot' }, 'v' + CFG.VERSION + ' · 零依赖 · MIT'))));
     },
 
-    showLevels: function () {
+    showLevels: function (justLevel) {
       this.showHUD(false);
       const R_ = this.refs;
       R_.screen.innerHTML = '';
       R_.screen.classList.remove('hidden');
-      const map = Z.MapScreen.build({
-        onPick: function (lv) { Z.Game.startLevel(lv); }
-      });
+      const total = CFG.LEVELS.length;
+      const unlocked = Math.max(1, Z.Meta.selectedLevel || 1);
+      const cleared = Math.min(total, unlocked - 1);
+      const MODNAME = { night: '夜战', tunnel: '隧道', rain: '雨战', bridge: '铁桥', straight: '长直道', canyon: '连续弯道' };
+
+      const card = h('div', { class: 'map-card hidden' });
+      const showCard = function (lv) {
+        const L = CFG.LEVELS[lv - 1];
+        if (!L) return;
+        const best = (Z.Save && Z.Save.best) ? Z.Save.best(lv) : null;
+        const pal = (CFG.PAL[L.biome] || {}).name || '—';
+        const mods = (L.mods || []).map(function (m) { return MODNAME[m] || m; }).join(' · ');
+        card.innerHTML = '';
+        card.appendChild(h('div', { class: 'mc-head' },
+          h('b', null, '第 ' + lv + ' 关 · ' + L.city),
+          h('span', null, L.km.toFixed(1) + ' km')));
+        card.appendChild(h('div', { class: 'mc-row' }, '招牌：' + (L.tag || '—')));
+        card.appendChild(h('div', { class: 'mc-row' }, '地貌：' + pal + (mods ? ' · ' + mods : '')));
+        card.appendChild(h('div', { class: 'mc-row' },
+          best ? ('本关最佳 ' + U.fmt(best.points) + ' · 评价 ' + (best.grade || '—')) : '还没通关'));
+        card.appendChild(h('div', { class: 'mc-acts' },
+          h('button', { class: 'btn primary', onclick: function () { Z.Game.startLevel(lv); } }, '出发'),
+          h('button', { class: 'btn ghost', onclick: function () { card.classList.add('hidden'); } }, '关闭')));
+        card.classList.remove('hidden');
+      };
+
+      const map = Z.MapScreen.build({ justLevel: justLevel || 0, onPick: showCard });
       R_.screen.appendChild(h('div', { class: 'panel-map' },
         h('div', { class: 'map-head' },
           h('h2', null, '选择关卡'),
-          h('div', { class: 'sub' }, '沿铁路向西 · 每一站都比上一站更远')),
+          h('div', { class: 'sub' }, '沿铁路向西 · 每一站都比上一站更远'),
+          h('div', { class: 'map-progress' },
+            h('div', { class: 'map-bar' }, h('i', { style: { width: (cleared / total * 100) + '%' } })),
+            h('span', null, '已通关 ' + cleared + ' / ' + total))),
         map,
+        card,
         h('div', { class: 'map-legend' },
           h('i', { class: 'lg done' }), '已通关',
           h('i', { class: 'lg current' }), '当前',
@@ -416,6 +452,7 @@ window.ZT = window.ZT || {};
     depart: function () {
       this.refs.drawer.classList.add('hidden');
       this.drawerState = null;
+      if (this.refs.fab) this.refs.fab.classList.add('hidden');
       this.run.departStation();
     },
     closeStation: function () { this.refs.drawer.classList.add('hidden'); this.drawerState = null; },
@@ -540,6 +577,12 @@ window.ZT = window.ZT || {};
       return defs;
     },
     closeDrawer: function () {
+      // 只有在"站台里打开改装页"时，关闭才退回站台面板；
+      // 直接关站台面板是允许的 —— 右下角会常驻「回到站台」，不会卡死。
+      if (this.drawerState === 'refit' && this.run.state === 'station' && this.run.station) {
+        this.openStation(this.run.station);
+        return;
+      }
       this.refs.drawer.classList.add('hidden');
       this.drawerState = null;
     },
@@ -609,7 +652,7 @@ window.ZT = window.ZT || {};
               const meta = Z.Meta;
               if (win) meta.selectedLevel = Math.max(meta.selectedLevel, Math.min(12, res.level + 1));
               meta.save();
-              Z.UI.showStart();
+              Z.UI.showLevels(win ? res.level + 1 : 0);
             }
           }, '返回基地'),
           h('button', { class: 'btn', onclick: function () { Z.Game.startLevel(res.level); } }, '重打本关'))));

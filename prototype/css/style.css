@@ -581,3 +581,47 @@ button.carline.on { border-color: var(--accent); background: rgba(255,179,71,0.1
   vertical-align: middle;
 }
 .pip.mark { box-shadow: 1px 0 0 0 rgba(255,179,71,0.6); }
+
+/* 站台期间常驻的返回按钮 */
+.fab {
+  position: absolute; right: 18px; bottom: 132px; z-index: 8;
+  padding: 10px 18px; border-radius: 999px; cursor: pointer;
+  font: inherit; font-weight: 700; font-size: .95em; letter-spacing: .04em;
+  color: #1a1206; background: var(--accent); border: none;
+  box-shadow: 0 6px 20px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.12) inset;
+  animation: fabPulse 2.4s ease-in-out infinite;
+}
+.fab:hover { filter: brightness(1.08); }
+.fab.hidden { display: none; }
+@keyframes fabPulse {
+  0%, 100% { box-shadow: 0 6px 20px rgba(0,0,0,.45), 0 0 0 0 rgba(255,179,71,.5); }
+  50% { box-shadow: 0 6px 20px rgba(0,0,0,.45), 0 0 0 10px rgba(255,179,71,0); }
+}
+
+/* 地图：进度、信息卡、解锁动画 */
+.panel-map { position: relative; }
+.map-progress { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: .78em; color: var(--ink-3); }
+.map-bar { flex: 1; max-width: 240px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.10); overflow: hidden; }
+.map-bar i { display: block; height: 100%; background: var(--accent); transition: width .45s ease; }
+.map-route.done { stroke: #c98a2e; stroke-dasharray: none; opacity: .95; }
+.map-card {
+  position: absolute; left: 26px; bottom: 62px; width: 292px; z-index: 3;
+  display: flex; flex-direction: column; gap: 6px;
+  background: rgba(15,19,23,0.97); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 14px; box-shadow: 0 16px 40px rgba(0,0,0,.55);
+}
+.map-card.hidden { display: none; }
+.mc-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.mc-head b { font-size: 1.02em; }
+.mc-head span { color: var(--ink-3); font-size: .8em; white-space: nowrap; }
+.mc-row { color: var(--ink-2); font-size: .84em; }
+.mc-acts { display: flex; gap: 8px; margin-top: 6px; }
+.mc-acts .btn { flex: 1; }
+.map-city.just .mc-dot { transform-box: fill-box; transform-origin: center; animation: cityPop 1.1s ease-out; }
+@keyframes cityPop { 0% { transform: scale(.3); } 55% { transform: scale(1.7); } 100% { transform: scale(1); } }
+.mc-ring { transform-box: fill-box; transform-origin: center; animation: ringPulse 1.8s ease-out infinite; }
+@keyframes ringPulse {
+  0% { opacity: .95; transform: scale(.8); }
+  70% { opacity: 0; transform: scale(1.5); }
+  100% { opacity: 0; transform: scale(1.5); }
+}
