@@ -5,16 +5,19 @@
 import { spawn } from 'node:child_process'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { tmpdir } from 'node:os'
+import { fileURLToPath } from 'node:url'
+import { dirname, join as pjoin } from 'node:path'
 import { join } from 'node:path'
 import { rmSync } from 'node:fs'
 
 const EDGE = process.env.EDGE_PATH || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
 const PORT = Number(process.env.PORT || 9496)
 const PROFILE = join(tmpdir(), 'zt-smoke3-' + Date.now())
-const URL = 'file:///E:/github/sss/prototype/index.html'
+const HERE = dirname(fileURLToPath(import.meta.url))
+const PAGE_URL = 'file:///' + pjoin(HERE, '..', 'index.html').replace(/\\/g, '/')
 
 const proc = spawn(EDGE, ['--headless=new', '--disable-gpu', '--mute-audio', '--no-first-run',
-  '--window-size=1500,860', '--remote-debugging-port=' + PORT, '--user-data-dir=' + PROFILE, URL], { stdio: 'ignore' })
+  '--window-size=1500,860', '--remote-debugging-port=' + PORT, '--user-data-dir=' + PROFILE, PAGE_URL], { stdio: 'ignore' })
 
 let ws, seq = 0
 const pending = new Map()

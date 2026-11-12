@@ -7,6 +7,8 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path'
 
 const EDGE = process.env.EDGE_PATH || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
 const PORT = Number(process.env.PORT || 9477)
@@ -16,7 +18,7 @@ mkdirSync(OUT, { recursive: true })
 
 const proc = spawn(EDGE, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--mute-audio',
   '--no-first-run', '--window-size=1600,900', '--remote-debugging-port=' + PORT,
-  '--user-data-dir=' + PROFILE, 'file:///E:/github/sss/prototype/index.html'], { stdio: 'ignore' })
+  '--user-data-dir=' + PROFILE, 'file:///' + join(dirname(fileURLToPath(import.meta.url)), '..', 'index.html').replace(/\\/g, '/')], { stdio: 'ignore' })
 
 let ws = null, seq = 0
 const pending = new Map()
