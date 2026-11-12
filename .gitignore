@@ -23,3 +23,6 @@ release/
 
 # wrangler 本地缓存（部署时自动生成）
 .wrangler/
+
+# 一次性补丁脚本（临时产物）
+prototype/tools/patch-*.cjs
