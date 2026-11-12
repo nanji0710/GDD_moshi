@@ -20,3 +20,6 @@ npm-debug.log*
 
 # 发布产物（本地打包用，不入库）
 release/
+
+# wrangler 本地缓存（部署时自动生成）
+.wrangler/
