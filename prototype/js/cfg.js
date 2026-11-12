@@ -192,6 +192,13 @@ window.ZT = window.ZT || {};
     WEATHER: { rainBrake: 1.4, rainFlamer: 0.7 },
     BRIDGE: { spawnMul: 1.3, latMax: 7, rampM: 60 },   // 桥上只能沿轨道来
     STRAIGHT: { speedMul: 1.2, rateMul: 1.15, runnerChance: 0.32, aheadMin: 320, aheadMax: 700 },
+    ENDLESS: {
+      pathKm: 120,        // 一条 120 km 的走廊，跑到头就算结束
+      stationKm: 6,       // 每 6 km 一个补给站
+      bossKm: 10,         // 每 10 km 一个 Boss
+      lvlKm: 6,           // 每 6 km 视为 +1 关（难度爬升）
+      stallSec: 3         // 速度接近 0 持续 3 秒 → 结束
+    },
     HILL: { canyon: 34, mountain: 20, rMin: 34, rMax: 88, offMin: 46, offMax: 124 },
 
     // ---------------- 局外：6 条独立强化线 ----------------

@@ -428,6 +428,42 @@ try {
   })()`))
   check('音效开关写进存档且同步到音频', setRes.changed === true && setRes.soundOff === true, setRes)
   check('音量可写', await ev(`(() => { const S = ZT.Settings; S.set('volume', 0.5); const ok = Math.abs(ZT.Sound.volume - 0.5) < 1e-6; S.set('volume', 0.9); return ok })()`))
+  console.log('\n[19] 无尽模式')
+  await ev('window.ZT.Game.startEndless()')
+  await sleep(350)
+  check('无尽模式开局在站台', await ev('ZT.Run.endless === true && ZT.Run.state === "station"'))
+  check('走廊长度 120 km', await ev('Math.abs(ZT.World.path.len - 120000) / 120000 < 0.2'))
+  await ev('window.ZT.Run.departStation()')
+  // 直接推进模拟时间，避免 headless 下 rAF 被节流
+  const ran = JSON.parse(await ev(`(() => {
+    const R = ZT.Run;
+    for (let i = 0; i < 360; i++) R.tick(1 / 60);
+    return JSON.stringify({ km: Math.round(R.km), speed: Math.round(R.speed), state: R.state, lv: R.level });
+  })()`))
+  check('列车在无尽走廊里推进', ran.km > 60 && ran.speed > 10, ran)
+  check('难度随里程爬升', ran.lv === await ev('ZT.Run.endlessLevel()'), ran)
+  const stationRes = JSON.parse(await ev(`(() => {
+    const R = ZT.Run;
+    R.state = 'run';
+    R.km = R.nextStationKm - 20;
+    R.train.s = R.km;
+    for (let i = 0; i < 120; i++) R.tick(1 / 60);
+    return JSON.stringify({ state: R.state, endless: !!(R.station && R.station.endless) });
+  })()`))
+  check('每 6 km 一个补给站', stationRes.state === 'station' && stationRes.endless === true, stationRes)
+  const over = JSON.parse(await ev(`(() => {
+    const R = ZT.Run;
+    R.departStation();
+    R.state = 'run';
+    R.nextStationKm = R.totalKm + 10000;
+    R.km = R.totalKm - 5;
+    R.train.s = R.km;
+    for (let i = 0; i < 120; i++) R.tick(1 / 60);
+    return JSON.stringify({ state: R.state, saveOk: ZT.Save.save(R) });
+  })()`))
+  check('跑到走廊尽头结束', over.state === 'over', over)
+  check('无尽模式不写局内存档', over.saveOk === false, over)
+  check('无尽最佳里程已记录', await ev('!!ZT.Save.endlessBest() && ZT.Save.endlessBest().km > 50'))
 } catch (e) {
   fail++
   console.error('冒烟测试中断：', e.message)

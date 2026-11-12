@@ -426,6 +426,18 @@ window.ZT = window.ZT || {};
       Z.UI.hideScreen();
       Z.UI.showHUD(true);
     },
+    startEndless: function () {
+      const R = Z.R, run = Z.Run;
+      run.startEndless();
+      const lay = run.train.layout(Z.World);
+      const mid = lay[(lay.length / 2) | 0];
+      if (mid) { R.cam.cx = mid.x; R.cam.cy = mid.y; }
+      R.cam.zoom = CFG.CAM.zoom; R.cam.tilt = R.cam.tiltT = CFG.CAM.tilt;
+      R.follow = true; R.compute();
+      Game.paused = false; Game.speedMul = 1; Game.acc = 0;
+      Z.UI.hideScreen();
+      Z.UI.showHUD(true);
+    },
     continueRun: function () {
       const snap = Z.Save && Z.Save.get();
       if (!snap) { if (Z.UI) Z.UI.toast('没有可继续的存档', 'bad'); return; }

@@ -152,6 +152,32 @@ window.ZT = window.ZT || {};
       return this;
     },
 
+    // ---------------- 无尽模式 ----------------
+    startEndless: function () {
+      this.start(1);
+      this.endless = true;
+      this.totalKm = CFG.ENDLESS.pathKm * 1000;
+      this.nextStationKm = CFG.ENDLESS.stationKm * 1000;
+      this.nextBossKm = CFG.ENDLESS.bossKm * 1000;
+      this.stallT = 0;
+      this.level = 1; this.levelDef = CFG.LEVELS[0];
+      // 一条很长的走廊（难度不按关卡，按里程）
+      Z.World.generate(20261112 + 977, this.totalKm, 'loess', null, []);
+      this.train = new Z.Train(this);
+      this.state = 'station';
+      this.station = { idx: -1, endless: true, isStart: true };
+      this.speed = 0;
+      if (Z.Zombies && Z.Zombies.reset) Z.Zombies.reset();
+      if (Z.UI) Z.UI.openStation(this.station);
+      if (Z.Tips) Z.Tips.tip('endless');
+      return this;
+    },
+
+    // 无尽模式里"第几关"由里程算出来
+    endlessLevel: function () {
+      return Math.min(CFG.LEVELS.length, 1 + Math.floor(this.km / (CFG.ENDLESS.lvlKm * 1000)));
+    },
+
     // 关卡变异 → 黑暗度 / 能见度 / 天气系数
     applyMods: function (L) {
       const mods = (L && L.mods) || [];
@@ -186,6 +212,14 @@ window.ZT = window.ZT || {};
         this.stats.t += dt;
         if (this.speed > this.stats.maxSpeed) this.stats.maxSpeed = this.speed;
         if (this.cars.length > this.stats.maxCars) this.stats.maxCars = this.cars.length;
+      }
+      if (this.endless) {
+        const lv = this.endlessLevel();
+        if (lv !== this.level) { this.level = lv; this.levelDef = CFG.LEVELS[lv - 1]; }
+        if (this.state === 'run') {
+          if (this.speed < 0.6) this.stallT += dt; else this.stallT = 0;
+          if (this.stallT > CFG.ENDLESS.stallSec) { this.gameOver(); return; }
+        }
       }
       // 技能冷却
       if (Z.Skills) Z.Skills.update(this, dt);
@@ -241,6 +275,17 @@ window.ZT = window.ZT || {};
       this.fuel -= ds / 1000 * CFG.ECON.fuelPerKm * (this.buffs.tank ? CFG.BUFFS.tank.fuel : 1);
       if (this.fuel <= 0) { this.fuel = 0; }
       if (this.train) this.train.s = this.km;
+      // 无尽模式：固定里程一个补给站，跑到走廊尽头就结束
+      if (this.endless) {
+        if (this.km >= this.totalKm) { this.km = this.totalKm; this.gameOver(); return; }
+        if (this.km >= this.nextStationKm) {
+          this.nextStationKm += CFG.ENDLESS.stationKm * 1000;
+          this.km = Math.round(this.km);
+          this.openEndlessStation();
+          return;
+        }
+        return;
+      }
       // 到站
       const st = this.nextStation();
       if (st != null && this.km >= st) {
@@ -250,6 +295,15 @@ window.ZT = window.ZT || {};
         }
         this.km = st; this.openStation(nextIdx);
       }
+    },
+
+    openEndlessStation: function () {
+      this.speed = 0;
+      this.state = 'station';
+      this.station = { idx: -1, endless: true, isStart: false };
+      this.boardAcc = 0;
+      if (Z.Sound) Z.Sound.play('chime', { vol: 0.7 });
+      if (Z.UI) Z.UI.openStation(this.station);
     },
 
     nextStation: function () {
@@ -457,6 +511,15 @@ window.ZT = window.ZT || {};
 
     // ---- Boss ----
     checkBosses: function () {
+      if (this.endless) {
+        if (this.km >= this.nextBossKm) {
+          this.nextBossKm += CFG.ENDLESS.bossKm * 1000;
+          if (Z.Zombies) Z.Zombies.spawnBoss(this, 'armor');
+          if (Z.UI) Z.UI.toast('Boss 出现！', 'bad');
+          if (Z.Fx) Z.Fx.shake = 1;
+        }
+        return;
+      }
       if (!this.bossAt || this.bossSpawned >= this.bossAt.length) return;
       if (this.km >= this.bossAt[this.bossSpawned]) {
         this.bossSpawned++;
@@ -468,6 +531,7 @@ window.ZT = window.ZT || {};
 
     // ---- 胜负 ----
     checkWin: function () {
+      if (this.endless) return;
       if (this.state === 'win') return;
       if (this.km >= this.totalKm) { this.km = this.totalKm; this.state = 'win'; this.finish(true); }
     },
@@ -480,6 +544,19 @@ window.ZT = window.ZT || {};
       if (Z.Sound) Z.Sound.play(win ? 'win' : 'lose');
       if (Z.Sound) Z.Sound.rumble(0);
       const res = this.settle(win);
+      if (this.endless) {
+        res.endless = true;
+        if (Z.Save && Z.Save.endlessBest) {
+          const prev = Z.Save.endlessBest();
+          res.prevBest = prev;
+          res.isBest = !prev || res.km > prev.km;
+          res.bestPoints = prev ? Math.max(prev.km, res.km) : res.km;
+          if (res.isBest) Z.Save.setEndlessBest({ km: res.km, kills: res.kills, cars: res.maxCars, at: Date.now() });
+        }
+        if (Z.Meta) Z.Meta.addPoints(res.points);
+        if (Z.UI) Z.UI.showResult(res, false);
+        return;
+      }
       if (Z.Save) {
         const prev = Z.Save.best ? Z.Save.best(this.level) : null;
         res.prevBest = prev;
@@ -513,6 +590,15 @@ window.ZT = window.ZT || {};
       const st = this.stats || { t: 0, maxSpeed: 0, maxCars: this.cars.length, deaths: 0, repairs: 0 };
       const carLoss = this.cars.length ? deadCars / this.cars.length : 0;
       const refRate = ref / Math.max(1, this.capacity());
+      if (this.endless) {
+        const endLine = '列车开不动了——你在铁轨上撑了 ' + km.toFixed(1) + ' 公里，挂了 ' + this.cars.length + ' 节车厢。';
+        return {
+          endless: true, grade: '崩', line: endLine, stats: st, km: km, refugees: ref, kills: this.kills,
+          bossKills: this.bossKills, capacity: this.capacity(), deadCars: deadCars, repairs: st.repairs,
+          maxSpeed: st.maxSpeed, maxCars: st.maxCars, timeSec: st.t, points: Math.round(km * 120 + this.kills * 0.5),
+          miles: Math.round(km * 120), esc: 0, combat: 0, perfect: 0, leftover: 0, penalty: 0, level: this.level
+        };
+      }
       let grade = '崩', line = '';
       if (carLoss <= 0.15 && refRate >= 0.5) {
         grade = '稳';

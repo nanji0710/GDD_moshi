@@ -20,12 +20,19 @@ window.ZT = window.ZT || {};
       } catch (e) { return null; }
     },
     save: function (run) {
+      if (!run || run.endless) return false;                 // 无尽模式不做局内存档
       if (!run || run.state === 'menu' || run.state === 'win' || run.state === 'over') return false;
       try {
         localStorage.setItem(KEY, JSON.stringify(run.snapshot()));
         this.lastSaved = Date.now();
         return true;
       } catch (e) { return false; }
+    },
+    endlessBest: function () {
+      try { return JSON.parse(localStorage.getItem('zt.endless.v1') || 'null'); } catch (e) { return null; }
+    },
+    setEndlessBest: function (rec) {
+      try { localStorage.setItem('zt.endless.v1', JSON.stringify(rec)); return true; } catch (e) { return false; }
     },
     best: function (level) {
       try { return JSON.parse(localStorage.getItem('zt.best.' + level) || 'null'); } catch (e) { return null; }

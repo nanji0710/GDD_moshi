@@ -196,6 +196,10 @@ window.ZT = window.ZT || {};
             bigBtn('开始游戏', '选择关卡 · 从温州出发', function () { Z.UI.showLevels(); }, true),
             sum ? bigBtn('继续上一局', '第 ' + sum.level + ' 关 · ' + sum.city + ' · ' + sum.km + ' / ' + sum.total + ' km',
               function () { Z.Game.continueRun(); }) : null,
+            bigBtn('无尽模式', (function () {
+              const b = Z.Save && Z.Save.endlessBest ? Z.Save.endlessBest() : null;
+              return b ? ('最佳 ' + b.km.toFixed(1) + ' km · 开多远算多远') : '开多远算多远 · 车厢无上限';
+            })(), function () { Z.Game.startEndless(); }),
             bigBtn('科技', '里程点 ' + U.fmt(meta.points) + ' · 6 条强化线', function () { Z.UI.showTech(); }),
             bigBtn('设置', '音效 · 镜头 · 重看教学 · 清存档', function () { Z.UI.showSettings(); })),
           h('div', { class: 'start-foot' }, 'v' + CFG.VERSION + ' · 零依赖 · MIT'))));
@@ -698,14 +702,16 @@ window.ZT = window.ZT || {};
       ].map(function (r) { return h('div', { class: 'resrow' }, h('span', null, r[0]), h('b', null, (r[1] >= 0 ? '+' : '') + U.fmt(r[1]))); });
 
       const bestLine = h('div', { class: 'bestline' },
-        res.prevBest
+        res.endless
+          ? (res.isBest ? ('新纪录 ' + res.km.toFixed(1) + ' km') : ('最佳 ' + (res.bestPoints || 0).toFixed(1) + ' km（本次 ' + res.km.toFixed(1) + ' km）'))
+          : res.prevBest
           ? (res.isBest
             ? ('本关最佳 ' + U.fmt(res.points) + ' · 刷新纪录 ↑')
             : ('本关最佳 ' + U.fmt(res.bestPoints) + '（本局 ' + U.fmt(res.points) + '）'))
           : ('首次通关 · 已记录最佳 ' + U.fmt(res.points)));
 
       R_.screen.appendChild(h('div', { class: 'panel-title ' + (win ? 'win' : 'lose') },
-        h('h1', null, win ? '抵达安全点' : '列车停下了'),
+        h('h1', null, res.endless ? '无尽模式 · 列车停下了' : (win ? '抵达安全点' : '列车停下了')),
         h('div', { class: 'tagline' }, win ? '墙后的人打开了道口。' : '最后一节车厢的灯灭掉时，铁轨上只剩下脚步声。'),
         h('div', { class: 'grade ' + gradeCls }, res.grade),
         h('div', { class: 'gradeline' }, res.line),
