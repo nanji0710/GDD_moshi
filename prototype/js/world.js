@@ -1,0 +1,618 @@
+'use strict';
+// 地图与轨道：生成一条 11.6 km 的废土铁路走廊（轨道、河流与铁桥、废墟、树林、公路、车站）。
+// 轨道用「控制点 → Catmull-Rom 加密 → 弧长参数化」生成，对应 city-and-metro/js/metro.js 的 rt.pts / rt.cum 结构。
+window.ZT = window.ZT || {};
+(function (Z) {
+  const U = Z.U, CFG = Z.CFG;
+
+  const CTRL = [
+    [0, 0], [700, -40], [1400, 70], [2100, 230], [2800, 120], [3500, -70],
+    [4300, -150], [5100, 40], [5900, 270], [6700, 310], [7500, 150],
+    [8300, -90], [9100, -230], [9900, -120], [10700, 130], [11620, 190]
+  ];
+
+  const World = Z.World = {
+    path: null,
+    stations: [],
+    river: null,
+    ruins: [], trees: [], roads: [], wrecks: [],
+    bridge: null,
+
+    generate: function (seed, targetM, biome, lm, mods) {
+      const rng = new U.Rng(seed || 20261112);
+      this.pal = (CFG.PAL && CFG.PAL[biome]) || CFG.PAL.temperate;
+      this.lm = lm || null;
+      this.hills = [];
+      // 按关卡里程缩放整条走廊（控制点等比放大 → 弧长近似等比）
+      const BASE = 11870;
+      const scale = targetM ? Math.max(0.35, targetM / BASE) : 1;
+      // ---- 轨道 ----
+      const ctrl = CTRL.map(function (p) { return { x: p[0] * scale, y: p[1] * scale }; });
+      const raw = U.spline(ctrl, 3.0, false);
+      const path0 = U.buildPath(raw.map(function (p) { return { x: p.x, y: p.y, h: 0 }; }));
+      const total = path0.len;
+      const brS0 = total * 0.140, brS1 = total * 0.166;
+      const b0 = brS0 - 90, b1 = brS1 + 90;
+      for (let i = 0; i < path0.pts.length; i++) {
+        const s = path0.cum[i];
+        let h = 3.2;
+        if (s > brS0 && s < brS1) h = 13.2;
+        else if (s >= b0 && s <= brS0) h = U.lerp(3.2, 13.2, U.smooth((s - b0) / (brS0 - b0)));
+        else if (s >= brS1 && s <= b1) h = U.lerp(13.2, 3.2, U.smooth((s - brS1) / (b1 - brS1)));
+        path0.pts[i].h = h;
+      }
+      this.path = path0;
+      this.bridge = { s0: brS0, s1: brS1 };
+      // 山体：位置固定，会挡住射界（重庆弯道关尤其多）
+      const canyon = (mods || []).indexOf('canyon') >= 0;
+      const hillN = canyon ? CFG.HILL.canyon : (biome === 'mountain' ? CFG.HILL.mountain : 0);
+      for (let i = 0; i < hillN; i++) {
+        const hs = rng.range(0.03, 0.97) * total;
+        const hp = U.posAt(path0, Math.min(path0.len - 5, Math.max(5, hs)), {});
+        const side = rng.chance(0.5) ? 1 : -1;
+        const off = rng.range(CFG.HILL.offMin, CFG.HILL.offMax);
+        const hnx = -Math.sin(hp.a), hny = Math.cos(hp.a);
+        this.hills.push({
+          x: hp.x + hnx * off * side, y: hp.y + hny * off * side,
+          r: rng.range(CFG.HILL.rMin, CFG.HILL.rMax), h: rng.range(9, 24)
+        });
+      }
+
+      // ---- 车站 ----
+      const KM_TOTAL = 11.6;
+      // 站台：按 STATION_AT 的比例落在里程上（最后一个 = 终点安全区）
+      const NAMES = ['出发站', '中途站', '补给站', '安全点'];
+      this.stations = CFG.STATION_AT.map(function (r, i, arr) {
+        const last = i === arr.length - 1;
+        return {
+          idx: i, name: last ? '安全点' : NAMES[Math.min(i, NAMES.length - 2)],
+          km: r * total / 1000, s: U.clamp(r, 0.02, 1) * total,
+          wall: i === 0 || last, final: last, visited: false
+        };
+      });
+
+      // ---- 河流（以铁桥为中心斜穿） ----
+      const bp = U.posAt(this.path, (brS0 + brS1) / 2, {});
+      const ang = bp.a + Math.PI / 2 + 0.42;
+      const rc = [];
+      for (let i = -8; i <= 8; i++) {
+        const t = i * 190, bend = Math.sin(i * 0.55) * 55;
+        rc.push({ x: bp.x + Math.cos(ang) * t + Math.cos(ang + Math.PI / 2) * bend, y: bp.y + Math.sin(ang) * t + Math.sin(ang + Math.PI / 2) * bend });
+      }
+      const halfW = 62;
+      const left = [], right = [];
+      for (let i = 0; i < rc.length; i++) {
+        const a = rc[Math.max(0, i - 1)], b = rc[Math.min(rc.length - 1, i + 1)];
+        const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1;
+        const nx = -dy / l, ny = dx / l;
+        const w = halfW * (0.82 + 0.18 * Math.sin(i * 1.3));
+        left.push({ x: rc[i].x + nx * w, y: rc[i].y + ny * w });
+        right.push({ x: rc[i].x - nx * w, y: rc[i].y - ny * w });
+      }
+      this.river = { center: rc, poly: left.concat(right.slice().reverse()), halfW: halfW };
+
+      // ---- 沿线散布：按「沿弧长 × 横向偏移」的网格铺，保证同一个屏幕里始终有东西 ----
+      this.ruins = []; this.trees = []; this.roads = []; this.wrecks = [];
+      const p = {};
+      // 城镇密度场：0=荒野 1=镇中心（用两个高斯团 + 车站附近加成）
+      const townAt = function (u) {
+        return Math.min(1,
+          Math.exp(-Math.pow((u - 0.30) / 0.085, 2)) +
+          Math.exp(-Math.pow((u - 0.585) / 0.075, 2)) * 0.9 +
+          Math.exp(-Math.pow((u - 0.78) / 0.05, 2)) * 0.6);
+      };
+      const G = 44;
+      for (let s = 0; s < total; s += G) {
+        const u = s / total;
+        const town = townAt(u);
+        U.posAt(this.path, s, p);
+        const onBridge = s > this.bridge.s0 - 30 && s < this.bridge.s1 + 30;
+        if (onBridge) continue;
+        const nx = -Math.sin(p.a), ny = Math.cos(p.a);
+        for (let lat = -620; lat <= 620; lat += G) {
+          if (Math.abs(lat) < 24) continue;                       // 铁路走廊留空
+          if (rng.next() > 0.10 + town * 0.62) continue;
+          const jx = rng.range(-14, 14), jy = rng.range(-14, 14);
+          const x = p.x + nx * lat + jx, y = p.y + ny * lat + jy;
+          if (this.inRiver(x, y)) continue;
+          const tall = rng.chance(0.10 + town * 0.18);
+          this.ruins.push({
+            x: x, y: y,
+            w: rng.range(10, tall ? 26 : 22), d: rng.range(9, tall ? 22 : 20),
+            rot: rng.range(-0.6, 0.6) + p.a,
+            h: tall ? rng.range(8, 20) : rng.range(3.2, 8.5),
+            kind: tall ? 2 : (rng.chance(0.34) ? 1 : 0),
+            fire: rng.chance(0.05), dmg: rng.next()
+          });
+        }
+        // 树与电线杆
+        for (let k = 0; k < 2; k++) {
+          if (!rng.chance(0.5 - town * 0.25)) continue;
+          const lat = (rng.chance(0.5) ? 1 : -1) * rng.range(40, 620);
+          const x = p.x + nx * lat + rng.range(-12, 12), y = p.y + ny * lat + rng.range(-12, 12);
+          if (this.inRiver(x, y)) continue;
+          this.trees.push({ x: x, y: y, r: rng.range(2.4, 5.6), k: rng.int(0, 2) });
+        }
+        if (rng.chance(0.10)) {
+          const side = rng.chance(0.5) ? 1 : -1, lat = side * rng.range(10, 46);
+          this.wrecks.push({ x: p.x + nx * lat, y: p.y + ny * lat, a: p.a + rng.range(-1.2, 1.2), burnt: rng.chance(0.55) });
+        }
+      }
+      // 公路：三条横穿走廊的破路
+      for (let i = 0; i < 3; i++) {
+        const s = U.lerp(total * 0.22, total * 0.86, i / 2);
+        U.posAt(this.path, s, p);
+        const ang = p.a + Math.PI / 2 + rng.range(-0.35, 0.35);
+        const pts = [];
+        for (let j = -6; j <= 6; j++) {
+          const t = j * 140;
+          pts.push({ x: p.x + Math.cos(ang) * t + rng.range(-18, 18), y: p.y + Math.sin(ang) * t + rng.range(-18, 18) });
+        }
+        this.roads.push({ pts: pts, w: rng.range(6, 9) });
+      }
+      return this;
+    },
+
+    // 视线遮挡：线段 A→B 是否被山体挡住（山体是圆的，终点附近不算）
+    losBlocked: function (ax, ay, bx, by) {
+      const hills = this.hills;
+      if (!hills || !hills.length) return false;
+      const dx = bx - ax, dy = by - ay;
+      const len2 = dx * dx + dy * dy || 1;
+      for (let i = 0; i < hills.length; i++) {
+        const h = hills[i];
+        const mx = (ax + bx) * 0.5, my = (ay + by) * 0.5;
+        if (Math.abs(h.x - mx) > h.r + 700 || Math.abs(h.y - my) > h.r + 700) continue;
+        let t = ((h.x - ax) * dx + (h.y - ay) * dy) / len2;
+        t = Math.max(0.05, Math.min(0.95, t));
+        const px = ax + dx * t, py = ay + dy * t;
+        const ddx = h.x - px, ddy = h.y - py;
+        if (ddx * ddx + ddy * ddy < h.r * h.r) return true;
+      }
+      return false;
+    },
+
+    inRiver: function (x, y) {
+      if (!this.river) return false;
+      const poly = this.river.poly;
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y;
+        if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+      }
+      return inside;
+    },
+
+    nextStation: function (s) {
+      for (let i = 0; i < this.stations.length; i++) if (this.stations[i].s > s + 0.5) return this.stations[i];
+      return null;
+    },
+    onBridge: function (s) { return s > this.bridge.s0 && s < this.bridge.s1; },
+
+    // ---------------- 绘制 ----------------
+    drawGround: function (ctx, R) {
+      const v = R.worldView();
+      ctx.save();
+      R.flat(ctx);
+      // 地表：260 m 色块，做出被踩烂的荒地感
+      const G = 260;
+      const x0 = Math.floor(v.x0 / G) * G, x1 = Math.ceil(v.x1 / G) * G;
+      const y0 = Math.floor(v.y0 / G) * G, y1 = Math.ceil(v.y1 / G) * G;
+      for (let x = x0; x < x1; x += G) {
+        for (let y = y0; y < y1; y += G) {
+          const n = R.hashCell(x / G, y / G, 7);
+          const pal = this.pal;
+          ctx.fillStyle = U.mix(pal.g1, n > 0.62 ? pal.g2 : (n > 0.30 ? pal.g3 : pal.g4), Math.abs(n - 0.5) * 1.6);
+          ctx.fillRect(x, y, G + 1, G + 1);
+        }
+      }
+      // 地表的碎屑斑块（不再画成方块网格，避免像 UI 元素）
+      ctx.globalAlpha = 0.55;
+      for (let i = 0; i < 260; i++) {
+        const cx = R.hashCell(i, 3, 11) * 14000 - 1200, cy = R.hashCell(i, 4, 13) * 1800 - 900;
+        if (cx < v.x0 - 200 || cx > v.x1 + 200 || cy < v.y0 - 200 || cy > v.y1 + 200) continue;
+        const w = 30 + R.hashCell(i, 5, 17) * 130, hgt = 16 + R.hashCell(i, 6, 19) * 70;
+        ctx.fillStyle = this.pal.patch[i % 3];
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, w, hgt, R.hashCell(i, 7, 23) * 3.14, 0, 6.2832);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      // 公路
+      for (const rd of this.roads) {
+        if (!R.pathVisible(rd.pts, 500)) continue;
+        ctx.strokeStyle = '#22221d';
+        ctx.lineWidth = rd.w + 4;
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        R.traceWorld(ctx, rd.pts); ctx.stroke();
+        ctx.strokeStyle = '#4c4a41';
+        ctx.lineWidth = rd.w; ctx.stroke();
+        ctx.strokeStyle = 'rgba(200,188,140,0.30)';
+        ctx.lineWidth = 0.7;
+        ctx.setLineDash([6, 10]); ctx.stroke(); ctx.setLineDash([]);
+      }
+      // 河流
+      const rv = this.river;
+      if (R.pathVisible(rv.poly, 800)) {
+        ctx.fillStyle = '#1a303c';
+        ctx.beginPath();
+        ctx.moveTo(rv.poly[0].x, rv.poly[0].y);
+        for (let i = 1; i < rv.poly.length; i++) ctx.lineTo(rv.poly[i].x, rv.poly[i].y);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(120,190,210,0.09)'; ctx.fill();
+      }
+      R.unflat(ctx);
+    },
+
+    drawProps: function (ctx, R) {
+      const v = R.worldView();
+      const tin = function (x, y, pad) { return x > v.x0 - pad && x < v.x1 + pad && y > v.y0 - pad && y < v.y1 + pad; };
+      // 山体（画在地面之上、其它道具之下）
+      if (this.hills && this.hills.length) {
+        for (let i = 0; i < this.hills.length; i++) {
+          const h = this.hills[i];
+          if (!tin(h.x, h.y, h.r + 60)) continue;
+          const b = R.P(h.x, h.y, 0, {});
+          const t = R.P(h.x, h.y, h.h, {});
+          const rr = h.r * R.z;
+          ctx.fillStyle = 'rgba(0,0,0,0.34)';
+          ctx.beginPath(); ctx.ellipse(b.x, b.y + rr * 0.08, rr * 1.0, rr * 0.42, 0, 0, 6.2832); ctx.fill();
+          // 八层椭圆堆出体积（比单层圆盘更像山）
+          for (let k = 0; k < 8; k++) {
+            const fk = k / 7;
+            const yy = b.y + (t.y - b.y) * fk;
+            const r2 = rr * (1 - 0.42 * fk);
+            ctx.fillStyle = 'rgb(' + Math.round(22 + fk * 30) + ',' + Math.round(26 + fk * 30) + ',' + Math.round(21 + fk * 24) + ')';
+            ctx.beginPath(); ctx.ellipse(h.x * 0 + (b.x + (t.x - b.x) * fk), yy, r2, r2 * 0.4, 0, 0, 6.2832); ctx.fill();
+          }
+          ctx.fillStyle = 'rgba(140,156,126,0.20)';
+          ctx.beginPath(); ctx.ellipse(t.x - rr * 0.22, t.y - rr * 0.04, rr * 0.44, rr * 0.16, 0, 0, 6.2832); ctx.fill();
+        }
+      }
+      // 树
+      R.flat(ctx);
+      for (const t of this.trees) {
+        if (!tin(t.x, t.y, 40)) continue;
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.beginPath(); ctx.arc(t.x + 2, t.y + 2.4, t.r, 0, 6.2832); ctx.fill();
+        ctx.fillStyle = this.pal.tree[t.k];
+        ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, 6.2832); ctx.fill();
+      }
+      R.unflat(ctx);
+      // 报废车
+      for (const w of this.wrecks) {
+        if (!tin(w.x, w.y, 40)) continue;
+        const cos = Math.cos(w.a) * 2.6, sin = Math.sin(w.a) * 2.6;
+        const cos2 = Math.cos(w.a) * 1.1, sin2 = Math.sin(w.a) * 1.1;
+        const q = [
+          { x: w.x - cos - cos2, y: w.y - sin - sin2 }, { x: w.x + cos - cos2, y: w.y + sin - sin2 },
+          { x: w.x + cos + cos2, y: w.y + sin + sin2 }, { x: w.x - cos + cos2, y: w.y - sin + sin2 }
+        ];
+        this._quad(ctx, R, q, 1.2, w.burnt ? '#2b2724' : '#4a4238', w.burnt ? '#1f1c1a' : '#6a5f4e');
+      }
+      // 废墟
+      this.drawLandmarks(ctx, R);
+      for (const b of this.ruins) {
+        if (!tin(b.x, b.y, 80)) continue;
+        const ca = Math.cos(b.rot), sa = Math.sin(b.rot);
+        const hw = b.w / 2, hd = b.d / 2;
+        const loc = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]];
+        const q = loc.map(function (p) { return { x: b.x + p[0] * ca - p[1] * sa, y: b.y + p[0] * sa + p[1] * ca }; });
+        const wall = this.pal.wall[b.kind];
+        const roof = this.pal.roof[b.kind];
+        const hh = b.h * (b.dmg > 0.72 ? 0.42 : (b.dmg > 0.45 ? 0.78 : 1));
+        this._quad(ctx, R, q, hh, wall, roof, b.fire, b.dmg);
+        // 建筑碎屑：几颗确定性散落的小方块
+        if (R.cam.zoom > 1.2) {
+          for (let i = 0; i < 3; i++) {
+            const hx = R.hashCell(Math.floor(b.x / 7), Math.floor(b.y / 7), i + 3);
+            const hy = R.hashCell(Math.floor(b.x / 7), Math.floor(b.y / 7), i + 11);
+            const dp = R.P(b.x + (hx - 0.5) * b.w * 1.9, b.y + (hy - 0.5) * b.d * 1.9, 0, {});
+            ctx.fillStyle = i % 2 ? 'rgba(20,19,16,0.75)' : 'rgba(48,46,40,0.8)';
+            ctx.fillRect(dp.x, dp.y, Math.max(1.2, R.cam.zoom * 0.6), Math.max(1, R.cam.zoom * 0.4));
+          }
+        }
+      }
+    },
+
+    // 有高度的方块：底面 + 朝屏幕下方的侧墙 + 屋顶（2.5D 挤压）
+    // 地标：一两个高体块，让每关有一眼能认出来的东西
+    drawLandmarks: function (ctx, R) {
+      const lm = this.lm;
+      if (!lm || !this.path) return;
+      if (Math.abs(lm.s * this.path.len - (R.camS || 0)) > 2200) return;
+      const p = U.posAt(this.path, lm.s * this.path.len, {});
+      const nx = -Math.sin(p.a), ny = Math.cos(p.a);
+      const ox = p.x + nx * (lm.off || 100) * (lm.side || 1);
+      const oy = p.y + ny * (lm.off || 100) * (lm.side || 1);
+      const ax = Math.cos(p.a), ay = Math.sin(p.a);
+      const wall = U.mix(this.pal.wall[2], '#6d7a86', 0.10);
+      const roof = U.mix(this.pal.roof[2], '#8fa0ae', 0.16);
+      const box = function (dx, dy, w, d, h, roof2) {
+        const cx = ox + ax * dx + nx * dy, cy = oy + ay * dx + ny * dy;
+        const hw = w / 2, hd = d / 2, ang = p.a;
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        const q = [
+          { x: cx + ca * hw - sa * hd, y: cy + sa * hw + ca * hd },
+          { x: cx - ca * hw - sa * hd, y: cy - sa * hw + ca * hd },
+          { x: cx - ca * hw + sa * hd, y: cy - sa * hw - ca * hd },
+          { x: cx + ca * hw + sa * hd, y: cy + sa * hw - ca * hd }
+        ];
+        Z.World._quad(ctx, R, q, h, wall, roof2 || roof, false, 0);
+      };
+      const t = lm.type || 'tower';
+      if (t === 'tower') {
+        box(0, 0, 26, 26, 46);
+        box(0, 0, 12, 12, 62, U.mix(roof, '#a8b4c0', 0.12));
+        const tip = R.P(ox, oy, 66, {});
+        ctx.strokeStyle = 'rgba(200,205,210,0.55)';
+        ctx.lineWidth = Math.max(1, R.z * 0.5);
+        ctx.beginPath(); ctx.moveTo(tip.x, tip.y); ctx.lineTo(tip.x, tip.y - R.z * 14); ctx.stroke();
+      } else if (t === 'twin') {
+        box(-24, 0, 18, 18, 38);
+        box(24, 0, 18, 18, 34);
+        // 连桥
+        const a = R.P(ox - ax * 24, oy - ay * 24, 26, {});
+        const b = R.P(ox + ax * 24, oy + ay * 24, 26, {});
+        ctx.strokeStyle = 'rgba(170,178,186,0.5)';
+        ctx.lineWidth = Math.max(1.4, R.z * 0.7);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      } else if (t === 'cluster') {
+        box(-30, -14, 22, 18, 30);
+        box(0, 12, 26, 24, 44);
+        box(30, -6, 18, 20, 26);
+        box(6, -26, 16, 14, 34);
+      } else if (t === 'dome') {
+        box(0, 0, 40, 40, 18);
+        const c0 = R.P(ox, oy, 18, {});
+        const rr = 15 * R.z;
+        const grd = ctx.createRadialGradient(c0.x - rr * 0.3, c0.y - rr * 0.4, rr * 0.1, c0.x, c0.y, rr);
+        grd.addColorStop(0, 'rgba(112,128,142,0.50)');
+        grd.addColorStop(1, 'rgba(38,46,54,0.62)');
+        ctx.fillStyle = grd;
+        ctx.beginPath(); ctx.ellipse(c0.x, c0.y, rr, rr * 0.72, 0, 0, 6.2832); ctx.fill();
+        const tip = R.P(ox, oy, 24, {});
+        ctx.fillStyle = '#c8b070';
+        ctx.beginPath(); ctx.arc(tip.x, tip.y, Math.max(1.5, R.z * 0.8), 0, 6.2832); ctx.fill();
+      }
+    },
+
+    _quad: function (ctx, R, q, h, wallCol, roofCol, fire, dmg) {
+      // 落地投影：沿光方向偏移一点，画在最底下（树有影子、楼没有 = 楼像贴纸）
+      if (h > 1.2) {
+        const sh = q.map(function (p) { return R.P(p.x + 2.4, p.y + 3.2, 0, {}); });
+        ctx.fillStyle = 'rgba(0,0,0,0.28)';
+        ctx.beginPath();
+        ctx.moveTo(sh[0].x, sh[0].y);
+        for (let i = 1; i < 4; i++) ctx.lineTo(sh[i].x, sh[i].y);
+        ctx.closePath(); ctx.fill();
+      }
+      const b = [], t = [];
+      for (let i = 0; i < 4; i++) {
+        b.push(R.P(q[i].x, q[i].y, 0, {}));
+        t.push(R.P(q[i].x, q[i].y, h, {}));
+      }
+      if (h > 0.4) {
+        ctx.fillStyle = wallCol;
+        for (let i = 0; i < 4; i++) {
+          const j = (i + 1) % 4;
+          if (q[j].y - q[i].y <= 0) continue;   // 只画法线朝下（可见）的侧面
+          ctx.beginPath();
+          ctx.moveTo(b[i].x, b[i].y); ctx.lineTo(b[j].x, b[j].y);
+          ctx.lineTo(t[j].x, t[j].y); ctx.lineTo(t[i].x, t[i].y);
+          ctx.closePath(); ctx.fill();
+        }
+      }
+      ctx.fillStyle = roofCol;
+      ctx.beginPath();
+      ctx.moveTo(t[0].x, t[0].y);
+      for (let i = 1; i < 4; i++) ctx.lineTo(t[i].x, t[i].y);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.055)'; ctx.lineWidth = 1; ctx.stroke();
+      // 破损：屋顶破洞 + 断柱/钢筋
+      if (dmg != null && dmg > 0.35) {
+        const nHole = dmg > 0.72 ? 2 : 1;
+        for (let i = 0; i < nHole; i++) {
+          const a0 = (i * 0.5 + 0.25) % 1;
+          const hx = t[0].x + (t[1].x - t[0].x) * a0 + (t[2].x - t[1].x) * (0.3 + i * 0.2);
+          const hy = t[0].y + (t[1].y - t[0].y) * a0 + (t[2].y - t[1].y) * (0.3 + i * 0.2);
+          ctx.fillStyle = 'rgba(10,9,7,0.9)';
+          ctx.beginPath();
+          ctx.ellipse(hx, hy, Math.max(1.5, R.cam.zoom * (2.2 - i)), Math.max(1, R.cam.zoom * 1.2), 0.5, 0, 6.2832);
+          ctx.fill();
+        }
+        if (dmg > 0.72) {
+          ctx.strokeStyle = 'rgba(120,118,108,0.55)';
+          ctx.lineWidth = Math.max(0.8, R.cam.zoom * 0.3);
+          ctx.beginPath();
+          for (let i = 0; i < 3; i++) {
+            const bx = t[0].x + (t[2].x - t[0].x) * (0.25 + i * 0.22);
+            const by = t[0].y + (t[2].y - t[0].y) * (0.25 + i * 0.22);
+            ctx.moveTo(bx, by);
+            ctx.lineTo(bx - 1, by - Math.max(2, R.cam.zoom * 1.6));
+          }
+          ctx.stroke();
+        }
+      }
+      if (fire && R.cam.zoom > 1.2) {
+        ctx.fillStyle = 'rgba(255,120,40,0.20)';
+        ctx.beginPath(); ctx.arc(t[0].x, t[0].y, 5, 0, 6.2832); ctx.fill();
+      }
+    },
+
+    drawTrack: function (ctx, R) {
+      const path = this.path;
+      const camS = R.camS || 0;
+      const half = 900 / R.cam.zoom + 500;
+      const s0 = Math.max(0, camS - half), s1 = Math.min(path.len, camS + half);
+      const tmp = {};
+      const bed = [];
+      for (let s = s0; s <= s1; s += 5) {
+        U.posAt(path, s, tmp);
+        bed.push({ x: tmp.x, y: tmp.y, h: tmp.h });
+      }
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      // 路基阴影 / 道砟
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = Math.max(4, R.cam.zoom * 12);
+      this._strokeH(ctx, R, bed, 0);
+      ctx.strokeStyle = '#57503f';
+      ctx.lineWidth = Math.max(3, R.cam.zoom * 9);
+      this._strokeH(ctx, R, bed, 0.5);
+      // 枕木
+      const z = R.cam.zoom;
+      if (z > 1.0) {
+        ctx.strokeStyle = 'rgba(90,78,60,0.95)';
+        ctx.lineWidth = Math.max(1, z * 0.55);
+        ctx.beginPath();
+        for (let s = s0; s <= s1; s += 2.6) {
+          U.posAt(path, s, tmp);
+          const nx = -Math.sin(tmp.a), ny = Math.cos(tmp.a);
+          const a = R.P(tmp.x + nx * 2.2, tmp.y + ny * 2.2, tmp.h + 0.5, {});
+          const b = R.P(tmp.x - nx * 2.2, tmp.y - ny * 2.2, tmp.h + 0.5, {});
+          ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+        }
+        ctx.stroke();
+      }
+      // 钢轨
+      for (const side of [-1, 1]) {
+        const rail = [];
+        for (let s = s0; s <= s1; s += 5) {
+          U.posAt(path, s, tmp);
+          rail.push({ x: tmp.x - Math.sin(tmp.a) * 0.72 * side, y: tmp.y + Math.cos(tmp.a) * 0.72 * side, h: tmp.h + 0.6 });
+        }
+        ctx.strokeStyle = 'rgba(175,175,166,0.9)';
+        ctx.lineWidth = Math.max(1, z * 0.4);
+        this._strokeH(ctx, R, rail, 0);
+      }
+      // 桥面：在轨道下面铺一层钢板，让"桥"读得出来
+      if (s1 > this.bridge.s0 - 200 && s0 < this.bridge.s1 + 200) {
+        const L = [], Rt = [];
+        for (let s = this.bridge.s0 - 6; s <= this.bridge.s1 + 6; s += 12) {
+          const ss = U.clamp(s, 0, path.len);
+          U.posAt(path, ss, tmp);
+          const nx = -Math.sin(tmp.a) * 5.6, ny = Math.cos(tmp.a) * 5.6;
+          L.push(R.P(tmp.x + nx, tmp.y + ny, tmp.h + 0.02, {}));
+          Rt.push(R.P(tmp.x - nx, tmp.y - ny, tmp.h + 0.02, {}));
+        }
+        if (L.length > 1) {
+          ctx.fillStyle = '#2f343a';
+          ctx.beginPath();
+          ctx.moveTo(L[0].x, L[0].y);
+          for (let i = 1; i < L.length; i++) ctx.lineTo(L[i].x, L[i].y);
+          for (let i = Rt.length - 1; i >= 0; i--) ctx.lineTo(Rt[i].x, Rt[i].y);
+          ctx.closePath(); ctx.fill();
+          ctx.strokeStyle = 'rgba(150,160,170,0.35)';
+          ctx.lineWidth = Math.max(1, z * 0.5);
+          ctx.beginPath();
+          ctx.moveTo(L[0].x, L[0].y);
+          for (let i = 1; i < L.length; i++) ctx.lineTo(L[i].x, L[i].y);
+          ctx.stroke();
+        }
+      }
+      // 桥墩与栏杆
+      if (s1 > this.bridge.s0 - 200 && s0 < this.bridge.s1 + 200) {
+        ctx.strokeStyle = '#3a3d42';
+        ctx.lineWidth = Math.max(2, z * 3.4);
+        ctx.beginPath();
+        for (let s = this.bridge.s0; s <= this.bridge.s1; s += 24) {
+          U.posAt(path, s, tmp);
+          const nx = -Math.sin(tmp.a), ny = Math.cos(tmp.a);
+          for (const side of [-1, 1]) {
+            const a = R.P(tmp.x + nx * 5.4 * side, tmp.y + ny * 5.4 * side, tmp.h, {});
+            const b = R.P(tmp.x + nx * 5.4 * side, tmp.y + ny * 5.4 * side, -3, {});
+            ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+          }
+        }
+        ctx.stroke();
+        // 桁架：两侧 X 形斜撑 + 上弦杆
+        ctx.strokeStyle = 'rgba(96,102,110,0.9)';
+        ctx.lineWidth = Math.max(1, z * 0.55);
+        ctx.beginPath();
+        const q1 = {}, q2 = {};
+        for (let s = this.bridge.s0; s < this.bridge.s1 - 24; s += 24) {
+          for (const side of [-1, 1]) {
+            U.posAt(path, s, q1); U.posAt(path, s + 24, q2);
+            const n1x = -Math.sin(q1.a) * 5.4 * side, n1y = Math.cos(q1.a) * 5.4 * side;
+            const n2x = -Math.sin(q2.a) * 5.4 * side, n2y = Math.cos(q2.a) * 5.4 * side;
+            const a0 = R.P(q1.x + n1x, q1.y + n1y, q1.h + 0.6, {});
+            const a1 = R.P(q1.x + n1x, q1.y + n1y, q1.h + 5.2, {});
+            const b0 = R.P(q2.x + n2x, q2.y + n2y, q2.h + 0.6, {});
+            const b1 = R.P(q2.x + n2x, q2.y + n2y, q2.h + 5.2, {});
+            ctx.moveTo(a0.x, a0.y); ctx.lineTo(b1.x, b1.y);
+            ctx.moveTo(a1.x, a1.y); ctx.lineTo(b0.x, b0.y);
+            ctx.moveTo(a1.x, a1.y); ctx.lineTo(b1.x, b1.y);
+          }
+        }
+        ctx.stroke();
+        // 桥面边缘亮线
+        ctx.strokeStyle = 'rgba(210,205,185,0.22)';
+        ctx.lineWidth = Math.max(1, z * 0.7);
+        ctx.beginPath();
+        for (const side of [-1, 1]) {
+          for (let s = this.bridge.s0; s <= this.bridge.s1; s += 24) {
+            U.posAt(path, s, tmp);
+            const p = R.P(tmp.x - Math.sin(tmp.a) * 5.4 * side, tmp.y + Math.cos(tmp.a) * 5.4 * side, tmp.h + 0.4, {});
+            if (s === this.bridge.s0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+          }
+        }
+        ctx.stroke();
+      }
+    },
+
+    _strokeH: function (ctx, R, list, dh) {
+      if (list.length < 2) return;
+      ctx.beginPath();
+      const p = {};
+      R.P(list[0].x, list[0].y, list[0].h + dh, p);
+      ctx.moveTo(p.x, p.y);
+      for (let i = 1; i < list.length; i++) { R.P(list[i].x, list[i].y, list[i].h + dh, p); ctx.lineTo(p.x, p.y); }
+      ctx.stroke();
+    },
+
+    drawStations: function (ctx, R) {
+      const z = R.cam.zoom, tmp = {};
+      for (const st of this.stations) {
+        if (Math.abs(st.s - (R.camS || 0)) > 1400 / z + 700) continue;
+        U.posAt(this.path, st.s, tmp);
+        const nx = -Math.sin(tmp.a), ny = Math.cos(tmp.a);
+        const along = function (d) { return { x: tmp.x + Math.cos(tmp.a) * d, y: tmp.y + Math.sin(tmp.a) * d }; };
+        // 双侧站台
+        for (const side of [-1, 1]) {
+          const q = [];
+          for (const d of [-17, 17]) {
+            const a = along(d);
+            for (const o of [3.2, 8.6]) q.push({ x: a.x + nx * o * side, y: a.y + ny * o * side });
+          }
+          this._quad(ctx, R, [q[0], q[1], q[3], q[2]], 1.2, '#4a4a42', st.visited ? '#5e5d50' : '#6a6858');
+        }
+        // 站牌
+        const sign = R.P(tmp.x + nx * 26, tmp.y + ny * 26, 0, {});
+        ctx.save();
+        ctx.font = '600 ' + U.clamp(12 * z * 0.5, 11, 19) + 'px "PingFang SC","Microsoft YaHei",sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const tw = ctx.measureText(st.name).width;
+        ctx.fillStyle = 'rgba(0,0,0,0.62)';
+        ctx.fillRect(sign.x - tw / 2 - 7, sign.y - 11, tw + 14, 21);
+        ctx.fillStyle = st.final ? '#ffd479' : (st.wall ? '#9fe0b0' : '#dedcd2');
+        ctx.fillText(st.name, sign.x, sign.y - 1);
+        ctx.restore();
+        // 避难所围墙
+        if (st.wall) {
+          ctx.strokeStyle = '#55554c';
+          ctx.lineWidth = Math.max(3, z * 5);
+          ctx.beginPath();
+          for (const side of [-1, 1]) {
+            const a = along(28);
+            const p0 = R.P(a.x + nx * 34 * side, a.y + ny * 34 * side, 0, {});
+            const p1 = R.P(a.x + nx * 34 * side, a.y + ny * 34 * side, 10, {});
+            const p2 = R.P(a.x + Math.cos(tmp.a) * 46 + nx * 34 * side, a.y + Math.sin(tmp.a) * 46 + ny * 34 * side, 10, {});
+            ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+          }
+          ctx.stroke();
+        }
+      }
+    }
+  };
+})(window.ZT);

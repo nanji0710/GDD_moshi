@@ -1,0 +1,19 @@
+# 依赖与构建产物（本项目零依赖，这几行只为防手滑）
+node_modules/
+dist/
+
+# 测试产物：截图由 `node tools/shoot.mjs` 随时重生成，不入库
+prototype/tools/shots/
+
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+
+# 临时与日志
+*.log
+*.tmp
+npm-debug.log*
