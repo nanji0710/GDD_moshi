@@ -53,6 +53,7 @@ void main() {
 precision highp float;
 varying vec3 vNor, vCol, vWorld;
 uniform vec3 uEye, uFog;
+uniform float uFlash;
 void main() {
   vec3 N = normalize(vNor);
   vec3 V = normalize(uEye - vWorld);
@@ -66,6 +67,7 @@ void main() {
   vec3 col = vCol * (0.26 + 0.95 * d1 + 0.28 * d2);
   col += spec * vec3(1.0, 0.94, 0.82);
   col += fres * vec3(1.0, 0.72, 0.38) * 0.22;
+  col = mix(col, vec3(1.0, 0.97, 0.9), uFlash);
   float dist = length(uEye - vWorld);
   float fog = smoothstep(180.0, 520.0, dist);
   col = mix(col, uFog, fog);
@@ -110,7 +112,7 @@ void main() {
         col: gl.getAttribLocation(prog, 'aCol')
       };
       const Uu = {};
-      for (const k of ['uMVP', 'uModel', 'uNrm', 'uEye', 'uFog']) Uu[k] = gl.getUniformLocation(prog, k);
+      for (const k of ['uMVP', 'uModel', 'uNrm', 'uEye', 'uFog', 'uFlash']) Uu[k] = gl.getUniformLocation(prog, k);
       this.A = A; this.U = Uu;
 
       // GLB 模型
@@ -263,6 +265,7 @@ void main() {
 
       this.vp = vp;
       gl.useProgram(this.prog);
+      gl.uniform1f(this.U.uFlash, 0);
       gl.uniform3fv(this.U.uEye, eye);
       gl.uniform3fv(this.U.uFog, [0.055, 0.06, 0.05]);
 
@@ -286,7 +289,16 @@ void main() {
         const sc0 = center[0], sc2 = center[2];
         let zn = 0;
         for (const zb of Z.Zombies.list) {
-          if (zb.dead || zn >= 70) continue;
+          if (zn >= 70) continue;
+          if (zb.dead) {
+            // 死亡：先原地挺一下就往下沉，1.1 秒后消失
+            if (zb.deadT > 1.1) continue;
+            const k2 = Math.min(1, zb.deadT / 1.1);
+            this.drawModel(ZM, zb.x, -k2 * 1.6, zb.y, Math.atan2(sc0 - zb.x, sc2 - zb.y),
+              (zb.boss ? 2.3 : zb.mini ? 1.7 : zb.elite ? 1.25 : 1) * (1 - k2 * 0.25), 0);
+            zn++;
+            continue;
+          }
           const dx = zb.x - sc0, dz = zb.y - sc2;
           const d2 = dx * dx + dz * dz;
           if (d2 > 190 * 190) continue;
@@ -294,7 +306,7 @@ void main() {
           const big = zb.boss ? 2.3 : zb.mini ? 1.7 : zb.elite ? 1.25 : 1;
           const bob = Math.sin(zb.phase * 2) * 0.06;
           const windup = zb.atk > 0 ? (1 + (1 - zb.atk / (zb.atkMax || 0.45)) * 0.22) : 1;
-          this.drawModel(ZM, zb.x, bob, zb.y, rot, big * windup);
+          this.drawModel(ZM, zb.x, bob, zb.y, rot, big * windup, Math.min(1, zb.flash || 0));
           zn++;
         }
       }
@@ -401,9 +413,10 @@ void main() {
     },
 
     // 通用：摆一个模型
-    drawModel: function (mesh, x, y, z, rot, scl) {
+    drawModel: function (mesh, x, y, z, rot, scl, flash) {
       if (!mesh) return;
       const gl = this.gl;
+      gl.uniform1f(this.U.uFlash, flash || 0);
       let model = M4.mul(M4.trans(x, y, z), M4.rotY(rot));
       if (scl && scl !== 1) model = M4.mul(model, M4.scale(scl, scl, scl));
       const mvp = M4.mul(this.vp, model);

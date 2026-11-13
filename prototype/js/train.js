@@ -217,6 +217,24 @@ window.ZT = window.ZT || {};
     }
     if (Z.Sound) Z.Sound.play('hit', { vol: 0.35 });
     zb.hp -= dmg; zb.flash = 1;
+    // 击退：被打中的丧尸往远离列车的方向退半步（Boss 抗性更高）
+    if (!zb.boss) {
+      const run0 = run;
+      const lay = run0 && run0.train ? run0.train.layout(Z.World) : null;
+      let cx = null, cy = null;
+      if (lay && lay.length) {
+        let best = 1e9;
+        for (const c of lay) {
+          if (!c || !c.ok) continue;
+          const d = (c.x - zb.x) * (c.x - zb.x) + (c.y - zb.y) * (c.y - zb.y);
+          if (d < best) { best = d; cx = c.x; cy = c.y; }
+        }
+      }
+      const ax = zb.x - (cx == null ? zb.x : cx), ay = zb.y - (cy == null ? zb.y : cy);
+      const al = Math.hypot(ax, ay) || 1;
+      const kb = zb.mini ? 0.25 : (zb.elite ? 0.55 : 0.95);
+      zb.x += ax / al * kb; zb.y += ay / al * kb;
+    }
     if (zb.hp <= 0) {
       zb.dead = true; zb.deadT = 0; zb.burn = 0;
       run.kills++;
