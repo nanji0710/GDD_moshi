@@ -50,6 +50,7 @@ window.ZT = window.ZT || {};
             (R_.speedBtns = R_.speedBtns || []).push(b);
             return b;
           })),
+          h('button', { class: 'btn sm', onclick: function () { Z.UI.toggle3D(); } }, '3D', h('kbd', null, 'V')),
           h('button', { class: 'btn sm', onclick: function () { Z.UI.toggleRefit(); } }, '改装', h('kbd', null, 'Tab')),
           R_.snd = h('button', {
             class: 'btn sm' + (Z.Sound && Z.Sound.enabled ? ' on' : ''),
@@ -681,6 +682,14 @@ window.ZT = window.ZT || {};
 
     // ---------------- 改装 ----------------
     canOpenRefit: function () { return this.run.state === 'run' || this.run.state === 'parked' || this.run.state === 'station'; },
+    toggle3D: function () {
+      if (!Z.World3D) return;
+      const on = !Z.World3D.on;
+      if (!Z.World3D.setMode(on)) { this.toast('这个浏览器不支持 WebGL', 'bad'); return; }
+      this.toast(on ? '3D 视图（按 V 切回）' : '2D 视图', 'info');
+      if (this.refs.btn3d) this.refs.btn3d.textContent = on ? '2D' : '3D';
+    },
+
     toggleRefit: function () {
       if (this.drawerState === 'refit') this.closeDrawer();
       else if (this.canOpenRefit()) this.openRefit(0);

@@ -785,3 +785,11 @@ button.carline.on { border-color: var(--accent); background: rgba(255,179,71,0.1
 .branch .bq { font-size: .78em; color: var(--ink-2); }
 .branch b { font-size: .84em; color: var(--accent); }
 .branch span { font-size: .78em; color: var(--ink-3); }
+
+
+/* 3D 世界画布 */
+#map3d {
+  position: fixed; inset: 0; display: none;
+  width: 100%; height: 100%;
+  touch-action: none;
+}

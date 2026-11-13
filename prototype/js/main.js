@@ -601,7 +601,10 @@ window.ZT = window.ZT || {};
         }
         R.compute();
         R.ox += Fx.shakeX; R.oy += Fx.shakeY;
-        try { render(R, run); } catch (e) { console.error('RENDER', e && e.stack || e); }
+        try {
+          if (Z.World3D && Z.World3D.on) Z.World3D.render(run);
+          else render(R, run);
+        } catch (e) { console.error('RENDER', e && e.stack || e); }
         try { Z.UI.tick(dt); } catch (e) { console.error('UI', e && e.stack || e); }
       }
       requestAnimationFrame(frame);
