@@ -335,7 +335,7 @@ try {
     R.state = 'run'; R.stationIdx = 3; R.km = R.totalKm * 0.45; R.train = new ZT.Train(R); R.train.s = R.km; R.speed = 14;
     for (let i = 0; i < 12; i++) ZT.Zombies.spawnOne(R);
     const lay = R.train.layout(ZT.World); const c0 = lay[1];
-    ZT.R.cam.cx = c0.x; ZT.R.cam.cy = c0.y; ZT.R.cam.zoom = 5.0; ZT.R.compute();
+    ZT.R.cam.cx = c0.x; ZT.R.cam.cy = c0.y; ZT.R.cam.zoom = 7.6; ZT.R.compute();
     ZT.Game.setSpeed(1);
     return 1;
   })()`)

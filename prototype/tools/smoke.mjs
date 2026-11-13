@@ -606,10 +606,10 @@ try {
   check('车头不能挪动', reorder.engineBlocked === true && reorder.headStill === true, reorder)
   check('别的车厢不能挤到车头前面', reorder.pushIntoHead === true, reorder)
   check('行驶中不能调序', reorder.notAtStation === true, reorder)
-  check('站台面板有上下移按钮', await ev(`(() => {
+  check('站台整备视图有调序按钮', await ev(`(() => {
     const R = ZT.Run; R.state = 'station'; R.station = { idx: 1, isStart: false };
     ZT.UI.openStation(R.station);
-    return document.querySelectorAll('.carline .btn.mv').length >= 2;
+    return document.querySelectorAll('.dcell .mv').length >= 2;
   })()`))
 } catch (e) {
   fail++

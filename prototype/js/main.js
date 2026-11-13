@@ -93,16 +93,81 @@ window.ZT = window.ZT || {};
     const roof = car.dead ? '#191b1e' : U.mix(tdef.color, '#2a2f36', dmg * 0.55);
     const flash = car.flash > 0.4;
 
-    // 侧面
-    ctx.fillStyle = flash ? '#9fa8b4' : hull;
+    // 侧面：上亮下暗的金属渐变 + 高光边，让方块有体积
+    const hullMid = U.mix(hull, '#ffffff', 0.24);
+    const hullTop = U.mix(hullMid, '#ffffff', 0.34);
+    const hullBot = U.mix(hull, '#000000', 0.34);
     for (let i = 0; i < 4; i++) {
       const j = (i + 1) % 4;
       if (corners[j].y - corners[i].y <= 0) continue;
+      if (flash) {
+        ctx.fillStyle = '#9fa8b4';
+      } else {
+        const g = ctx.createLinearGradient(base[i].x, base[i].y, top[i].x, top[i].y);
+        g.addColorStop(0, hullBot);
+        g.addColorStop(0.55, hullMid);
+        g.addColorStop(1, hullTop);
+        ctx.fillStyle = g;
+      }
       ctx.beginPath();
       ctx.moveTo(base[i].x, base[i].y); ctx.lineTo(base[j].x, base[j].y);
       ctx.lineTo(top[j].x, top[j].y); ctx.lineTo(top[i].x, top[i].y);
       ctx.closePath(); ctx.fill();
+      // 上沿高光 / 下沿暗边
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = Math.max(1, z * 0.28);
+      ctx.beginPath(); ctx.moveTo(top[i].x, top[i].y); ctx.lineTo(top[j].x, top[j].y); ctx.stroke();
+      ctx.strokeStyle = 'rgba(0,0,0,0.42)';
+      ctx.beginPath(); ctx.moveTo(base[i].x, base[i].y); ctx.lineTo(base[j].x, base[j].y); ctx.stroke();
+      // 板缝 + 铆钉（近景才画，远了纯噪点）
+      if (z > 1.2 && !car.dead) {
+        for (const t of [0.34, 0.67]) {
+          const x0 = base[i].x + (base[j].x - base[i].x) * t, y0 = base[i].y + (base[j].y - base[i].y) * t;
+          const x1 = top[i].x + (top[j].x - top[i].x) * t, y1 = top[i].y + (top[j].y - top[i].y) * t;
+          ctx.strokeStyle = 'rgba(0,0,0,0.26)';
+          ctx.lineWidth = Math.max(0.8, z * 0.18);
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+          ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+          ctx.beginPath(); ctx.moveTo(x0 + 1, y0); ctx.lineTo(x1 + 1, y1); ctx.stroke();
+          ctx.fillStyle = 'rgba(0,0,0,0.28)';
+          for (let r = 0; r < 4; r++) {
+            const v = 0.18 + r * 0.22;
+            ctx.beginPath();
+            ctx.arc(x0 + (x1 - x0) * v, y0 + (y1 - y0) * v, Math.max(0.55, z * 0.15), 0, 6.2832);
+            ctx.fill();
+          }
+        }
+      }
     }
+    // 车下底盘：一条暗带 + 两端转向架，让车厢"站"在轨道上而不是浮着
+    if (z > 0.6) {
+      ctx.fillStyle = 'rgba(8,9,11,0.55)';
+      ctx.beginPath();
+      ctx.moveTo(base[0].x, base[0].y + z * 0.55);
+      for (let i = 1; i < 4; i++) ctx.lineTo(base[i].x, base[i].y + z * 0.55);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+      ctx.lineWidth = Math.max(1.4, z * 0.5);
+      for (const t of [-1, 1]) {
+        const bx = c.x + c.ox * t * 6.6, by = c.y + c.oy * t * 6.6;
+        const p0 = R.P(bx - c.ox * 2.4, by - c.oy * 2.4, c.h * 0.2, {});
+        const p1 = R.P(bx + c.ox * 2.4, by + c.oy * 2.4, c.h * 0.2, {});
+        ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+      }
+    }
+    // 车钩：前后各一小段
+    if (z > 0.9) {
+      ctx.strokeStyle = 'rgba(14,16,18,0.9)';
+      ctx.lineWidth = Math.max(1.4, z * 0.42);
+      for (const sgn of [-1, 1]) {
+        const ex = c.x + c.ox * sgn * (CFG.TRAIN.carLenM / 2 + 0.2);
+        const ey = c.y + c.oy * sgn * (CFG.TRAIN.carLenM / 2 + 0.2);
+        const a1 = R.P(ex, ey, c.h + hgt * 0.45, {});
+        const a2 = R.P(ex + c.ox * sgn * 1.1, ey + c.oy * sgn * 1.1, c.h + hgt * 0.45, {});
+        ctx.beginPath(); ctx.moveTo(a1.x, a1.y); ctx.lineTo(a2.x, a2.y); ctx.stroke();
+      }
+    }
+
     // 装甲车厢：外挂侧板
     if (type === 'armor' && !car.dead) {
       ctx.strokeStyle = 'rgba(160,175,192,0.5)';
@@ -116,14 +181,73 @@ window.ZT = window.ZT || {};
       }
     }
 
-    // 车顶
-    ctx.fillStyle = flash ? '#cfd6df' : roof;
+    // 车顶：中间亮、边缘暗的金属顶
+    const roofMid = U.mix(roof, '#ffffff', 0.30);
+    const roofHi = U.mix(roofMid, '#ffffff', 0.42);
+    const roofLo = U.mix(roofMid, '#000000', 0.30);
+    const rminY = Math.min(top[0].y, top[1].y, top[2].y, top[3].y);
+    const rmaxY = Math.max(top[0].y, top[1].y, top[2].y, top[3].y);
     ctx.beginPath();
     ctx.moveTo(top[0].x, top[0].y);
     for (let i = 1; i < 4; i++) ctx.lineTo(top[i].x, top[i].y);
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-    ctx.lineWidth = Math.max(1, z * 0.35);
+    ctx.closePath();
+    if (flash) {
+      ctx.fillStyle = '#cfd6df';
+    } else {
+      const rg = ctx.createLinearGradient(0, rminY, 0, rmaxY);
+      rg.addColorStop(0, roofHi); rg.addColorStop(0.55, roofMid); rg.addColorStop(1, roofLo);
+      ctx.fillStyle = rg;
+    }
+    ctx.fill();
+
+    // 车顶设备：用双线性坐标在顶面画，任意视角都不会歪
+    if (z > 0.85 && !car.dead) {
+      const rp = function (u, v) {
+        const ax = top[0].x + (top[1].x - top[0].x) * u, ay = top[0].y + (top[1].y - top[0].y) * u;
+        const bx = top[3].x + (top[2].x - top[3].x) * u, by = top[3].y + (top[2].y - top[3].y) * u;
+        return { x: ax + (bx - ax) * v, y: ay + (by - ay) * v };
+      };
+      const rquad = function (u0, u1, v0, v1, fill, edge) {
+        const p1 = rp(u0, v0), p2 = rp(u1, v0), p3 = rp(u1, v1), p4 = rp(u0, v1);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+        ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y);
+        ctx.closePath();
+        ctx.fillStyle = fill; ctx.fill();
+        if (edge) { ctx.strokeStyle = edge; ctx.lineWidth = Math.max(0.8, z * 0.16); ctx.stroke(); }
+      };
+      const edgeL = 'rgba(255,255,255,0.10)';
+      if (type === 'engine') {
+        rquad(0.52, 0.80, 0.14, 0.32, '#3b4046', edgeL);      // 设备箱
+        rquad(0.18, 0.32, 0.18, 0.26, 'rgba(255,212,121,0.45)'); // 舱口
+      } else if (type === 'passenger') {
+        rquad(0.28, 0.72, 0.16, 0.38, '#4b5158', edgeL);      // 空调
+        rquad(0.28, 0.72, 0.56, 0.78, '#4b5158', edgeL);
+      } else if (type === 'weapon') {
+        rquad(0.10, 0.32, 0.28, 0.72, '#2f3439', 'rgba(255,255,255,0.08)');
+        rquad(0.68, 0.90, 0.28, 0.72, '#2f3439', 'rgba(255,255,255,0.08)');
+      } else if (type === 'power') {
+        rquad(0.18, 0.82, 0.22, 0.78, '#34393f', edgeL);
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+        ctx.lineWidth = Math.max(0.8, z * 0.16);
+        for (let v = 0.3; v < 0.75; v += 0.12) {
+          const a = rp(0.2, v), b2 = rp(0.8, v);
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b2.x, b2.y); ctx.stroke();
+        }
+      } else if (type === 'repair') {
+        rquad(0.32, 0.68, 0.32, 0.68, '#3e434a', edgeL);
+        const ctr = rp(0.5, 0.5);
+        ctx.fillStyle = 'rgba(255,212,121,0.65)';
+        ctx.beginPath(); ctx.arc(ctr.x, ctr.y, Math.max(1.2, z * 0.5), 0, 6.2832); ctx.fill();
+      }
+    }
+    ctx.strokeStyle = 'rgba(255,236,200,0.34)';
+    ctx.lineWidth = Math.max(1.2, z * 0.4);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = Math.max(1, z * 0.22);
+    ctx.beginPath();
+    ctx.moveTo(top[3].x, top[3].y); ctx.lineTo(top[2].x, top[2].y);
     ctx.stroke();
     ctx.strokeStyle = 'rgba(0,0,0,0.30)';
     ctx.lineWidth = Math.max(1, z * 0.32);

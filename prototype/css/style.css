@@ -719,3 +719,47 @@ button.carline.on { border-color: var(--accent); background: rgba(255,179,71,0.1
 }
 
 .carline .btn.mv { padding: 3px 7px; font-size: .82em; line-height: 1; min-width: 26px; }
+
+/* ================= 站台整备视图 ================= */
+.depot { display: flex; flex-direction: column; gap: 6px; }
+.depot-row { display: flex; gap: 5px; overflow-x: auto; padding: 2px 2px 6px; scrollbar-width: thin; }
+.dcell { position: relative; flex: 0 0 auto; display: flex; flex-direction: column; gap: 3px; }
+.dcard {
+  width: 78px; padding: 6px 7px 5px; border-radius: 9px; cursor: pointer;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 3px;
+  transition: background .12s, border-color .12s;
+}
+.dcard:hover { background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.28); }
+.dcard.head { border-color: rgba(255,179,71,0.5); }
+.dcard.dead { opacity: .48; filter: grayscale(.8); }
+.dc-top { display: flex; flex-direction: column; line-height: 1.15; }
+.dc-top span { font-size: .62em; color: var(--ink-3); letter-spacing: .06em; }
+.dcard.head .dc-top span { color: var(--accent); }
+.dc-top b { font-size: .74em; font-weight: 600; white-space: nowrap; }
+.dc-bar { height: 4px; border-radius: 2px; background: rgba(0,0,0,.45); overflow: hidden; }
+.dc-bar i { display: block; height: 100%; background: var(--good); }
+.dcard.dead .dc-bar i { background: var(--bad); }
+.dc-slots { display: flex; gap: 2px; height: 7px; }
+.dc-slot { flex: 1; border-radius: 2px; background: rgba(255,255,255,.10); }
+.dc-slot.on { box-shadow: 0 0 0 1px rgba(0,0,0,.35) inset; }
+.dc-num { font-size: .62em; color: var(--ink-3); text-align: right; }
+.dc-badge {
+  position: absolute; top: -5px; left: 4px; font-size: .56em; padding: 0 4px;
+  border-radius: 4px; background: var(--accent); color: #17110a; font-weight: 700;
+}
+.dc-mv { display: flex; gap: 3px; }
+.dc-mv button {
+  flex: 1; font: inherit; font-size: .66em; line-height: 1; padding: 2px 0;
+  border-radius: 5px; cursor: pointer; color: var(--ink-2);
+  background: rgba(255,255,255,.06); border: 1px solid var(--line);
+}
+.dc-mv button:hover { background: rgba(255,179,71,.18); color: var(--accent); }
+.dc-x {
+  position: absolute; top: -6px; right: -6px; width: 17px; height: 17px; padding: 0;
+  font-size: .62em; line-height: 1; border-radius: 50%; cursor: pointer;
+  color: #ff9a8a; background: #2a1b1b; border: 1px solid rgba(224,90,74,.5);
+}
+.dc-x:hover { background: rgba(224,90,74,.35); color: #fff; }
+.depot-sum { font-size: .72em; color: var(--ink-3); }
+.depot-sum b { color: var(--ink-2); }

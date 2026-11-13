@@ -363,6 +363,74 @@ window.ZT = window.ZT || {};
           h('button', { class: 'btn primary', onclick: function () { Z.UI.showLevels(); } }, '开始游戏'))));
     },
 
+    // 站台整备视图：一屏看完整列车，直接点/调序
+    depotStrip: function (run) {
+      const self = this;
+      let dps = 0;
+      for (const c of run.cars) {
+        if (c.dead) continue;
+        for (const w of c.slots) if (w) dps += w.dps();
+      }
+      const speedKmh = Math.round((run.speedCap ? run.speedCap() : 0) * 3.6);
+      const row = h('div', { class: 'depot-row' });
+      run.cars.forEach(function (c, idx) {
+        const t = CFG.CAR_TYPES[c.type];
+        const pct = c.dead ? 0 : Math.max(0, Math.min(100, Math.round(c.hp / c.maxHp * 100)));
+        const main = h('div', {
+          class: 'dcard' + (c.dead ? ' dead' : '') + (idx === 0 ? ' head' : ''),
+          onclick: function () { self.openRefit(idx); },
+          title: t.name + ' · 点开改装'
+        },
+          h('div', { class: 'dc-top' }, h('span', null, idx === 0 ? '车头' : '#' + (idx + 1)), h('b', null, t.name)),
+          h('div', { class: 'dc-bar' }, h('i', { style: { width: pct + '%' } })),
+          h('div', { class: 'dc-slots' }, (function () {
+            const out = [];
+            for (let si = 0; si < c.slots.length; si++) {
+              const w = c.slots[si];
+              out.push(h('i', {
+                class: 'dc-slot' + (w ? ' on' : ''),
+                style: w ? { background: w.def().color } : null,
+                title: w ? (w.def().name + ' Lv' + w.level + (w.form ? ' 形态' + w.form : '')) : '空槽'
+              }));
+            }
+            return out;
+          })()),
+          h('div', { class: 'dc-num' }, c.dead ? '损毁' : pct + '%'),
+          (t.armor || t.repairAura) ? h('div', { class: 'dc-badge' }, t.armor ? '装甲' : ('修理 +' + t.repairAura)) : null
+        );
+        const mv = h('div', { class: 'dc-mv' },
+          h('button', {
+            class: 'mv', title: '往前挪', onclick: function (e) {
+              e.stopPropagation();
+              if (run.moveCar(idx, -1)) Z.UI.renderStation();
+            }
+          }, '◀'),
+          h('button', {
+            class: 'mv', title: '往后挪', onclick: function (e) {
+              e.stopPropagation();
+              if (run.moveCar(idx, 1)) Z.UI.renderStation();
+            }
+          }, '▶'));
+        const cell = h('div', { class: 'dcell' }, main, mv);
+        if (idx > 0) {
+          cell.appendChild(h('button', {
+            class: 'dc-x', title: '丢弃这节', onclick: function (e) {
+              e.stopPropagation();
+              if (run.cars.length <= 2) return Z.UI.toast('至少要留车头和 1 节', 'bad');
+              if (run.discardCar(idx)) { run.offer = null; Z.UI.renderStation(); }
+            }
+          }, '✕'));
+        }
+        row.appendChild(cell);
+      });
+
+      return h('div', { class: 'depot' },
+        h('div', { class: 'dw-sec' }, '编组 · ' + run.cars.length + ' 节'),
+        row,
+        h('div', { class: 'depot-sum' },
+          '极速 ', h('b', null, speedKmh), ' km/h · 火力 ', h('b', null, Math.round(dps)), ' dps · 点车厢改装，◀ ▶ 调序'));
+    },
+
     skinRow: function () {
       const meta = Z.Meta;
       const chips = CFG.SKINS.map(function (sk) {
@@ -424,32 +492,7 @@ window.ZT = window.ZT || {};
         h('span', null, '燃料 ' + Math.round(run.fuel) + '%'),
         h('span', null, '难民 ' + run.refugees() + '/' + run.capacity())));
 
-      box.appendChild(h('div', { class: 'dw-sec' }, '编组（可调顺序 · 点车厢改装 · 丢弃）'));
-      const cars = h('div', { class: 'carlist' });
-      run.cars.forEach(function (c, idx) {
-        const t = CFG.CAR_TYPES[c.type];
-        cars.appendChild(h('div', { class: 'carline' + (c.dead ? ' dead' : '') },
-          h('button', { class: 'car-main', onclick: function () { Z.UI.openRefit(idx); } },
-            h('b', null, (idx === 0 ? '① ' : (idx + 1) + ' ') + t.name),
-            h('span', null, c.dead ? '损毁' : Math.round(c.hp / c.maxHp * 100) + '%')),
-          h('button', {
-            class: 'btn sm ghost mv', title: '往前挪', onclick: function () {
-              if (run.moveCar(idx, -1)) Z.UI.renderStation();
-            }
-          }, '▲'),
-          h('button', {
-            class: 'btn sm ghost mv', title: '往后挪', onclick: function () {
-              if (run.moveCar(idx, 1)) Z.UI.renderStation();
-            }
-          }, '▼'),
-          h('button', {
-            class: 'btn sm ghost', onclick: function () {
-              if (run.cars.length <= 2) return Z.UI.toast('至少要留车头和 1 节', 'bad');
-              if (run.discardCar(idx)) { run.offer = null; Z.UI.renderStation(); }
-            }
-          }, '丢弃')));
-      });
-      box.appendChild(cars);
+      box.appendChild(this.depotStrip(run));
 
       // 补给
       const unlimited = CFG.ECON.infiniteAmmo && CFG.ECON.infiniteFuel;
