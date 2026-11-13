@@ -402,29 +402,130 @@ window.ZT = window.ZT || {};
         if (!w) continue;
         const mp = run.train.slotPos(c, j, {});
         const p = R.P(mp.x, mp.y, mp.h, {});
-        const r0 = Math.max(2.2, z * 1.15);
-        ctx.fillStyle = 'rgba(0,0,0,0.55)';
-        ctx.beginPath(); ctx.arc(p.x, p.y, r0 * 1.3, 0, 6.2832); ctx.fill();
-        ctx.fillStyle = w.def().color;
-        ctx.beginPath(); ctx.arc(p.x, p.y, r0 * 0.58, 0, 6.2832); ctx.fill();
-        // 形态外观：A = 双联短管，B = 加粗加长的单管
+        // ===== 按 3D 模型的构件重画：同一套局部坐标（前/横/高，单位米）=====
+        const kind = w.k || 'mg';
+        const kd = w.def();
         const form = w.form;
-        const barrels = form === 'A' ? 2 : 1;
-        const lenM = form === 'B' ? 8.6 : (form === 'A' ? 5.4 : 6.2);
-        const wmul = form === 'B' ? 1.9 : (form === 'A' ? 0.85 : 1);
-        for (let bi = 0; bi < barrels; bi++) {
-          const off = barrels === 1 ? 0 : (bi === 0 ? -1.5 : 1.5);
-          const ox = mp.x + (-Math.sin(w.aim)) * off, oy = mp.y + Math.cos(w.aim) * off;
-          const bx = ox + Math.cos(w.aim) * lenM, by = oy + Math.sin(w.aim) * lenM;
-          const q = R.P(bx, by, mp.h, {});
-          const p0 = R.P(ox, oy, mp.h, {});
-          ctx.strokeStyle = '#20262c';
-          ctx.lineWidth = Math.max(1.6, z * 0.9 * wmul);
-          ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(q.x, q.y); ctx.stroke();
-          ctx.strokeStyle = w.def().color;
-          ctx.lineWidth = Math.max(0.8, z * 0.42 * wmul);
-          ctx.stroke();
+        const col = kd.color || '#ffd479';
+        const ca2 = Math.cos(w.aim), sa2 = Math.sin(w.aim);
+        const nx2 = -sa2, ny2 = ca2;
+        const toW = function (fx, fz) { return [mp.x + ca2 * fx + nx2 * fz, mp.y + sa2 * fx + ny2 * fz]; };
+        // 一个水平矩形（前向长 len、横向宽 wid、中心相对 (fx,fz)，高度 h）
+        const quad = function (fx, fz, len, wid, h, fill) {
+          const hs = [[-len / 2, -wid / 2], [len / 2, -wid / 2], [len / 2, wid / 2], [-len / 2, wid / 2]];
+          ctx.beginPath();
+          for (let k3 = 0; k3 < 4; k3++) {
+            const w3 = toW(fx + hs[k3][0], fz + hs[k3][1]);
+            const q3 = R.P(w3[0], w3[1], h, {});
+            if (k3 === 0) ctx.moveTo(q3.x, q3.y); else ctx.lineTo(q3.x, q3.y);
+          }
+          ctx.closePath();
+          ctx.fillStyle = fill; ctx.fill();
+        };
+        const disc = function (fx, fz, r, h, fill) {
+          const w3 = toW(fx, fz);
+          const q3 = R.P(w3[0], w3[1], h, {});
+          ctx.beginPath(); ctx.arc(q3.x, q3.y, Math.max(0.6, r * z), 0, 6.2832);
+          ctx.fillStyle = fill; ctx.fill();
+        };
+        const rod = function (fx0, fz, fx1, wid, h, fill) {
+          quad((fx0 + fx1) / 2, fz, Math.abs(fx1 - fx0), wid, h, fill);
+        };
+        // 立体盒：给定底面中心/尺寸/离地高度/盒高，画出顶面 + 四个侧面（斜投影下才有厚度）
+        const box3 = function (fx, fz, len, wid, y0, hgt, cTop, cSide) {
+          const fc = [[-len / 2, -wid / 2], [len / 2, -wid / 2], [len / 2, wid / 2], [-len / 2, wid / 2]];
+          const pb = [], pt = [];
+          for (let k5 = 0; k5 < 4; k5++) {
+            const w5 = toW(fx + fc[k5][0], fz + fc[k5][1]);
+            pb.push(R.P(w5[0], w5[1], y0, {}));
+            pt.push(R.P(w5[0], w5[1], y0 + hgt, {}));
+          }
+          // 四个侧面
+          for (let k5 = 0; k5 < 4; k5++) {
+            const k6 = (k5 + 1) % 4;
+            ctx.beginPath();
+            ctx.moveTo(pb[k5].x, pb[k5].y);
+            ctx.lineTo(pb[k6].x, pb[k6].y);
+            ctx.lineTo(pt[k6].x, pt[k6].y);
+            ctx.lineTo(pt[k5].x, pt[k5].y);
+            ctx.closePath();
+            ctx.fillStyle = cSide; ctx.fill();
+          }
+          // 顶面
+          ctx.beginPath();
+          for (let k5 = 0; k5 < 4; k5++) {
+            if (k5 === 0) ctx.moveTo(pt[0].x, pt[0].y); else ctx.lineTo(pt[k5].x, pt[k5].y);
+          }
+          ctx.closePath();
+          ctx.fillStyle = cTop; ctx.fill();
+        };
+
+        const H0 = mp.h + 0.55;          // 回转台高度（和 3D 的 3.52 对应）
+        const HB = mp.h + 0.55;          // 炮管高度
+
+        // 1) 共用底座圈
+        disc(0, 0, 1.30, mp.h + 0.1, '#5a636d');
+        disc(0, 0, 1.02, mp.h + 0.22, '#4e5a66');
+
+        if (kind === 'mg') {
+          box3(0, 0, 1.9, 1.6, H0, 0.56, '#6d7b88', '#4a5561');
+          box3(0.75, 0, 0.5, 1.2, H0, 0.42, '#2a2f36', '#1a1e22');          // 弹链箱
+          quad(-0.35, 0.55, 0.7, 0.5, H0 + 0.1, col);      // 顶部识别条
+          const nb = form === 'A' ? 2 : 1;
+          const far = form === 'B' ? 2.9 : form === 'A' ? 2.1 : 2.5;
+          for (let bi = 0; bi < nb; bi++) {
+            const off = nb === 1 ? 0 : (bi === 0 ? -0.22 : 0.22);
+            rod(0.5, off, far, 0.13, HB, '#3f474f');
+            quad(far, off, 0.22, 0.16, HB, '#20242a');
+          }
+          quad(0.45, 0, 0.5, 0.62, HB, col);
+        } else if (kind === 'flamer') {
+          box3(0, 0, 1.7, 1.5, H0, 0.60, '#7a6a55', '#4e4234');
+          disc(-0.55, -0.72, 0.36, H0 + 0.1, '#8a6a3a');    // 燃料罐 ×2
+          disc(-0.55, 0.72, 0.36, H0 + 0.1, '#8a6a3a');
+          box3(0.85, 0, 0.4, 0.8, H0, 0.50, '#2a2f36', '#1a1e22');
+          rod(0.4, 0, 1.2, 0.3, HB, '#4a525a');
+          rod(1.2, 0, 1.75, 0.26, HB, '#6a6a6a');
+          disc(1.6, 0, 0.2, HB, '#20242a');
+          disc(1.72, 0, 0.26, HB, col);                     // 火环
+        } else if (kind === 'flak') {
+          box3(0, 0, 2.2, 1.9, H0, 0.66, '#6d7b88', '#4a5561');
+          box3(0.9, 0, 0.5, 1.5, H0, 0.80, '#7b8a98', '#55606b');            // 炮盾
+          box3(-0.5, -0.85, 0.9, 0.35, H0 - 0.1, 0.40, '#6b5836', '#3e3220');
+          box3(-0.5, 0.85, 0.9, 0.35, H0 - 0.1, 0.40, '#6b5836', '#3e3220');
+          const far2 = form === 'B' ? 3.1 : 2.9;
+          rod(0.5, 0, far2, 0.16, HB, '#3f474f');
+          quad(far2, 0, 0.4, 0.24, HB, '#20242a');          // 制退器
+          quad(0.55, 0, 0.2, 0.4, HB, col);
+        } else if (kind === 'tesla') {
+          disc(0, 0, 0.85, H0, '#3a4048');
+          for (let k4 = 0; k4 < 3; k4++) {                  // 三层线圈
+            const rr = 0.62 - k4 * 0.08;
+            const w4 = toW(0, 0);
+            const q4 = R.P(w4[0], w4[1], H0 + 0.2 + k4 * 0.26, {});
+            ctx.strokeStyle = col;
+            ctx.lineWidth = Math.max(1, z * 0.16);
+            ctx.beginPath(); ctx.arc(q4.x, q4.y, Math.max(1, rr * z), 0, 6.2832); ctx.stroke();
+          }
+          quad(0, 0, 1.5, 0.12, H0, '#8b98a6');             // 十字支架
+          quad(0, 0, 0.12, 1.5, H0, '#8b98a6');
+          for (const fz2 of [-0.28, 0, 0.28]) {             // 三根放电针
+            rod(0.6, fz2, 1.5, 0.1, HB, col);
+            disc(1.6, fz2, 0.09, HB, '#e8e0ff');
+          }
+        } else { // mortar
+          box3(0, 0, 1.5, 1.4, H0, 0.50, '#69737f', '#434b54');
+          disc(0, 0, 0.9, H0 + 0.14, '#20242a');            // 座钣
+          quad(-0.6, -0.55, 0.5, 0.4, H0 - 0.05, '#4a535c');
+          quad(-0.6, 0.55, 0.5, 0.4, H0 - 0.05, '#4a535c');
+          rod(0.3, 0, 2.0, 0.2, HB, '#3f474f');             // 短粗炮管
+          rod(0.3, 0, 2.0, 0.07, HB + 0.05, col);
+          disc(2.0, 0, 0.2, HB, '#20242a');
+          disc(1.7, 0, 0.14, HB + 0.04, col);
         }
+
+
+        const r0 = Math.max(2.0, z * 1.15);   // 屏幕上的炮塔半径（用于形态环与等级点）
         // 选了形态：底座加一圈亮环
         if (form) {
           ctx.strokeStyle = 'rgba(255,212,121,0.75)';

@@ -632,40 +632,86 @@ window.ZT = window.ZT || {};
         U.posAt(path, s, tmp);
         bed.push({ x: tmp.x, y: tmp.y, h: tmp.h });
       }
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      // 路基阴影 / 道砟
-      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-      ctx.lineWidth = Math.max(4, R.cam.zoom * 12);
-      this._strokeH(ctx, R, bed, 0);
-      ctx.strokeStyle = '#57503f';
-      ctx.lineWidth = Math.max(3, R.cam.zoom * 9);
-      this._strokeH(ctx, R, bed, 0.5);
-      // 枕木
       const z = R.cam.zoom;
-      if (z > 1.0) {
-        ctx.strokeStyle = 'rgba(90,78,60,0.95)';
-        ctx.lineWidth = Math.max(1, z * 0.55);
-        ctx.beginPath();
-        for (let s = s0; s <= s1; s += 2.6) {
-          U.posAt(path, s, tmp);
-          const nx = -Math.sin(tmp.a), ny = Math.cos(tmp.a);
-          const a = R.P(tmp.x + nx * 2.2, tmp.y + ny * 2.2, tmp.h + 0.5, {});
-          const b = R.P(tmp.x - nx * 2.2, tmp.y - ny * 2.2, tmp.h + 0.5, {});
-          ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-        }
-        ctx.stroke();
+      ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
+
+      // ===== 道砟梯形断面（和 3D 的 strip 层一一对应）=====
+      ctx.strokeStyle = 'rgba(0,0,0,0.42)';                       // 路基阴影
+      ctx.lineWidth = Math.max(4, z * 8.4);
+      this._strokeH(ctx, R, bed, 0);
+      ctx.strokeStyle = '#33302a';                                 // 底部宽 7.2 m
+      ctx.lineWidth = Math.max(3, z * 7.2);
+      this._strokeH(ctx, R, bed, 0.06);
+      ctx.strokeStyle = '#3c3830';                                 // 肩部 5.6 m
+      ctx.lineWidth = Math.max(2.4, z * 5.6);
+      this._strokeH(ctx, R, bed, 0.18);
+      ctx.strokeStyle = '#454037';                                 // 顶面 5.0 m
+      ctx.lineWidth = Math.max(2, z * 5.0);
+      this._strokeH(ctx, R, bed, 0.30);
+      ctx.strokeStyle = '#2a2822';                                 // 轨间油污带
+      ctx.lineWidth = Math.max(1, z * 1.8);
+      this._strokeH(ctx, R, bed, 0.31);
+
+      // ===== 枕木：0.62 m 间距，2.6 m 长（低倍率下自动降采样）=====
+      const tieStep = Math.max(0.62, 2.2 / z);
+      ctx.strokeStyle = '#575249';
+      ctx.lineWidth = Math.max(1, z * 0.26);
+      ctx.beginPath();
+      for (let st = Math.ceil(s0 / tieStep) * tieStep; st <= s1; st += tieStep) {
+        U.posAt(path, st, tmp);
+        const nx = -Math.sin(tmp.a), ny = Math.cos(tmp.a);
+        const a = R.P(tmp.x + nx * 1.3, tmp.y + ny * 1.3, tmp.h + 0.34, {});
+        const b = R.P(tmp.x - nx * 1.3, tmp.y - ny * 1.3, tmp.h + 0.34, {});
+        ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
       }
-      // 钢轨
+      ctx.stroke();
+
+      // ===== 钢轨：轨距 1.435 m，工字断面（轨底 + 轨头）=====
       for (const side of [-1, 1]) {
-        const rail = [];
-        for (let s = s0; s <= s1; s += 5) {
-          U.posAt(path, s, tmp);
-          rail.push({ x: tmp.x - Math.sin(tmp.a) * 0.72 * side, y: tmp.y + Math.cos(tmp.a) * 0.72 * side, h: tmp.h + 0.6 });
+        const lat = 0.7175 * side;
+        const body = [], head = [];
+        for (let ss = s0; ss <= s1; ss += 5) {
+          U.posAt(path, ss, tmp);
+          const nx = -Math.sin(tmp.a) * lat, ny = Math.cos(tmp.a) * lat;
+          body.push({ x: tmp.x + nx, y: tmp.y + ny, h: tmp.h + 0.48 });
+          head.push({ x: tmp.x + nx, y: tmp.y + ny, h: tmp.h + 0.62 });
         }
-        ctx.strokeStyle = 'rgba(175,175,166,0.9)';
-        ctx.lineWidth = Math.max(1, z * 0.4);
-        this._strokeH(ctx, R, rail, 0);
+        if (body.length < 2) continue;
+        ctx.strokeStyle = '#8c9199';                              // 轨腰/轨底
+        ctx.lineWidth = Math.max(1.1, z * 0.16);
+        this._strokeH(ctx, R, body, 0);
+        ctx.strokeStyle = '#c9ced4';                              // 轨头亮面（车轮压出来）
+        ctx.lineWidth = Math.max(0.9, z * 0.13);
+        this._strokeH(ctx, R, head, 0);
       }
+
+      // ===== 沿线服务土路 + 两道车辙（左侧 9~15.2 m）=====
+      if (z > 0.35) {
+        const roadL = [], roadR = [];
+        const rutA = [], rutB = [];
+        for (let ss = s0; ss <= s1; ss += 8) {
+          U.posAt(path, ss, tmp);
+          const nx = -Math.sin(tmp.a), ny = Math.cos(tmp.a);
+          roadL.push({ x: tmp.x + nx * 15.2, y: tmp.y + ny * 15.2, h: tmp.h + 0.05 });
+          roadR.push({ x: tmp.x + nx * 9.0, y: tmp.y + ny * 9.0, h: tmp.h + 0.05 });
+          rutA.push({ x: tmp.x + nx * 12.65, y: tmp.y + ny * 12.65, h: tmp.h + 0.07 });
+          rutB.push({ x: tmp.x + nx * 11.35, y: tmp.y + ny * 11.35, h: tmp.h + 0.07 });
+        }
+        if (roadL.length > 1) {
+          ctx.fillStyle = '#3c3429';
+          ctx.beginPath();
+          ctx.moveTo(R.P(roadL[0].x, roadL[0].y, roadL[0].h, {}).x, R.P(roadL[0].x, roadL[0].y, roadL[0].h, {}).y);
+          for (let i = 1; i < roadL.length; i++) { const q = R.P(roadL[i].x, roadL[i].y, roadL[i].h, {}); ctx.lineTo(q.x, q.y); }
+          for (let i = roadR.length - 1; i >= 0; i--) { const q = R.P(roadR[i].x, roadR[i].y, roadR[i].h, {}); ctx.lineTo(q.x, q.y); }
+          ctx.closePath(); ctx.fill();
+          ctx.strokeStyle = '#2a251d';
+          ctx.lineWidth = Math.max(0.8, z * 0.35);
+          this._strokeH(ctx, R, rutA, 0);
+          this._strokeH(ctx, R, rutB, 0);
+        }
+      }
+
+
       // 桥面：在轨道下面铺一层钢板，让"桥"读得出来
       if (s1 > this.bridge.s0 - 200 && s0 < this.bridge.s1 + 200) {
         const L = [], Rt = [];

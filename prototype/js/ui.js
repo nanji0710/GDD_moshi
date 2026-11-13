@@ -100,7 +100,12 @@ window.ZT = window.ZT || {};
       R_.mods.textContent = mods.length ? mods.map(function (m) { return MODNAME[m] || m; }).join(' · ') : '';
       R_.mods.style.display = mods.length ? '' : 'none';
       R_.fill.style.width = U.clamp(run.km / run.totalKm, 0, 1) * 100 + '%';
-      const nx = Z.World.stations[run.stationIdx + 1];
+      // 下一站：直接用 STATION_AT × run.totalKm 算，不依赖任何缓存/索引
+      let nx = null;
+      for (let si = 0; si < CFG.STATION_AT.length; si++) {
+        const m = CFG.STATION_AT[si] * run.totalKm;
+        if (m > run.km + 1) { nx = { km: m / 1000 }; break; }
+      }
       R_.routeNow.textContent = (run.km / 1000).toFixed(2) + ' / ' + (run.totalKm / 1000).toFixed(1) + ' km'
         + (nx ? ' · 下一站 ' + (nx.km).toFixed(1) + ' km' : '');
       // 关卡目标

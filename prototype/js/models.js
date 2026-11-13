@@ -91,79 +91,329 @@
     b.box(x, 0.95, 0, 3.0, 0.28, 2.2, C.hullD);
   }
 
-  function buildLoco() {
-    const b = new Builder();
-    const L = 22, W = 3.3;
-    bogie(b, -6.5); bogie(b, 6.5);
-    b.box(0, 2.05, 0, L - 3.2, 2.0, W, C.hull);
-    b.box(0, 1.15, 0, L - 2.6, 0.5, W + 0.08, C.hullD);
-    b.box(0, 3.15, 0, L - 3.0, 0.22, W - 0.1, C.hullL);
-    b.box(L / 2 - 2.4, 3.5, 0, 4.4, 1.5, W + 0.06, C.hull);
-    b.box(L / 2 - 2.4, 3.85, 0, 4.0, 0.7, W + 0.12, C.glass, { emit: 0.22, k: 1.2 });
-    b.box(L / 2 - 2.4, 4.28, 0, 4.6, 0.16, W + 0.1, C.hullD);
-    for (let i = 0; i < 7; i++) b.box(-1.0 + i * 1.15, 3.36, 0, 0.14, 0.34, W - 0.6, C.dark);
-    b.cyl(-4.6, 4.15, 0, 0.42, 1.5, 14, C.dark);
-    b.cyl(-4.6, 4.95, 0, 0.52, 0.18, 14, C.hullD);
-    b.box(-1.4, 3.55, 0, 1.8, 0.5, 1.5, C.hullD);
-    b.cyl(2.2, 3.45, 0, 0.34, 0.5, 12, C.steel);
-    b.box(4.6, 3.4, 0, 1.2, 0.35, 1.2, C.dark);
-    b.box(L / 2 - 0.35, 1.55, 0, 0.7, 0.9, W - 0.4, C.accent, { k: 0.85 });
-    b.box(L / 2 - 0.05, 2.55, 0, 0.3, 0.5, 1.6, C.accent, { emit: 0.75 });
-    b.cyl(L / 2 + 0.12, 2.55, -0.9, 0.26, 0.24, 12, '#fff3c8', { emit: 1.2 });
-    b.cyl(L / 2 + 0.12, 2.55, 0.9, 0.26, 0.24, 12, '#fff3c8', { emit: 1.2 });
-    for (const dz of [-W / 2 - 0.02, W / 2 + 0.02]) b.box(0, 2.42, dz, L - 3.4, 0.34, 0.06, '#c9a24a', { k: 1.05 });
-    for (const dz of [-W / 2 - 0.06, W / 2 + 0.06]) {
-      b.box(0, 2.9, dz, L - 3.4, 0.09, 0.09, C.steel);
-      b.box(0, 1.7, dz, L - 3.4, 0.09, 0.09, C.steel);
-      for (let i = -4; i <= 4; i++) b.box(i * 2.2, 2.3, dz, 0.08, 1.2, 0.08, C.steel);
+  // ==================== 车厢 ====================
+  // 所有车厢长宽高完全一致，只有外观按类型不同：
+  //   长 22 · 宽 3.3 · 车身 1.05 → 3.40（顶面色带 3.40 → 3.60）
+  const CAR = { L: 22, W: 3.3, FLOOR: 1.05, H: 2.35 };
+  CAR.ROOF = CAR.FLOOR + CAR.H;              // 3.40
+
+  const CB = {
+    body: '#5f6b78', bodyL: '#77848f', dark: '#20242a', steel: '#8b98a6',
+    win: '#2b3a4a', gold: '#c9a24a'
+  };
+  const ROOF = {
+    engine: '#8f9aa8', passenger: '#7f8f6a', weapon: '#7d8794',
+    power: '#8a7a5e', armor: '#5f6b78', cargo: '#8a7a5a', repair: '#7a8a74'
+  };
+  const BODY = {
+    engine: '#5b6875', passenger: '#5d6a78', weapon: '#606b76',
+    power: '#5a6472', armor: '#4e5a66', cargo: '#6f6350', repair: '#5f6d66'
+  };
+
+  function bogies(b, L) {
+    for (const x of [-L * 0.32, L * 0.32]) {
+      b.box(x, 0.55, 0, 3.4, 0.5, 2.6, CB.dark);
+      for (const dx of [-1.0, 1.0]) for (const dz of [-1.05, 1.05]) {
+        b.cyl(x + dx, 0.62, dz, 0.55, 0.42, 12, '#1a1c1f');
+        b.cyl(x + dx, 0.62, dz + 0.01, 0.24, 0.46, 8, CB.steel);
+      }
+      b.box(x, 0.95, 0, 3.0, 0.28, 2.2, CB.bodyL);
     }
-    for (const s of [-1, 1]) b.box(s * (L / 2 + 0.5), 1.5, 0, 1.0, 0.34, 0.5, C.dark);
+    b.box(0, 1.15, 0, L - 2.4, 0.5, 3.38, CB.dark);
+    for (const s of [-1, 1]) b.box(s * (L / 2 + 0.45), 1.5, 0, 0.9, 0.3, 0.45, CB.dark);
+  }
+
+  // 车钩：两端各一套，长 2.4 m，正好跨过 2.2 m 的车距和连接处
+  function couplers(b) {
+    for (const dir of [-1, 1]) {
+      // 钩座（贴在端墙上）
+      b.box(dir * 9.85, 1.30, 0, 0.7, 0.8, 1.0, '#2b3037');
+      // 钩身
+      b.box(dir * 10.9, 1.18, 0, 2.3, 0.32, 0.36, '#3d444c');
+      // 钩头（两车相遇的粗节）
+      b.box(dir * 11.95, 1.18, 0, 0.65, 0.5, 0.58, '#4c545d');
+      b.box(dir * 12.2, 1.34, 0, 0.28, 0.18, 0.34, '#5a636d');
+      // 缓冲器
+      for (const dz of [-0.5, 0.5]) b.box(dir * 10.15, 1.62, dz, 0.5, 0.46, 0.28, '#2b3037');
+      // 风管
+      b.cyl(dir * 10.9, 0.95, 0.42, 0.06, 2.1, 5, '#20242a');
+    }
+  }
+
+  // 统一外壳：每个车型都从这里开始，保证尺寸一致
+  function shell(b, type) {
+    bogies(b, CAR.L);
+    const y0 = CAR.FLOOR, h = CAR.H, W = CAR.W;
+    b.box(0, y0 + h / 2, 0, CAR.L - 2.6, h, W, BODY[type] || CB.body);
+    couplers(b);
+
+    // 车顶：中间隆起 + 两侧斜切，做出弧度；设备装在顶上不会被色带盖住
+    const roofW = W - 1.1;
+    b.box(0, CAR.ROOF + 0.11, 0, CAR.L - 2.8, 0.22, roofW, BODY[type] || CB.body, { k: 1.06 });
+    for (const dz of [-(roofW / 2 + 0.16), roofW / 2 + 0.16]) {
+      b.box(0, CAR.ROOF + 0.05, dz, CAR.L - 2.8, 0.10, 0.60, BODY[type] || CB.body, { k: 0.9 });
+      b.box(0, CAR.ROOF - 0.02, dz * 1.35, CAR.L - 3.4, 0.08, 0.42, BODY[type] || CB.body, { k: 0.82 });
+    }
+
+    // 顶面色带：只占中间一条（约 1/3 车宽），不再整片盖住车顶
+    b.box(0, CAR.ROOF + 0.23, 0, CAR.L - 7.0, 0.05, 1.00, ROOF[type]);
+    b.box(0, CAR.ROOF + 0.26, 0, CAR.L - 8.0, 0.03, 0.62, ROOF[type], { k: 1.2 });
+
+    // 檐线 / 腰线 / 竖向分割
+    for (const dz of [-W / 2 - 0.02, W / 2 + 0.02]) {
+      b.box(0, y0 + h - 0.12, dz, CAR.L - 3.2, 0.09, 0.06, CB.steel);
+      b.box(0, y0 + 0.55, dz, CAR.L - 3.2, 0.10, 0.06, CB.steel);
+      for (let i = 0; i <= 6; i++) {
+        const x = -(CAR.L - 3.4) / 2 + i * ((CAR.L - 3.4) / 6);
+        b.box(x, y0 + h * 0.5, dz, 0.09, h * 0.9, 0.05, CB.dark);
+      }
+  }
+
+
+    }
+  // 车窗：窗框 + 玻璃 + 反光高光 + 窗台，所有车厢同一套做法
+  function windows(b, n, lit) {
+    const W = CAR.W, y = CAR.FLOOR + CAR.H * 0.62;
+    const wh = CAR.H * 0.36;
+    for (const dz of [-W / 2 - 0.05, W / 2 + 0.05]) {
+      const side = Math.sign(dz);
+      for (let i = 0; i < n; i++) {
+        const x = -(CAR.L - 5.4) / 2 + (i + 0.5) * ((CAR.L - 5.4) / n);
+        // 窗框（钢色，比玻璃大一圈）
+        b.box(x, y, dz, 1.46, wh + 0.16, 0.07, '#8b98a6');
+        // 玻璃
+        b.box(x, y, dz + side * 0.02, 1.28, wh, 0.05, '#243441', { emit: 0.08 });
+        // 玻璃高光（斜切一条亮边，模拟天空反射）
+        b.box(x - 0.40, y + wh * 0.28, dz + side * 0.03, 0.34, wh * 0.30, 0.04, '#8fb6d4', { emit: 0.30 });
+      }
+    }
+    if (lit) {
+      const x0 = -(CAR.L - 5.4) / 2 + 0.9;
+      b.box(x0, y, W / 2 + 0.08, 1.2, wh * 0.9, 0.04, '#ffd479', { emit: 0.9 });
+    }
+  }
+
+
+  function buildEngine() {
+    const b = new Builder();
+    shell(b, 'engine');
+    windows(b, 5);
+    // 金色腰线 + 端面
+    for (const dz of [-CAR.W / 2 - 0.05, CAR.W / 2 + 0.05]) b.box(0, 2.42, dz, CAR.L - 3.4, 0.34, 0.06, CB.gold);
+    b.box(CAR.L / 2 - 0.35, 1.65, 0, 0.7, 0.9, CAR.W - 0.5, CB.gold, { k: 0.9 });
+    b.cyl(CAR.L / 2 + 0.12, 2.55, -0.9, 0.26, 0.22, 10, '#fff3c8', { emit: 1.3 });
+    b.cyl(CAR.L / 2 + 0.12, 2.55, 0.9, 0.26, 0.22, 10, '#fff3c8', { emit: 1.3 });
+    // 烟囱（车顶设备，不算车身高度）
+    b.cyl(-4.6, CAR.ROOF + 0.55, 0, 0.38, 1.1, 12, CB.dark);
+    b.cyl(-4.6, CAR.ROOF + 1.15, 0, 0.46, 0.16, 12, CB.bodyL);
+    // 散热格栅
+    for (let i = 0; i < 5; i++) b.box(-8 + i * 1.1, CAR.ROOF + 0.22, 0, 0.14, 0.22, CAR.W - 1.4, CB.dark);
     return b;
   }
 
-  function buildCargo() {
+  function buildPassenger() {
     const b = new Builder();
-    const L = 20, W = 3.3;
-    bogie(b, -6.0); bogie(b, 6.0);
-    b.box(0, 1.35, 0, L - 2.4, 0.5, W, C.hullD);
-    b.box(0, 3.0, 0, L - 3.0, 2.6, W - 0.2, '#7a6a4a');
-    for (let i = 0; i < 18; i++) {
-      const x = -((L - 3.4) / 2) + i * ((L - 3.4) / 17);
-      b.box(x, 3.0, W / 2 - 0.12, 0.16, 2.4, 0.12, '#8a7a58', { k: 1.05 });
-      b.box(x, 3.0, -W / 2 + 0.12, 0.16, 2.4, 0.12, '#8a7a58', { k: 1.05 });
+    shell(b, 'passenger');
+    windows(b, 7, true);
+    // 车门
+    for (const x of [-CAR.L / 2 + 2.6, CAR.L / 2 - 2.6]) {
+      b.box(x, CAR.FLOOR + CAR.H * 0.5, CAR.W / 2 + 0.05, 1.0, CAR.H * 0.82, 0.07, CB.bodyL);
+      b.box(x, CAR.FLOOR + CAR.H * 0.5, -CAR.W / 2 - 0.05, 1.0, CAR.H * 0.82, 0.07, CB.bodyL);
     }
-    for (let i = 0; i < 5; i++) b.box(-6 + i * 3, 4.34, 0, 0.24, 0.12, W - 0.5, '#5f5340');
-    b.box(0, 3.0, W / 2 - 0.02, 0.5, 1.6, 0.1, '#3e372b');
-    for (const s of [-1, 1]) b.box(s * (L / 2 + 0.45), 1.5, 0, 0.9, 0.3, 0.45, C.dark);
+    // 车顶通风机
+    for (let i = 0; i < 3; i++) for (const dz of [-0.95, 0.95]) b.box(-5.5 + i * 5.5, CAR.ROOF + 0.38, dz, 1.4, 0.26, 0.9, CB.bodyL);
     return b;
   }
 
-  function buildWeapon() {
+  function buildCargoCar() {
     const b = new Builder();
-    const L = 20, W = 3.3;
-    bogie(b, -6.0); bogie(b, 6.0);
-    b.box(0, 1.4, 0, L - 2.0, 0.4, W, C.hullD);
-    b.box(0, 1.75, 0, L - 3.0, 0.3, W - 0.3, C.hull);
-    b.cyl(0, 2.05, 0, 1.7, 0.35, 20, C.hullD);
-    b.box(-3.4, 2.1, 1.0, 1.1, 0.7, 0.8, '#5a4a2a');
-    b.box(-3.4, 2.1, -1.0, 1.1, 0.7, 0.8, '#5a4a2a');
-    for (const s of [-1, 1]) b.box(s * (L / 2 + 0.45), 1.5, 0, 0.9, 0.3, 0.45, C.dark);
+    shell(b, 'cargo');
+    // 加强筋
+    for (let i = 0; i < 15; i++) {
+      const x = -((CAR.L - 3.8) / 2) + i * ((CAR.L - 3.8) / 14);
+      for (const dz of [CAR.W / 2 - 0.14, -CAR.W / 2 + 0.14]) {
+        b.box(x, CAR.FLOOR + CAR.H * 0.5, dz, 0.14, CAR.H * 0.92, 0.10, '#847656');
+      }
+    }
+    // 柜门 + 锁杆
+    for (const x of [-2.4, 0.4]) {
+      b.box(x, CAR.FLOOR + CAR.H * 0.5, CAR.W / 2 + 0.03, 0.12, CAR.H * 0.9, 0.08, '#3e372b');
+      b.box(x, CAR.FLOOR + CAR.H * 0.4, CAR.W / 2 + 0.07, 0.10, 1.1, 0.06, CB.steel);
+    }
     return b;
   }
 
-  // 炮塔单独成模型：原点在回转中心，炮管指向 +X
-  function buildTurret() {
+  function buildWeaponCar() {
     const b = new Builder();
-    b.box(0, 0.35, 0, 3.0, 0.7, 2.6, C.hull);
-    b.box(0.3, 0.72, 0, 2.0, 0.34, 2.0, C.hullL);
-    b.box(-1.1, 0.55, 0, 0.8, 0.5, 1.5, C.dark);
-    for (const dz of [-0.5, 0.5]) {
-      b.box(2.2, 0.55, dz, 3.2, 0.24, 0.24, C.dark);
-      b.box(3.9, 0.55, dz, 0.38, 0.32, 0.32, C.steel);
+    shell(b, 'weapon');
+    // 上层是敞开平台：把车顶中间挖成甲板
+    b.box(0, CAR.ROOF + 0.02, 0, CAR.L - 4.0, 0.06, CAR.W - 1.0, CB.dark);
+    // 炮座圈
+    // 两个挂座圈：和 2D 的 ±4.5 m 挂点对齐
+    for (const dx of [-4.5, 4.5]) {
+      b.cyl(dx, CAR.ROOF + 0.12, 0, 1.35, 0.20, 14, CB.steel);
+      b.cyl(dx, CAR.ROOF + 0.20, 0, 1.05, 0.10, 14, CB.dark);
     }
-    b.box(1.5, 0.6, 0, 0.2, 1.2, 2.2, C.hullL);
+    // 弹药箱
+    for (const dz of [-1.1, 1.1]) b.box(0, CAR.ROOF + 0.26, dz, 1.6, 0.45, 0.7, '#5a4a2a');
+    // 护栏
+    for (const dz of [-CAR.W / 2 + 0.2, CAR.W / 2 - 0.2]) b.box(0, CAR.ROOF + 0.45, dz, CAR.L - 4.4, 0.07, 0.07, CB.steel);
     return b;
   }
+
+  function buildPowerCar() {
+    const b = new Builder();
+    shell(b, 'power');
+    windows(b, 2);
+    // 发电机组 + 散热格栅
+    for (const dz of [-0.9, 0.9]) b.box(-3.4, CAR.ROOF + 0.35, dz, 4.2, 0.7, 1.0, CB.bodyL);
+    for (let i = 0; i < 5; i++) b.box(-6.4 + i * 0.5, CAR.FLOOR + CAR.H * 0.6, CAR.W / 2 + 0.04, 0.26, 1.1, 0.06, CB.dark);
+    // 排气管
+    for (const dz of [-0.75, 0.75]) b.cyl(6.6, CAR.ROOF + 0.6, dz, 0.2, 1.2, 8, CB.dark);
+    // 电缆
+    b.box(0, CAR.ROOF + 0.30, 1.0, 7.0, 0.10, 0.10, CB.steel);
+    return b;
+  }
+
+  function buildArmorCar() {
+    const b = new Builder();
+    shell(b, 'armor');
+    // 外挂装甲板：贴在车身上，不改变总尺寸
+    for (const dz of [-CAR.W / 2 - 0.06, CAR.W / 2 + 0.06]) {
+      for (let i = 0; i < 6; i++) {
+        const x = -(CAR.L - 4) / 2 + i * ((CAR.L - 4) / 5);
+        b.box(x, CAR.FLOOR + CAR.H * 0.5, dz, 1.55, CAR.H * 0.8, 0.10, '#56626e');
+      }
+      for (let i = 0; i < 13; i++) b.box(-(CAR.L - 3) / 2 + i * ((CAR.L - 3) / 12), CAR.ROOF - 0.25, dz + 0.04, 0.11, 0.11, 0.05, CB.steel);
+    }
+    // 射击孔
+    for (const x of [-4.5, 0, 4.5]) b.box(x, CAR.FLOOR + CAR.H * 0.55, CAR.W / 2 + 0.14, 0.45, 0.26, 0.08, '#101315');
+    return b;
+  }
+
+  function buildRepairCar() {
+    const b = new Builder();
+    shell(b, 'repair');
+    windows(b, 3);
+    // 吊臂（车顶设备）
+    b.box(2.2, CAR.ROOF + 0.5, 0, 0.45, 1.0, 0.45, CB.steel);
+    b.box(4.4, CAR.ROOF + 1.0, 0, 4.2, 0.3, 0.36, CB.steel);
+    b.box(6.2, CAR.ROOF + 0.5, 0, 0.09, 1.2, 0.09, CB.dark);
+    // 工具箱
+    for (let i = 0; i < 3; i++) b.box(-6 + i * 1.7, CAR.ROOF + 0.32, 1.0, 1.2, 0.5, 0.8, '#5a4a2a');
+    return b;
+  }
+
+
+  // 炮塔拆四件：底座圈（不转） / 回转台 / 炮盾 / 炮管（可俯仰）
+  // 原点都在各自的枢轴上，方便 3D 里做 yaw + pitch
+  function buildTurretBase() {
+    const b = new Builder();
+    b.cyl(0, 0.09, 0, 1.30, 0.18, 18, '#5a636d');       // 固定座圈
+    b.cyl(0, 0.20, 0, 1.12, 0.10, 18, '#8b98a6');
+    for (let i = 0; i < 8; i++) {                        // 一圈螺栓
+      const a = i / 8 * Math.PI * 2;
+      b.box(Math.cos(a) * 1.16, 0.26, Math.sin(a) * 1.16, 0.12, 0.10, 0.12, '#6d767f');
+    }
+    return b;
+  }
+
+  // 回转台：绕 Y 旋转（yaw）
+  function buildTurretBody() {
+    const b = new Builder();
+    b.cyl(0, 0.14, 0, 1.02, 0.28, 16, '#4e5a66');        // 回转盘
+    b.box(0, 0.52, 0, 2.35, 0.62, 2.05, '#5f6b78');      // 塔体
+    b.box(0.15, 0.86, 0, 1.75, 0.22, 1.65, '#77848f');   // 顶盖
+    b.box(-0.75, 0.90, 0, 0.55, 0.16, 0.55, '#20242a');  // 舱盖
+    // 炮盾：正前方一块带斜角的护板
+    b.box(1.05, 0.55, 0, 0.22, 0.95, 1.95, '#6b7784');
+    b.box(1.20, 0.55, 0, 0.14, 0.72, 1.35, '#7a8794');
+    // 侧储物筐
+    for (const dz of [-1.12, 1.12]) b.box(-0.05, 0.42, dz, 1.25, 0.34, 0.16, '#3f4a54');
+    return b;
+  }
+
+  // 炮管：枢轴在原点，向 +X 伸出；绕 X 旋转（pitch）
+  function buildTurretBarrel() {
+    const b = new Builder();
+    b.box(0.32, 0, 0, 0.64, 0.30, 0.30, '#3a4249');      // 炮尾
+    b.cyl(0.55, 0, 0, 0.13, 0.10, 10, '#8b98a6');        // 抽烟装置
+    b.box(1.45, 0, 0, 2.30, 0.13, 0.13, '#4a525a');      // 炮管
+    b.box(2.55, 0, 0, 0.22, 0.19, 0.19, '#2c333a');      // 制退器
+    b.box(2.72, 0, 0, 0.14, 0.15, 0.15, '#3d454d');
+    return b;
+  }
+
+  // ============ 五种武器的炮塔外观 ============
+  // 每种武器有独立的「回转台」和「炮管/发射器」，底座圈共用
+  const WCOL = { mg: '#ffd479', flamer: '#ff7a2f', flak: '#9fe0ff', tesla: '#b79bff', mortar: '#ffb347' };
+  const WHULL = '#5f6b78', WDARK = '#20242a', WSTEEL = '#8b98a6';
+
+  function turretBodyOf(kind) {
+    const b = new Builder();
+    const c = WCOL[kind] || '#ffd479';
+    b.cyl(0, 0.14, 0, 1.02, 0.28, 16, '#4e5a66');          // 共用回转盘
+    if (kind === 'mg') {
+      b.box(0, 0.50, 0, 1.9, 0.56, 1.6, WHULL);
+      b.box(0.75, 0.55, 0, 0.5, 0.42, 1.2, WDARK);           // 弹链箱
+      b.box(-0.35, 0.84, 0.55, 0.7, 0.18, 0.5, c);           // 顶部识别条
+    } else if (kind === 'flamer') {
+      b.box(0, 0.52, 0, 1.7, 0.6, 1.5, '#6a5c4a');
+      for (const dz of [-0.72, 0.72]) b.cyl(-0.55, 0.62, dz, 0.36, 1.1, 10, '#8a6a3a');  // 燃料罐
+      b.box(0.85, 0.5, 0, 0.4, 0.5, 0.8, WDARK);
+    } else if (kind === 'flak') {
+      b.box(0, 0.54, 0, 2.2, 0.66, 1.9, WHULL);
+      b.box(0.9, 0.6, 0, 0.5, 0.8, 1.5, '#6b7784');          // 炮盾
+      for (const dz of [-0.85, 0.85]) b.box(-0.5, 0.4, dz, 0.9, 0.4, 0.35, '#5a4a2a'); // 弹箱
+      b.box(-0.35, 0.92, 0, 0.8, 0.16, 1.2, c);
+    } else if (kind === 'tesla') {
+      b.cyl(0, 0.42, 0, 0.85, 0.55, 14, '#3a4048');
+      for (let k = 0; k < 3; k++) b.cyl(0, 0.72 + k * 0.26, 0, 0.62 - k * 0.08, 0.12, 12, c); // 线圈
+      b.box(0, 0.55, 0, 1.5, 0.12, 0.12, WSTEEL);            // 支架
+      b.box(0, 0.55, 0, 0.12, 0.12, 1.5, WSTEEL);
+    } else { // mortar
+      b.box(0, 0.44, 0, 1.5, 0.5, 1.4, '#5a6470');
+      b.cyl(0, 0.72, 0, 0.9, 0.24, 14, WDARK);               // 座钣
+      for (const dz of [-0.55, 0.55]) b.box(-0.6, 0.5, dz, 0.5, 0.5, 0.4, '#4a535c');
+    }
+    return b;
+  }
+
+  function turretBarrelOf(kind) {
+    const b = new Builder();
+    const c = WCOL[kind] || '#ffd479';
+    if (kind === 'mg') {
+      for (const dz of [-0.22, 0.22]) {
+        b.box(1.15, 0, dz, 2.1, 0.12, 0.12, '#3f474f');
+        b.box(2.2, 0, dz, 0.22, 0.16, 0.16, WDARK);
+      }
+      b.box(0.45, 0, 0, 0.5, 0.3, 0.62, c);                  // 枪座
+    } else if (kind === 'flamer') {
+      b.box(0.42, 0, 0, 0.5, 0.3, 0.4, '#4a525a');
+      b.box(0.95, 0, 0, 1.0, 0.26, 0.26, '#6a6a6a');
+      b.cyl(1.55, 0, 0, 0.2, 0.26, 10, WDARK);               // 喷口
+      b.cyl(1.72, 0, 0, 0.26, 0.1, 10, c);                   // 火环
+    } else if (kind === 'flak') {
+      b.box(0.55, 0, 0, 0.9, 0.26, 0.26, '#4a525a');
+      b.box(1.85, 0, 0, 2.2, 0.16, 0.16, '#3f474f');
+      b.box(2.95, 0, 0, 0.4, 0.24, 0.24, WDARK);             // 制退器
+      b.box(0.55, 0, 0, 0.2, 0.4, 0.4, c);
+    } else if (kind === 'tesla') {
+      b.box(0.6, 0, 0, 0.8, 0.16, 0.16, '#6a7080');
+      for (const dz of [-0.28, 0, 0.28]) {
+        b.cyl(1.15, 0, dz, 0.06, 0.9, 8, c);                 // 三根放电针
+        b.cyl(1.6, 0, dz, 0.04, 0.3, 6, '#e8e0ff');
+      }
+    } else { // mortar
+      b.cyl(0.55, 0, 0, 0.2, 0.5, 10, '#4a525a');
+      b.box(1.25, 0, 0, 1.5, 0.2, 0.2, '#3f474f');
+      b.cyl(2.0, 0, 0, 0.2, 0.24, 10, WDARK);
+      b.cyl(1.7, 0, 0, 0.14, 0.16, 8, c);                    // 炮口环
+    }
+    return b;
+  }
+
+
 
   function buildZombie() {
     const b = new Builder();
@@ -186,46 +436,116 @@
     return b;
   }
 
-  // 废墟：破损的上沿、裂缝、外露钢筋、焦黑与火光
-  function buildRuin() {
+  // 废墟：倒塌的上层、露出的楼板与立柱、断墙、瓦砾、焦痕、火光
+  // 枯树：低模，两层稀疏树冠
+  function buildTree() {
     const b = new Builder();
-    const W = 14, D = 11, H = 13;
-    // 主体：上部被削掉一截
-    b.box(0, H / 2, 0, W, H, D, '#4a5158');
-    // 破损的天台：几块高低不一的残墙
-    const jag = [[-4.6, 1.1], [-1.4, 2.3], [1.8, 0.7], [4.4, 1.6]];
-    for (const [jx, jh] of jag) b.box(jx, H + jh / 2, 0.4, 2.6, jh, D - 1.2, '#3f464d');
-    b.box(0, H + 0.12, 0, W - 1.2, 0.24, D - 1.2, '#33383d');
-    // 裂缝：贴在墙面上的细长暗条（正/侧各几道）
-    const crack = (x, y, z, w, h, d) => b.box(x, y, z, w, h, d, '#141719', { k: 0.8 });
-    crack(-3.2, 6.4, D / 2 + 0.05, 0.28, 5.0, 0.08);
-    crack(-2.6, 3.6, D / 2 + 0.05, 1.6, 0.26, 0.08);
-    crack(2.4, 8.2, D / 2 + 0.05, 0.24, 4.2, 0.08);
-    crack(W / 2 + 0.05, 5.0, -1.2, 0.08, 6.0, 0.26);
-    crack(W / 2 + 0.05, 2.4, 1.6, 0.08, 0.24, 2.2);
-    // 窗洞：一部分烧黑、少数还亮着
-    for (let fy = 0; fy < 4; fy++) for (let fx = 0; fx < 4; fx++) {
-      const r = (fx * 17 + fy * 29) % 10;
-      const col = r > 8 ? '#ffd479' : (r > 5 ? '#1a1c1e' : '#0e1114');
-      b.box(-W / 2 + 2.6 + fx * 3.0, 2.4 + fy * 2.9, D / 2 + 0.06, 1.5, 1.4, 0.1, col, { emit: r > 8 ? 0.9 : 0 });
-    }
-    // 门洞
-    b.box(0, 1.3, D / 2 + 0.08, 2.0, 2.6, 0.14, '#0b0d0e');
-    // 外露钢筋
-    for (const [rx, ry] of [[-5.2, H + 1.6], [3.9, H + 1.4]]) {
-      b.cyl(rx, ry, 0.6, 0.06, 1.6, 6, '#6b5a48');
-      b.cyl(rx + 0.5, ry - 0.2, -0.4, 0.05, 1.2, 6, '#5a4a3a');
-    }
-    // 残存的墙脚 + 焦黑
-    b.box(0, 0.45, 0, W + 0.1, 0.9, D + 0.1, '#2b2e30');
-    b.box(-W / 2 + 1.4, 1.6, D / 2 + 0.04, 3.0, 2.0, 0.06, '#101112');
-    // 火光：烧着的窗口/破洞（自发光）
-    b.box(W / 2 - 2.2, 2.2, D / 2 + 0.1, 1.6, 1.2, 0.08, '#ff8a3a', { emit: 1.6 });
-    b.box(W / 2 - 2.2, 3.4, D / 2 + 0.1, 1.0, 0.6, 0.08, '#ffd479', { emit: 1.9 });
-    // 屋顶上的火堆
-    b.box(-2.0, H + 0.5, 1.2, 1.6, 0.5, 1.4, '#ff7a2a', { emit: 2.0 });
+    b.cyl(0, 1.6, 0, 0.22, 3.2, 8, '#4a3a2a');
+    b.cyl(0, 3.4, 0, 1.5, 1.5, 9, '#3a4a32');
+    b.cyl(0, 4.5, 0, 1.15, 1.2, 9, '#42543a');
+    b.cyl(0, 5.4, 0, 0.75, 0.9, 8, '#4c6040');
+    b.cyl(0.9, 2.6, 0.4, 0.16, 1.8, 6, '#4a3a2a');
     return b;
   }
+
+  // 车顶色带：与 2D 的 roof 色块一一对应，按车厢类型染色
+  function buildBand() {
+    const b = new Builder();
+    b.box(0, 0, 0, 15.6, 0.10, 2.05, '#c8ccd0');
+    b.box(0, 0.07, 0, 14.6, 0.06, 1.6, '#d8dce0');
+    return b;
+  }
+
+  // 丧尸拆件：身体 / 腿 / 手臂，供 3D 做走路摆动
+  const ZP = { skin: '#7c8a6a', cloth: '#4e5a49', dark: '#2f382e' };
+  function buildZBody() {
+    const b = new Builder();
+    b.box(0, 1.12, 0, 0.72, 0.5, 0.42, ZP.cloth);
+    b.box(0, 1.5, 0, 0.8, 0.34, 0.46, ZP.cloth);
+    b.box(0, 1.86, 0.02, 0.42, 0.42, 0.4, ZP.skin);
+    b.box(0, 1.92, 0.21, 0.3, 0.12, 0.04, '#1a1410');
+    b.box(-0.1, 1.9, 0.22, 0.07, 0.07, 0.03, '#e8564a', { emit: 1.0 });
+    b.box(0.1, 1.9, 0.22, 0.07, 0.07, 0.03, '#e8564a', { emit: 1.0 });
+    b.box(0, 1.05, 0, 0.84, 0.18, 0.5, '#3d4739');
+    return b;
+  }
+  function buildZLeg() {
+    const b = new Builder();
+    b.box(0, -0.45, 0, 0.26, 0.9, 0.28, ZP.dark);
+    b.box(0, -0.9, 0.06, 0.3, 0.14, 0.42, '#25231f');
+    return b;
+  }
+  function buildZArm() {
+    const b = new Builder();
+    b.box(0, 0, 0.45, 0.22, 0.22, 0.9, ZP.skin);
+    b.box(0, 0, 0.9, 0.2, 0.2, 0.22, ZP.skin);
+    return b;
+  }
+
+
+  function buildRuin() {
+    const b = new Builder();
+    const W = 14, D = 11;
+    const wallC = '#6f7780', wallD = '#5c646c', slabC = '#7c848c', darkC = '#1b1f22';
+    // 确定性伪随机：同一个模型每次导出都一样
+    let seed = 20261113;
+    const rnd = function () { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+
+    // 1) 残存的楼体：只到 3 层，第 4 层塌了
+    b.box(0, 5.4, 0, W, 10.8, D, wallC);
+    // 2) 楼板：三层，越往上越缺
+    for (let i = 0; i < 3; i++) {
+      const y = 3.6 + i * 3.6;
+      const w = i === 2 ? W * 0.55 : W;
+      const d = i === 2 ? D * 0.5 : D;
+      b.box(-(W - w) / 2, y, -(D - d) / 2, Math.max(1.2, w - 0.25), 0.30, Math.max(1.2, d - 0.25), '#4f565c');
+    }
+    // 3) 顶部参差：一排高低不同的残墙
+    const tops = [[-5.6, 2.2], [-2.3, 4.6], [0.8, 1.4], [3.4, 3.4], [5.9, 1.0]];
+    for (const t of tops) {
+      b.box(t[0], 10.8 + t[1] / 2, 0, 2.7, t[1], D * 0.82, wallD);
+    }
+    // 4) 外露立柱：从断口处伸出来
+    for (const cx of [-6.2, 6.2]) {
+      b.box(cx, 11.6, 5.1, 0.75, 2.4, 0.75, slabC);
+      b.box(cx, 11.6, -5.1, 0.75, 2.4, 0.75, slabC);
+      // 钢筋
+      b.cyl(cx, 13.4, 5.1, 0.05, 1.1, 5, '#6b5a48');
+    }
+    // 5) 断墙：正面右上角整块塌掉
+    b.box(4.6, 8.4, D / 2 - 0.15, 4.4, 4.2, 0.3, darkC);
+    // 6) 裂缝：暗色细条贴在墙上
+    const crack = (x, y, z, w, h, d) => b.box(x, y, z, w, h, d, darkC);
+    crack(-3.4, 6.2, D / 2 + 0.03, 0.26, 5.4, 0.07);
+    crack(-2.9, 3.4, D / 2 + 0.03, 1.7, 0.24, 0.07);
+    crack(1.9, 8.0, D / 2 + 0.03, 0.22, 4.0, 0.07);
+    crack(W / 2 + 0.03, 5.2, -1.4, 0.07, 6.2, 0.26);
+    crack(W / 2 + 0.03, 2.2, 1.2, 0.07, 0.22, 2.4);
+    // 7) 窗洞：烧黑为主，少数还亮着
+    for (let fy = 0; fy < 3; fy++) for (let fx = 0; fx < 4; fx++) {
+      if (fy === 2 && fx > 1) continue;                 // 顶层塌了一半
+      const r = (fx * 13 + fy * 29) % 10;
+      const col = r > 8 ? '#ffd479' : (r > 4 ? '#141719' : '#0d1012');
+      b.box(-W / 2 + 2.6 + fx * 3.0, 2.0 + fy * 3.6, D / 2 + 0.05, 1.5, 1.4, 0.1, col, { emit: r > 8 ? 0.8 : 0 });
+    }
+    // 8) 门洞
+    b.box(0, 1.3, D / 2 + 0.06, 2.2, 2.6, 0.12, '#0a0c0d');
+    // 9) 瓦砾堆：楼脚一圈碎块
+    for (let i = 0; i < 26; i++) {
+      const a = rnd() * 6.2832, rr = 6.0 + rnd() * 6.0;
+      const px = Math.cos(a) * rr, pz = Math.sin(a) * rr * 0.8;
+      const sz = 0.5 + rnd() * 1.6;
+      b.box(px, sz * 0.35, pz, sz, sz * 0.7, sz * 0.9, rnd() > 0.5 ? wallD : '#3a3f44');
+    }
+    // 10) 焦黑：被烧过的墙面
+    b.box(-W / 2 + 2.0, 1.5, D / 2 + 0.02, 3.2, 3.0, 0.06, '#0b0d0e');
+    // 11) 火光：烧穿的窗口和屋顶余烬（自发光）
+    b.box(W / 2 - 2.6, 2.2, D / 2 + 0.12, 1.5, 1.1, 0.08, '#ff8a3a', { emit: 1.8 });
+    b.box(W / 2 - 2.6, 3.3, D / 2 + 0.12, 1.0, 0.6, 0.08, '#ffd479', { emit: 2.2 });
+    b.box(-1.8, 11.1, 1.0, 1.8, 0.5, 1.6, '#ff7a2a', { emit: 2.0 });
+    return b;
+  }
+
 
   function buildBuilding() {
     const b = new Builder();
@@ -248,8 +568,16 @@
   }
 
   const builders = {
-    loco: buildLoco, cargo: buildCargo, weapon: buildWeapon,
-    zombie: buildZombie, building: buildRuin, turret: buildTurret
+    engine: buildEngine, passenger: buildPassenger, cargo: buildCargoCar,
+    weapon: buildWeaponCar, power: buildPowerCar, armor: buildArmorCar,
+    repair: buildRepairCar,
+    turret: buildTurretBody, zombie: buildZombie, building: buildRuin, turret_base: buildTurretBase,
+    t_mg: function () { return turretBodyOf('mg'); }, t_mg_b: function () { return turretBarrelOf('mg'); },
+    t_flamer: function () { return turretBodyOf('flamer'); }, t_flamer_b: function () { return turretBarrelOf('flamer'); },
+    t_flak: function () { return turretBodyOf('flak'); }, t_flak_b: function () { return turretBarrelOf('flak'); },
+    t_tesla: function () { return turretBodyOf('tesla'); }, t_tesla_b: function () { return turretBarrelOf('tesla'); },
+    t_mortar: function () { return turretBodyOf('mortar'); }, t_mortar_b: function () { return turretBarrelOf('mortar'); }, turret_body: buildTurretBody, turret_barrel: buildTurretBarrel, tree: buildTree,
+    zbody: buildZBody, zleg: buildZLeg, zarm: buildZArm
   };
 
   NS.Models = {

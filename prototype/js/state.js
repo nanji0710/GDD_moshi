@@ -152,6 +152,9 @@ window.ZT = window.ZT || {};
       }
       this.train = new Z.Train(this);
       this.stationIdx = 0; this.station = null;
+    // 中后期随机一座废弃站台
+    const af = CFG.ABANDON.atMin + Math.random() * (CFG.ABANDON.atMax - CFG.ABANDON.atMin);
+    this.abandon = { f: af, s: af * this.totalKm, fired: false };
       this.parkT = 0; this.trackDamage = 0;
       this.bossAt = (L.bosses || []).map(function (p) { return p * L.km * 1000; });
       this.bossSpawned = 0;
@@ -233,6 +236,7 @@ window.ZT = window.ZT || {};
 
     // ---- 主循环 ----
     tick: function (dt) {
+      this._lastDt = dt;
       if (this.state === 'win' || this.state === 'over') return;
       this.checkWin();
       if (this.state === 'win' || this.state === 'over') return;
@@ -310,6 +314,25 @@ window.ZT = window.ZT || {};
         limit = Math.min(limit, cap * (1 - (this.trackDamage - CFG.PARK.slowAtDamage) / 40 * 0.6));
       }
       if (this.skills.active.brake) limit = Math.min(limit, cap * 0.3);
+      // 尸潮堵路：贴着车身的丧尸越多，车越难推进（不会完全停死）
+      if (this.abandon && this.abandon.active && Z.Zombies && this.train) {
+        const lay = this.train.layout(Z.World);
+        let near = 0;
+        for (const zb of Z.Zombies.list) {
+          if (zb.dead) continue;
+          for (let i2 = 0; i2 < lay.length; i2++) {
+            const c = lay[i2];
+            if (!c) continue;
+            const dx = zb.x - c.x, dy = zb.y - c.y;
+            if (dx * dx + dy * dy < 81) { near++; break; }
+          }
+        }
+        this.blockCount = near;
+        const k = Math.max(CFG.ABANDON.slowMin || 0.15, 1 - near * (CFG.ABANDON.slowPer || 0.014));
+        limit = Math.min(limit, cap * k);
+      } else {
+        this.blockCount = 0;
+      }
       const t = CFG.TRAIN;
       const accelMul = (Z.Meta && Z.Meta.has5 && Z.Meta.has5('speed')) ? 1.4 : 1;
       if (this.speed < limit) this.speed = Math.min(limit, this.speed + t.accel * accelMul * dt);
@@ -343,10 +366,43 @@ window.ZT = window.ZT || {};
         }
         return;
       }
+            // 废弃站台：车头进入范围就涌出尸潮（列车不停，但会被堵慢）
+    if (this.abandon) {
+      const halfTr = (this.cars.length * (CFG.TRAIN.carLenM + CFG.TRAIN.carGapM)) / 2;
+      const front = this.km + halfTr;
+      const a0 = this.abandon.s - (CFG.ABANDON.halfLen || 26);
+      const a1 = this.abandon.s + (CFG.ABANDON.halfLen || 26);
+      if (!this.abandon.fired && front >= a0) {
+        this.abandon.fired = true;
+        if (Z.Zombies && Z.Zombies.platformWave) {
+          Z.Zombies.platformWave(this, this.abandon.s, CFG.ABANDON.entryWave || 26, true);
+        }
+        if (Z.UI && Z.UI.toast) Z.UI.toast('废弃站台：尸潮从站台涌出！', 'bad');
+        if (Z.Sound) Z.Sound.play('boom', { vol: 0.9 });
+        if (Z.Fx) Z.Fx.shake = Math.min(1, (Z.Fx.shake || 0) + 0.5);
+      }
+      // 站台范围内：车速越慢，增援越狠（停下来就一直刷）
+      const inside = front > (a0 - 120) && (this.km - halfTr) < (a1 + (CFG.ABANDON.exitPad || 180));
+      this.abandon.active = inside;
+      if (inside) {
+        const dt2 = this._lastDt || 0.016;
+        const stopped = (this.speed || 0) < (CFG.ABANDON.slowSpeed || 9);
+        this.abandon.t = (this.abandon.t || 0) + dt2;
+        const every = stopped ? (CFG.ABANDON.trickleEvery || 0.9) : (CFG.ABANDON.trickleEvery || 0.9) * 3.5;
+        const cap = CFG.ABANDON.cap || 260;
+        if (this.abandon.t >= every && Z.Zombies && Z.Zombies.list.length < cap) {
+          this.abandon.t = 0;
+          const n2 = Math.round((CFG.ABANDON.trickle || 6) * (stopped ? 1.6 : 1));
+          Z.Zombies.platformWave(this, this.abandon.s, n2, false);
+          if (stopped && Z.UI && Math.random() < 0.35) Z.UI.toast('站台尸群持续增援！', 'bad');
+        }
+      }
+    }
+
       // 到站
       const st = this.nextStation();
       if (st != null && this.km >= st) {
-        const nextIdx = this.stationIdx + 1;
+    const nextIdx = this.stationIdx + 1;
         if (nextIdx >= CFG.STATION_AT.length - 1) {         // 最后一站 = 安全点
           if (this.goal && this.goal.type === 'hold' && !this.held) {
             this.enterHold(); return;

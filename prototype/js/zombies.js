@@ -166,10 +166,43 @@ window.ZT = window.ZT || {};
       }
 
       const cars = run.train ? run.train.layout(W) : [];
+      // 附近废墟：丧尸不能穿墙（把楼当障碍推开）
+      const nearRuins = [];
+      if (Z.World.ruins && Z.World.ruins.length) {
+        const midLay = cars[(cars.length / 2) | 0];
+        const cx0 = midLay ? midLay.x : 0, cy0 = midLay ? midLay.y : 0;
+        for (const b of Z.World.ruins) {
+          const dx0 = b.x - cx0, dy0 = b.y - cy0;
+          if (dx0 * dx0 + dy0 * dy0 > 240 * 240) continue;
+          nearRuins.push({ x: b.x, y: b.y, hw: b.w / 2, hd: b.d / 2,
+            ca: Math.cos(b.rot || 0), sa: Math.sin(b.rot || 0) });
+        }
+      }
       for (let i = this.list.length - 1; i >= 0; i--) {
         const zb = this.list[i];
         if (zb.dead) { zb.deadT += dt; if (zb.deadT > 3.4) this.list.splice(i, 1); continue; }
         zb.flash = Math.max(0, zb.flash - dt * 4);
+        // 撞墙：被楼体挡住就沿最近的面推出去
+        if (nearRuins.length) {
+          for (const r of nearRuins) {
+            const dx = zb.x - r.x, dy = zb.y - r.y;
+            const lx = dx * r.ca + dy * r.sa;
+            const ly = -dx * r.sa + dy * r.ca;
+            const px = r.hw + 0.6 - Math.abs(lx);
+            const py = r.hd + 0.6 - Math.abs(ly);
+            if (px <= 0 || py <= 0) continue;
+            if (px < py) {
+              const sgn = lx >= 0 ? 1 : -1;
+              const p2 = Math.min(px, 0.35);   // 每帧最多挪 35 cm，看起来是「绕开」而不是瞬移
+              zb.x += r.ca * p2 * sgn; zb.y += r.sa * p2 * sgn;
+            } else {
+              const sgn = ly >= 0 ? 1 : -1;
+              const q2 = Math.min(py, 0.35);
+              zb.x += -r.sa * q2 * sgn; zb.y += r.ca * q2 * sgn;
+            }
+            break;
+          }
+        }
         if (zb.burn > 0) {
           zb.burn -= dt;
           zb.hp -= (zb.burnDps || 7) * dt;
@@ -250,6 +283,38 @@ window.ZT = window.ZT || {};
           if (zb.dead || zb.boss) continue;
           if (Math.hypot(zb.x - mid.x, zb.y - mid.y) > 900) this.list.splice(i, 1);
         }
+      }
+    },
+
+    // 废弃站台：一次涌出一群 + 一只小 Boss
+    platformWave: function (run, sKm, count, withMini) {
+      const P = Z.World.path;
+      const p = Z.U.posAt(P, sKm, {});
+      const N = count || (CFG.ABANDON && CFG.ABANDON.wave) || 20;
+      // 类型不限
+      const KINDS = ['walker', 'walker', 'runner', 'climber', 'spitter', 'screamer', 'bloater', 'ripper'];
+      const P2 = Z.World.path;
+      for (let i = 0; i < N; i++) {
+        // 刷在车头前方 40~240 m 的路轨两侧，列车会一路撞进去
+        const ahead = 25 + Math.random() * 260;
+        const sPos = Math.min(P2.len - 1, run.km + ahead);
+        const base = Z.U.posAt(P2, sPos, {});
+        const lat = (Math.random() - 0.5) * 13;
+        const nx = -Math.sin(base.a), ny = Math.cos(base.a);
+        const kind = KINDS[(Math.random() * KINDS.length) | 0];
+        const zb = this.make(base.x + nx * lat, base.y + ny * lat, { kind: kind });
+        if (i % 7 === 0) zb.elite = true;
+        zb.hp = zb.maxHp = Math.round(zb.maxHp * 1.15);
+        this.list.push(zb);
+      }
+      if (withMini) {
+        if (Z.UI && Z.UI.toast) Z.UI.toast('精英守卫出现', 'bad');
+        const mini = this.make(p.x + 8, p.y + 5, {});
+        mini.mini = true;
+        mini.hp = mini.maxHp = (CFG.ABANDON && CFG.ABANDON.miniHp) || 1400;
+        mini.attack *= (CFG.ABANDON && CFG.ABANDON.miniMul) || 1.8;
+        mini.speed *= 1.1;
+        this.list.push(mini);
       }
     },
 

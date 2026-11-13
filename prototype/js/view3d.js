@@ -80,9 +80,9 @@ void main() {
     return s;
   }
 
-  const LABEL = { loco: '机车', cargo: '货车厢', weapon: '武器车厢', zombie: '丧尸', building: '建筑' };
-  const DIST = { loco: 36, cargo: 32, weapon: 28, zombie: 6.5, building: 54 };
-  const TY = { loco: 2.4, cargo: 2.8, weapon: 2.6, zombie: 1.1, building: 8.5 };
+  const LABEL = { engine: '机车', passenger: '人员车厢', weapon: '武器车厢', cargo: '货柜', power: '动力车厢', armor: '装甲车厢', repair: '修理车厢', zombie: '丧尸', building: '废墟', tree: '枯树' };
+  const DIST = { engine: 40, passenger: 38, weapon: 34, cargo: 38, power: 36, armor: 36, repair: 36, zombie: 6.5, building: 54, tree: 18 };
+  const TY = { engine: 2.4, passenger: 2.6, weapon: 2.6, cargo: 2.8, power: 2.6, armor: 2.6, repair: 2.6, zombie: 1.1, building: 8.5, tree: 3.2 };
 
   const V3 = Z.View3D = {
     open: function () {
