@@ -61,12 +61,33 @@ for (const f of files) {
   bytes += size;
 }
 
+// Cloudflare Pages Functions 中间件：上一版部署里的测试文件被删除后，Cloudflare 边缘缓存
+// 仍可能按旧 s-maxage 命中（实测 /tools/smoke.mjs 200 + CF-Cache-Status HIT），删除文件
+// 不会自动清缓存。这里在路由层直接 404，让「测试面不可达」不依赖缓存过期。
+// GitHub Pages 忽略 functions/（会当普通静态文件，不影响判定）。
+const GUARD = `// 由 tools/stage-site.mjs 生成：测试面 404 守卫（Cloudflare Pages Functions 中间件）
+export async function onRequest(context) {
+  const p = new URL(context.request.url).pathname;
+  if (/^\\/(tools|shots[^/]*)(\\/|$)/.test(p) || /\\.(log|mjs|cjs)$/i.test(p)) {
+    return new Response('Not Found', {
+      status: 404,
+      headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+    });
+  }
+  return context.next();
+}
+`;
+const fnDir = path.join(OUT, 'functions');
+await mkdir(fnDir, { recursive: true });
+await writeFile(path.join(fnDir, '[[path]].js'), GUARD, 'utf8');
+const guardBytes = Buffer.byteLength(GUARD);
+
 const version = {
   commit: COMMIT || 'unknown',
   branch: BRANCH || 'unknown',
   builtAt: new Date().toISOString(),
-  files: staged.length + 1,
-  bytes: bytes,
+  files: staged.length + 2, // + version.json + functions/[[path]].js
+  bytes: bytes + guardBytes,
 };
 await writeFile(path.join(OUT, 'version.json'), JSON.stringify(version) + '\n', 'utf8');
 
@@ -78,15 +99,16 @@ if (bad.length) {
   process.exit(1);
 }
 const versionBytes = Buffer.byteLength(JSON.stringify(version) + '\n');
-const total = bytes + versionBytes;
+const total = bytes + guardBytes + versionBytes;
 
 if (!QUIET) {
   console.log('== 部署目录装配 ==');
   console.log(`  源：${SRC}`);
   console.log(`  出：${OUT}`);
   for (const f of staged) console.log(`  ${f.rel.padEnd(34)} ${String(f.size).padStart(9)} B`);
+  console.log(`  functions/[[path]].js              ${String(guardBytes).padStart(9)} B  （测试面 404 守卫）`);
   console.log(`  version.json                       ${String(versionBytes).padStart(9)} B  ${JSON.stringify(version)}`);
-  console.log(`  合计 ${outFiles.length + 1} 个文件 / ${total} B（${(total / 1024).toFixed(1)} KiB）`);
+  console.log(`  合计 ${staged.length + 2} 个文件 / ${total} B（${(total / 1024).toFixed(1)} KiB）`);
   if (skipped.length) console.log(`  跳过资产（不进部署）：${skipped.join(', ')}`);
   console.log('  白名单审计：无 tools/ · 无 screenshots · 无日志 ✓');
 }

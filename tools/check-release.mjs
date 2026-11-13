@@ -108,15 +108,18 @@ try {
 try {
   const stage = await readFile(path.join(ROOT, 'tools/stage-site.mjs'), 'utf8');
   ok('version.json 由 stage-site 生成', /version\.json/.test(stage), 'tools/stage-site.mjs 写 version.json');
+  ok('测试面 404 守卫（Pages Functions）由 stage-site 生成', /onRequest/.test(stage) && /functions/.test(stage),
+    'functions/[[path]].js 在装配时生成');
 } catch {
   ok('version.json 由 stage-site 生成', false, '读不到 tools/stage-site.mjs');
+  ok('测试面 404 守卫（Pages Functions）由 stage-site 生成', false, '读不到 tools/stage-site.mjs');
 }
 
-// ---- 4c. 部署项数（与 CI/本地同一口径：listSiteFiles + version.json）----
+// ---- 4c. 部署项数（与 CI/本地同一口径：listSiteFiles + version.json + functions 守卫）----
 const deployFiles = await listSiteFiles(SRC);
-const deployCount = deployFiles.files.length + 1;
-ok('部署项数 = 30（1 index + 22 js + 3 css + 1 models-data + _headers + 404.html + version.json）',
-  deployCount === 30, `${deployCount} 项（不含 version.json 时 ${deployFiles.files.length} 项）`);
+const deployCount = deployFiles.files.length + 2;
+ok('部署项数 = 31（30 个站点文件 + functions/[[path]].js 守卫）',
+  deployCount === 31, `${deployCount} 项（不含 version.json/守卫时 ${deployFiles.files.length} 项）`);
 
 // ---- 5. 部署目录白名单审计（原型里不该有会被误发的条目）----
 // 注意：原型目录本身允许存在 tools/（开发工具），它们由白名单排除；这里审计的是

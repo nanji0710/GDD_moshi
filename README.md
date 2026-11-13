@@ -119,7 +119,7 @@ node tools/verify-deploy.mjs --url https://last-train-87y.pages.dev  # 线上 co
 | **GitHub Pages** | `.github/workflows/pages.yml`（同一份 `_site/`） | https://nanji0710.github.io/GDD_moshi/ |
 
 两个入口都**先过门禁、再装配**：`node tools/check-release.mjs prototype`（失败即中止发布：models-data 同步引用 0 个、classic script=22、首屏同步 ≤921,600 B、白名单/`_headers`/`404.html`/部署项数齐全）→ `node tools/stage-site.mjs`（白名单唯一实现，来自 `tools/release-manifest.mjs`；`prototype/tools/` 与 `shots-*` 一律不上线）。
-部署产物固定 **30 项**：`index.html` + `js/` 22 个 + `css/` 3 个 + `assets/models-data.js` + `_headers` + `404.html` + 由 stage-site 生成的 `version.json`（commit / branch / builtAt / 文件数与字节数）。
+部署产物固定 **31 项**：`index.html` + `js/` 22 个 + `css/` 3 个 + `assets/models-data.js` + `_headers` + `404.html` + 由 stage-site 生成的 `version.json` 与 `functions/[[path]].js`（测试面 404 守卫：Cloudflare 会把上一版删掉的文件继续留在边缘缓存里，路由层直接 404 才能保证马上不可达）。
 
 发版同版本与缓存（**不做 `?v=`**：同一提交内 sha 自指不可能，且会让线上 index 与仓库 index 不再逐字节相等）：
 - `_headers` 对 `/*.js`、`/*.css`、`/index.html`、`/assets/models-data.js` 设 `Cache-Control: no-cache`，发版即取新，杜绝新旧混跑；
