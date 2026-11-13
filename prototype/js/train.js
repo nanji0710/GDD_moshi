@@ -199,6 +199,7 @@ window.ZT = window.ZT || {};
         * (run.state === 'parked' ? CFG.PARK.scrapMul : 1);
       if (zb.boss) run.bossKills++;
       Fx.blood(zb.x, zb.y, 1.2);
+      Fx.sparks(zb.x, zb.y, 2.2, 3, '#c8402e');
       Fx.text(zb.x, zb.y, 1.2, '+' + (zb.boss ? (CFG.ZOMBIE.bossScrap || 250) : zb.mini ? (CFG.ZOMBIE.miniScrap || 200) : zb.elite ? CFG.ZOMBIE.eliteScrap : CFG.ZOMBIE.scrap), '#ffd479');
     } else if (Math.random() < 0.2) Fx.blood(zb.x, zb.y, 1.2);
   }

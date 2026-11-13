@@ -23,7 +23,22 @@ window.ZT = window.ZT || {};
     },
     flash: function (x, y, h, color, r) { this.add('flash', { x: x, y: y, h: h, color: color, r: r || 3.2 }, 0.11); },
     blood: function (x, y, h, color) { this.add('blood', { x: x, y: y, h: h, color: color || '#7a1f1f' }, 0.55, 0); },
-    boom: function (x, y, h, r) { this.add('boom', { x: x, y: y, h: h, r: r || 12 }, 0.5); },
+    boom: function (x, y, h, r) {
+      const rr = r || 12;
+      this.add('boom', { x: x, y: y, h: h, r: rr }, 0.5);
+      this.ring(x, y, h, rr * 1.15, '#ffe0b0');     // 冲击波环
+      this.sparks(x, y, h, 9, '#ffb04a');           // 火星
+      this.scorch(x, y, rr * 0.26);                 // 地面焦痕
+    },
+    ring: function (x, y, h, r, color) {
+      this.add('ring', { x: x, y: y, h: h, r: r || 10, color: color || '#ffdca8' }, 0.34);
+    },
+    sparks: function (x, y, h, n, color) {
+      this.add('sparks', { x: x, y: y, h: h, n: n || 6, color: color || '#ffc46a' }, 0.5);
+    },
+    scorch: function (x, y, r) {
+      this.add('scorch', { x: x, y: y, r: r || 3.4 }, 6.0);
+    },
     text: function (x, y, h, txt, color) { this.add('text', { x: x, y: y, h: h, txt: txt, color: color || '#fff' }, 0.85); },
     cone: function (x, y, a, range, half, color) { this.add('cone', { x: x, y: y, a: a, range: range, half: half, color: color }, 0.12); },
     chain: function (pts, color) { this.add('chain', { pts: pts, color: color }, 0.22); },
@@ -63,6 +78,42 @@ window.ZT = window.ZT || {};
             ctx.globalAlpha = 1 - k;
             ctx.fillStyle = o.color;
             ctx.beginPath(); ctx.arc(p.x, p.y, o.r * (1 - k * 0.6) * Math.max(0.6, R.cam.zoom), 0, 6.2832); ctx.fill();
+            break;
+          }
+          case 'ring': {
+            R.P(o.x, o.y, o.h, p);
+            const zz0 = Math.max(0.6, R.cam.zoom);
+            ctx.globalAlpha = (1 - k) * 0.85;
+            ctx.strokeStyle = o.color;
+            ctx.lineWidth = Math.max(1.2, (1 - k) * 3.6 * Math.max(0.5, zz0 * 0.5));
+            ctx.beginPath(); ctx.arc(p.x, p.y, o.r * zz0 * (0.25 + e * 1.15), 0, 6.2832); ctx.stroke();
+            break;
+          }
+          case 'sparks': {
+            R.P(o.x, o.y, o.h, p);
+            const zz1 = Math.max(0.6, R.cam.zoom);
+            ctx.globalAlpha = 1 - k * k;
+            ctx.fillStyle = o.color;
+            for (let i = 0; i < o.n; i++) {
+              const a = i * 2.399 + (f.dur * 7 % 6.28);
+              const sp = 0.45 + ((i * 37) % 100) / 110;
+              const d = e * 30 * sp * zz1 * 0.5;
+              const fall = e * e * 20 * zz1 * 0.5;
+              ctx.beginPath();
+              ctx.arc(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d * 0.6 + fall,
+                Math.max(0.8, 1.7 * (1 - k) * zz1 * 0.5), 0, 6.2832);
+              ctx.fill();
+            }
+            break;
+          }
+          case 'scorch': {
+            R.P(o.x, o.y, 0, p);
+            const zz2 = Math.max(0.5, R.cam.zoom);
+            ctx.globalAlpha = Math.max(0, 1 - k) * 0.5;
+            ctx.fillStyle = '#0d0b09';
+            ctx.beginPath();
+            ctx.ellipse(p.x, p.y, o.r * zz2, o.r * zz2 * 0.42, 0, 0, 6.2832);
+            ctx.fill();
             break;
           }
           case 'blood': {

@@ -347,6 +347,28 @@ try {
   await shot('20-forms')
   await evJs('ZT.R.cam.zoom = ZT.CFG.CAM.zoom; ZT.R.compute()')
 
+  console.log('场景：爆炸特效（冲击波环 / 火星 / 焦痕）')
+  await evJs(`(() => {
+    ZT.Game.startLevel(1);
+    const R = ZT.Run;
+    R.nextCarKm = 1e9;
+    R.cars = [new ZT.Car('engine'), new ZT.Car('weapon'), new ZT.Car('power'), new ZT.Car('armor')];
+    R.cars[1].slots[0] = new ZT.Weapon('mortar', 6);
+    document.querySelector('.drawer').classList.add('hidden');
+    R.state = 'run'; R.stationIdx = 3; R.km = R.totalKm * 0.4;
+    R.train = new ZT.Train(R); R.train.s = R.km; R.speed = 18;
+    const lay = R.train.layout(ZT.World); const c0 = lay[1];
+    ZT.R.cam.cx = c0.x; ZT.R.cam.cy = c0.y - 7; ZT.R.cam.zoom = 4.4; ZT.R.compute();
+    for (let i = 0; i < 6; i++) {
+      const a = i * 1.05;
+      ZT.Fx.boom(c0.x + Math.cos(a) * (12 + i * 2), c0.y + Math.sin(a) * 9, 1.4, 8 + i * 2);
+    }
+    ZT.Game.setSpeed(1);
+    return 1;
+  })()`)
+  await sleep(130)
+  await shot('21-boom')
+
   const stat = await evJs(`(() => {
     const R = ZT.Run, Z = window.ZT;
     return JSON.stringify({ state: R.state, level: R.level, cars: R.cars.length, weapons: R.weaponCount(),
