@@ -1594,7 +1594,9 @@ void main() {
           const base = M4.mul(M4.mul(M4.trans(zb.x, bob, zb.y), M4.rotY(rot)), M4.scale(sc, sc, sc));
 
 
-          const B = this.mesh.zbody, LG = this.mesh.zleg, AR = this.mesh.zarm;
+          const zkind = zb.kind || 'walker';
+          const zart = (Z.Art && Z.Art.zOf) ? Z.Art.zOf(zb) : { w: 1, h: 1 };
+          const B = this.mesh['zbody_' + zkind] || this.mesh.zbody, LG = this.mesh.zleg, AR = this.mesh.zarm;
 
 
           if (B && LG && AR) {
@@ -1603,7 +1605,8 @@ void main() {
             const sw = Math.sin(zb.phase) * 0.55;
 
 
-            this.drawModelMat(B, base, fl);
+            const bscale = M4.scale(zart.w || 1, zart.h || 1, zart.w || 1);
+            this.drawModelMat(B, M4.mul(base, bscale), fl);
 
 
             this.drawModelMat(LG, M4.mul(M4.mul(base, M4.trans(-0.2, 0.95, 0)), M4.rotX(sw)), fl);
@@ -1893,6 +1896,170 @@ const TINTS = [
     // 着火的楼：火光 + 烟柱（加色混合，画在建筑之后）
 
 
+    // 用单位立方体画一个长方体（站台/雨棚/立柱/等级灯都走这个）
+    box: function (x, y, z, sx, sy, sz, rot, r, g, b, a) {
+      if (!this.cube) return;
+      const gl = this.gl;
+      const m = M4.mul(M4.mul(M4.trans(x, y, z), M4.rotY(rot || 0)), M4.scale(sx, sy, sz));
+      gl.uniformMatrix4fv(this.U.uMVP, false, M4.mul(this.vp, m));
+      gl.uniformMatrix4fv(this.U.uModel, false, m);
+      gl.uniformMatrix3fv(this.U.uNrm, false, M4.nrm(m));
+      gl.uniform1f(this.U.uFlash, 0);
+      gl.uniform3f(this.U.uColorMul, r, g, b);
+      gl.uniform1f(this.U.uAlpha, a == null ? 1 : a);
+      this.use(this.cube);
+      gl.drawElements(gl.TRIANGLES, this.cube.count, this.cube.type, 0);
+      gl.uniform1f(this.U.uAlpha, 1);
+      gl.uniform3f(this.U.uColorMul, 1, 1, 1);
+    },
+
+    // 直接给矩阵绘制（骨骼/部件用）
+    drawModelMat: function (mesh, mat, flash) {
+      if (!mesh) return;
+      const gl = this.gl;
+      gl.uniform1f(this.U.uFlash, flash || 0);
+      gl.uniformMatrix4fv(this.U.uMVP, false, M4.mul(this.vp, mat));
+      gl.uniformMatrix4fv(this.U.uModel, false, mat);
+      gl.uniformMatrix3fv(this.U.uNrm, false, M4.nrm(mat));
+      this.use(mesh);
+      gl.drawElements(gl.TRIANGLES, mesh.count, mesh.type, 0);
+    },
+
+    // 通用：摆一个模型（带接触阴影）
+    drawModel: function (mesh, x, y, z, rot, scl, flash) {
+      if (!mesh) return;
+      const gl = this.gl;
+      if (this.cube) {
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.depthMask(false);
+        gl.uniform3f(this.U.uColorMul, 0.05, 0.045, 0.04);
+        gl.uniform1f(this.U.uAlpha, 0.5);
+        gl.uniform1f(this.U.uFlash, 0);
+        const k2 = scl || 1;
+        const sw = Math.max(0.6, (mesh.w || 3) * k2 * 0.55);
+        const sd = Math.max(0.6, (mesh.d || 3) * k2 * 0.55);
+        const sm = M4.mul(M4.mul(M4.trans(x, 0.04, z), M4.rotY(rot)), M4.scale(sw, 0.02, sd));
+        gl.uniformMatrix4fv(this.U.uMVP, false, M4.mul(this.vp, sm));
+        gl.uniformMatrix4fv(this.U.uModel, false, sm);
+        gl.uniformMatrix3fv(this.U.uNrm, false, M4.nrm(sm));
+        this.use(this.cube);
+        gl.drawElements(gl.TRIANGLES, this.cube.count, this.cube.type, 0);
+        gl.depthMask(true);
+        gl.disable(gl.BLEND);
+        gl.uniform1f(this.U.uAlpha, 1);
+        gl.uniform3f(this.U.uColorMul, 1, 1, 1);
+      }
+      const sc = scl || 1;
+      const m = M4.mul(M4.mul(M4.trans(x, y, z), M4.rotY(rot)), M4.scale(sc, sc, sc));
+      this.drawModelMat(mesh, m, flash);
+    },
+
+    // 站台：普通站是完整雨棚 + 站房，废弃站缺柱缺顶、留一地碎块
+    drawPlatforms: function (midS, run) {
+      if (!this.cube) return;
+      const path = Z.World.path, tmp = {};
+      const list = [];
+      for (const fr of (Z.CFG.STATION_AT || [])) list.push({ s: fr * run.totalKm, ruin: false });
+      if (run.abandon) list.push({ s: run.abandon.s, ruin: true });
+      for (const st of list) {
+        if (Math.abs(st.s - midS) > 430) continue;
+        const L = st.ruin ? 48 : 66;
+        const lat = 6.4;
+        const r = st.ruin ? 0.26 : 0.44, gg = st.ruin ? 0.25 : 0.44, bb = st.ruin ? 0.23 : 0.42;
+        let seg = 0;
+        for (let s = st.s - L / 2; s <= st.s + L / 2; s += 6) {
+          if (s < 0 || s > path.len) continue;
+          Z.U.posAt(path, s, tmp);
+          const nx = -Math.sin(tmp.a), ny = Math.cos(tmp.a);
+          const px = tmp.x + nx * lat, pz = tmp.y + ny * lat;
+          this.box(px, 0.55, pz, 6.2, 1.1, 6.4, tmp.a, r, gg, bb);
+          this.box(tmp.x + nx * (lat - 2.9), 1.12, tmp.y + ny * (lat - 2.9), 5.8, 0.06, 0.35, tmp.a,
+            st.ruin ? 0.30 : 0.78, st.ruin ? 0.26 : 0.60, st.ruin ? 0.10 : 0.18);
+          if (!st.ruin || seg % 3 !== 0) {
+            this.box(tmp.x + nx * (lat + 0.2), 5.0, tmp.y + ny * (lat + 0.2), 6.4, 0.28, 7.4, tmp.a,
+              st.ruin ? 0.20 : 0.30, st.ruin ? 0.19 : 0.32, st.ruin ? 0.18 : 0.34);
+          }
+          if (seg % 2 === 0 || !st.ruin) {
+            for (const dl of [-2.6, 3.0]) {
+              if (st.ruin && (seg + dl) % 5 === 0) continue;
+              this.box(tmp.x + nx * (lat + dl), 3.0, tmp.y + ny * (lat + dl), 0.34, 3.8, 0.34, tmp.a,
+                st.ruin ? 0.22 : 0.38, st.ruin ? 0.21 : 0.38, st.ruin ? 0.20 : 0.36);
+            }
+          }
+          if (st.ruin && seg % 2 === 1) {
+            this.box(px + 1.2, 0.35, pz - 1.0, 1.1, 0.7, 0.9, tmp.a + 0.4, 0.24, 0.23, 0.21);
+            this.box(px - 1.6, 0.28, pz + 1.4, 0.8, 0.55, 1.2, tmp.a - 0.3, 0.21, 0.20, 0.19);
+          }
+          seg++;
+        }
+        // 站房
+        if (st.s > 0 && st.s < path.len) {
+          Z.U.posAt(path, st.s, tmp);
+          const a = tmp.a;
+          const nx = -Math.sin(a), ny = Math.cos(a);
+          const ax = Math.cos(a), ay = Math.sin(a);
+          const hallLat = st.ruin ? 17 : 15.5;
+          const hx = tmp.x + nx * hallLat, hz = tmp.y + ny * hallLat;
+          const at = function (offL, offLat, y) {
+            return [hx + ax * offL + nx * offLat, y, hz + ay * offL + ny * offLat];
+          };
+          const wR = st.ruin ? 0.24 : 0.46, wG = st.ruin ? 0.23 : 0.45, wB = st.ruin ? 0.21 : 0.43;
+          const hallH = st.ruin ? 5.0 : 8.0;
+          let p = at(0, 0, hallH / 2);
+          this.box(p[0], p[1], p[2], 26, hallH, 13, a, wR, wG, wB);
+          p = at(0, 0, 0.5);
+          this.box(p[0], p[1], p[2], 27, 1.0, 14, a, wR * 1.15, wG * 1.15, wB * 1.15);
+          if (!st.ruin) {
+            p = at(0, 0, hallH + 0.35);
+            this.box(p[0], p[1], p[2], 27.4, 0.7, 14.2, a, 0.32, 0.31, 0.30);
+            p = at(0, -6.2, 4.6);
+            this.box(p[0], p[1], p[2], 9, 0.4, 3.2, a, 0.30, 0.29, 0.28);
+          }
+          p = at(0, -6.45, 2.2);
+          this.box(p[0], p[1], p[2], 5.4, 4.4, 0.3, a, 0.12, 0.13, 0.14);
+          p = at(0, -6.6, 4.0);
+          this.box(p[0], p[1], p[2], 6.0, 0.5, 0.25, a, 0.72, 0.58, 0.28);
+          for (let wi = 0; wi < 6; wi++) {
+            if (st.ruin && (wi === 1 || wi === 4)) continue;
+            const offL = (wi - 2.5) * 4.1;
+            for (const wy of (st.ruin ? [2.6] : [2.4, 5.4])) {
+              p = at(offL, -6.55, wy);
+              this.box(p[0], p[1], p[2], 2.2, 1.7, 0.22, a, 0.20, 0.26, 0.31);
+              if (!st.ruin) {
+                p = at(offL, -6.7, wy);
+                this.box(p[0], p[1], p[2], 2.4, 1.9, 0.10, a, 0.56, 0.56, 0.54);
+              }
+            }
+          }
+          if (!st.ruin) {
+            p = at(0, 0, hallH + 4.2);
+            this.box(p[0], p[1], p[2], 5.4, 8.4, 5.4, a, 0.44, 0.43, 0.41);
+            p = at(0, 0, hallH + 8.6);
+            this.box(p[0], p[1], p[2], 6.4, 0.8, 6.4, a, 0.34, 0.33, 0.32);
+            p = at(0, 0, hallH + 9.6);
+            this.box(p[0], p[1], p[2], 3.6, 1.4, 3.6, a, 0.30, 0.29, 0.28);
+            for (const side of [-1, 1]) {
+              p = at(0, side * 2.75, hallH + 5.4);
+              this.box(p[0], p[1], p[2], 2.6, 2.6, 0.14, a, 0.86, 0.82, 0.62);
+            }
+            p = at(2.75, 0, hallH + 5.4);
+            this.box(p[0], p[1], p[2], 0.14, 2.6, 2.6, a, 0.86, 0.82, 0.62);
+            p = at(-2.75, 0, hallH + 5.4);
+            this.box(p[0], p[1], p[2], 0.14, 2.6, 2.6, a, 0.86, 0.82, 0.62);
+          } else {
+            p = at(0, 0, hallH + 1.4);
+            this.box(p[0], p[1], p[2], 5.4, 2.8, 5.4, a, 0.22, 0.21, 0.20);
+            for (let rb = 0; rb < 5; rb++) {
+              p = at(-6 + rb * 3, -8.5 + (rb % 2) * 1.6, 0.3);
+              this.box(p[0], p[1], p[2], 1.4, 0.6, 1.1, a, 0.20, 0.19, 0.18);
+            }
+          }
+        }
+      }
+    },
+
+
     drawBurn: function (vp, list, now) {
 
       if (!list.length || !this.cube) return;
@@ -2027,7 +2194,7 @@ const TINTS = [
 
       for (const fx of list) {
 
-        if (fx.kind !== 'flash' && fx.kind !== 'boom') continue;
+        if (fx.kind !== 'flash' && fx.kind !== 'boom' && fx.kind !== 'shock' && fx.kind !== 'sparks') continue;
 
         const o = fx.o;
 
@@ -2039,7 +2206,9 @@ const TINTS = [
 
         let scls;
 
-        if (fx.kind === 'flash') scls = (0.5 + k * 0.9) * (o.r || 3) * 0.30;
+        if (fx.kind === 'flash') scls = (0.5 + k * 0.9) * (o.r || 3) * 0.30;
+        else if (fx.kind === 'shock') scls = (o.r || 4) * (0.3 + k * 1.6) * 0.5;
+        else if (fx.kind === 'sparks') scls = 0.5 * (1 - k);
 
         else scls = (o.r || 12) * (0.30 + k * 0.55) * 0.34;
 
@@ -2075,500 +2244,108 @@ const TINTS = [
 
 
 
-    drawTracers: function (vp) {
-
-
-      const list = (Z.Fx && Z.Fx.list) ? Z.Fx.list : null;
-
-
-      if (!list || !list.length) return;
-
-
-      const pos = [], col = [];
-
-
-      const hexRgb = function (h) {
-
-
-        if (typeof h !== 'string' || h[0] !== '#') return [1, 0.8, 0.4];
-
-
-        const v = parseInt(h.slice(1), 16);
-
-
-        return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255];
-
-
-      };
-
-
-      for (const f of list) {
-
-
-        if (f.kind !== 'tracer') continue;
-
-
-        const o = f.o;
-
-
-        const k = Math.min(1, f.t / f.dur);
-
-
-        const a = Math.max(0, 1 - k);
-
-
-        const c = hexRgb(o.color);
-
-
-        pos.push(o.x0, o.h0 || 2.2, o.y0, o.x1, o.h1 || 2.2, o.y1);
-
-
-        col.push(c[0] * a, c[1] * a, c[2] * a, c[0] * a, c[1] * a, c[2] * a);
-
-
-      }
-
-
-      if (!pos.length) return;
-
-
-      const gl = this.gl, A = this.A;
-
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.lineBuf);
-
-
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pos), gl.DYNAMIC_DRAW);
-
-
-      gl.enableVertexAttribArray(A.pos); gl.vertexAttribPointer(A.pos, 3, gl.FLOAT, false, 0, 0);
-
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.lineCol);
-
-
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(col), gl.DYNAMIC_DRAW);
-
-
-      gl.enableVertexAttribArray(A.col); gl.vertexAttribPointer(A.col, 3, gl.FLOAT, false, 0, 0);
-
-
-      // 法线给个固定值，避免残留缓冲
-
-
-      gl.disableVertexAttribArray(A.nor);
-
-
-      gl.vertexAttrib3f(A.nor, 0, 1, 0);
-
-
-      const model = M4.ident();
-
-
-      gl.uniformMatrix4fv(this.U.uMVP, false, vp);
-
-
-      gl.uniformMatrix4fv(this.U.uModel, false, model);
-
-
-      gl.uniformMatrix3fv(this.U.uNrm, false, M4.nrm(model));
-
-
-      gl.drawArrays(gl.LINES, 0, pos.length / 3);
-
-
-      // 恢复法线属性（后续模型要用）
-
-
-      gl.enableVertexAttribArray(A.nor);
-
-
-    },
-
-
-
-
-
-    // 通用：摆一个模型
-
-
-    // 直接给矩阵绘制（骨骼/部件用）
-
-
-    // 用单位立方体画一个长方体（站台/雨棚/立柱都走这个）
-    box: function (x, y, z, sx, sy, sz, rot, r, g, b, a) {
-      if (!this.cube) return;
-      const gl = this.gl;
-      const m = M4.mul(M4.mul(M4.trans(x, y, z), M4.rotY(rot || 0)), M4.scale(sx, sy, sz));
-      gl.uniformMatrix4fv(this.U.uMVP, false, M4.mul(this.vp, m));
-      gl.uniformMatrix4fv(this.U.uModel, false, m);
-      gl.uniformMatrix3fv(this.U.uNrm, false, M4.nrm(m));
-      gl.uniform1f(this.U.uFlash, 0);
-      gl.uniform3f(this.U.uColorMul, r, g, b);
-      gl.uniform1f(this.U.uAlpha, a == null ? 1 : a);
-      this.use(this.cube);
-      gl.drawElements(gl.TRIANGLES, this.cube.count, this.cube.type, 0);
-      gl.uniform1f(this.U.uAlpha, 1);
-      gl.uniform3f(this.U.uColorMul, 1, 1, 1);
-    },
-
-    // 站台：普通站是完整雨棚，废弃站缺柱缺顶、留一地碎块
-    drawPlatforms: function (midS, run) {
-      if (!this.cube) return;
-      const path = Z.World.path, tmp = {};
-      const list = [];
-      for (const fr of (Z.CFG.STATION_AT || [])) list.push({ s: fr * run.totalKm, ruin: false });
-      if (run.abandon) list.push({ s: run.abandon.s, ruin: true });
-      for (const st of list) {
-        if (Math.abs(st.s - midS) > 430) continue;
-        const L = st.ruin ? 48 : 66;
-        const lat = 6.4;
-        const r = st.ruin ? 0.26 : 0.44, gg = st.ruin ? 0.25 : 0.44, bb = st.ruin ? 0.23 : 0.42;
-        let seg = 0;
-        for (let s = st.s - L / 2; s <= st.s + L / 2; s += 6) {
-          if (s < 0 || s > path.len) continue;
-          Z.U.posAt(path, s, tmp);
-          const nx = -Math.sin(tmp.a), ny = Math.cos(tmp.a);
-          const px = tmp.x + nx * lat, pz = tmp.y + ny * lat;
-          // 站台本体
-          this.box(px, 0.55, pz, 6.2, 1.1, 6.4, tmp.a, r, gg, bb);
-          // 靠轨道一侧的黄色安全线
-          this.box(tmp.x + nx * (lat - 2.9), 1.12, tmp.y + ny * (lat - 2.9), 5.8, 0.06, 0.35, tmp.a,
-            st.ruin ? 0.30 : 0.78, st.ruin ? 0.26 : 0.60, st.ruin ? 0.10 : 0.18);
-          // 雨棚（废弃站台隔一段塌一块）
-          if (!st.ruin || seg % 3 !== 0) {
-            this.box(tmp.x + nx * (lat + 0.2), 5.0, tmp.y + ny * (lat + 0.2), 6.4, 0.28, 7.4, tmp.a,
-              st.ruin ? 0.20 : 0.30, st.ruin ? 0.19 : 0.32, st.ruin ? 0.18 : 0.34);
-          }
-          // 立柱：双排，废弃站缺一半
-          if (seg % 2 === 0 || !st.ruin) {
-            for (const dl of [-2.6, 3.0]) {
-              if (st.ruin && (seg + dl) % 5 === 0) continue;
-              this.box(tmp.x + nx * (lat + dl), 3.0, tmp.y + ny * (lat + dl), 0.34, 3.8, 0.34, tmp.a,
-                st.ruin ? 0.22 : 0.38, st.ruin ? 0.21 : 0.38, st.ruin ? 0.20 : 0.36);
-            }
-          }
-          // 废弃站台：地上散落碎块
-          if (st.ruin && seg % 2 === 1) {
-            this.box(px + 1.2, 0.35, pz - 1.0, 1.1, 0.7, 0.9, tmp.a + 0.4, 0.24, 0.23, 0.21);
-            this.box(px - 1.6, 0.28, pz + 1.4, 0.8, 0.55, 1.2, tmp.a - 0.3, 0.21, 0.20, 0.19);
-          }
-          seg++;
-        }
-        // ============ 站房（火车站主体） ============
-        if (st.s > 0 && st.s < path.len) {
-          Z.U.posAt(path, st.s, tmp);
-          const a = tmp.a;
-          const nx = -Math.sin(a), ny = Math.cos(a);
-          const ax = Math.cos(a), ay = Math.sin(a);
-          const hallLat = st.ruin ? 17 : 15.5;
-          const hx = tmp.x + nx * hallLat, hz = tmp.y + ny * hallLat;
-          // 沿站房局部坐标摆东西：offL 纵向、offLat 横向
-          const at = (offL, offLat, y) => [
-            hx + ax * offL + nx * offLat,
-            y,
-            hz + ay * offL + ny * offLat
-          ];
-          const wallR = st.ruin ? 0.24 : 0.46, wallG = st.ruin ? 0.23 : 0.45, wallB = st.ruin ? 0.21 : 0.43;
-          const hallH = st.ruin ? 5.0 : 8.0;
-
-          // 主楼
-          let p = at(0, 0, hallH / 2);
-          this.box(p[0], p[1], p[2], 26, hallH, 13, a, wallR, wallG, wallB);
-          // 基座
-          p = at(0, 0, 0.5);
-          this.box(p[0], p[1], p[2], 27, 1.0, 14, a, wallR * 1.15, wallG * 1.15, wallB * 1.15);
-          // 檐口（废弃站塌了）
-          if (!st.ruin) {
-            p = at(0, 0, hallH + 0.35);
-            this.box(p[0], p[1], p[2], 27.4, 0.7, 14.2, a, 0.32, 0.31, 0.30);
-            // 大门雨棚
-            p = at(0, -6.2, 4.6);
-            this.box(p[0], p[1], p[2], 9, 0.4, 3.2, a, 0.30, 0.29, 0.28);
-          }
-          // 门
-          p = at(0, -6.45, 2.2);
-          this.box(p[0], p[1], p[2], 5.4, 4.4, 0.3, a, 0.12, 0.13, 0.14);
-          p = at(0, -6.6, 4.0);
-          this.box(p[0], p[1], p[2], 6.0, 0.5, 0.25, a, 0.72, 0.58, 0.28);   // 站名牌
-
-          // 窗：两排，废弃站只剩零散几个
-          for (let wi = 0; wi < 6; wi++) {
-            if (st.ruin && (wi === 1 || wi === 4)) continue;
-            const offL = (wi - 2.5) * 4.1;
-            for (const wy of st.ruin ? [2.6] : [2.4, 5.4]) {
-              p = at(offL, -6.55, wy);
-              this.box(p[0], p[1], p[2], 2.2, 1.7, 0.22, a, 0.20, 0.26, 0.31);
-              if (!st.ruin) {
-                p = at(offL, -6.7, wy);
-                this.box(p[0], p[1], p[2], 2.4, 1.9, 0.10, a, 0.56, 0.56, 0.54);
-              }
-            }
-          }
-
-          // 钟楼（只有完好的站有）
-          if (!st.ruin) {
-            p = at(0, 0, hallH + 4.2);
-            this.box(p[0], p[1], p[2], 5.4, 8.4, 5.4, a, 0.44, 0.43, 0.41);
-            p = at(0, 0, hallH + 8.6);
-            this.box(p[0], p[1], p[2], 6.4, 0.8, 6.4, a, 0.34, 0.33, 0.32);
-            p = at(0, 0, hallH + 9.6);
-            this.box(p[0], p[1], p[2], 3.6, 1.4, 3.6, a, 0.30, 0.29, 0.28);
-            // 钟面（四面各一块亮片）
-            for (const side of [-1, 1]) {
-              p = at(0, side * 2.75, hallH + 5.4);
-              this.box(p[0], p[1], p[2], 2.6, 2.6, 0.14, a, 0.86, 0.82, 0.62);
-            }
-            p = at(2.75, 0, hallH + 5.4);
-            this.box(p[0], p[1], p[2], 0.14, 2.6, 2.6, a, 0.86, 0.82, 0.62);
-            p = at(-2.75, 0, hallH + 5.4);
-            this.box(p[0], p[1], p[2], 0.14, 2.6, 2.6, a, 0.86, 0.82, 0.62);
-          } else {
-            // 废弃站：半截塌掉的塔基 + 碎块
-            p = at(0, 0, hallH + 1.4);
-            this.box(p[0], p[1], p[2], 5.4, 2.8, 5.4, a, 0.22, 0.21, 0.20);
-            for (let rb = 0; rb < 5; rb++) {
-              p = at(-6 + rb * 3, -8.5 + (rb % 2) * 1.6, 0.3);
-              this.box(p[0], p[1], p[2], 1.4, 0.6, 1.1, a, 0.20, 0.19, 0.18);
-            }
-          }
-        }
-
-
-      }
-    },
-
-    drawModelMat: function (mesh, mat, flash) {
-
-
-      if (!mesh) return;
-
-
-      const gl = this.gl;
-
-
-      gl.uniform1f(this.U.uFlash, flash || 0);
-
-
-      gl.uniformMatrix4fv(this.U.uMVP, false, M4.mul(this.vp, mat));
-
-
-      gl.uniformMatrix4fv(this.U.uModel, false, mat);
-
-
-      gl.uniformMatrix3fv(this.U.uNrm, false, M4.nrm(mat));
-
-
-      this.use(mesh);
-
-
-      gl.drawElements(gl.TRIANGLES, mesh.count, mesh.type, 0);
-
-
-    },
-
-
-
-
-
-    drawModel: function (mesh, x, y, z, rot, scl, flash) {
-
-
-      // 接触阴影：压扁的暗色方块，把物件按在地上
-
-
-      if (this.cube) {
-
-
-        const g0 = this.gl;
-
-
-        g0.enable(g0.BLEND);
-
-
-        g0.blendFunc(g0.SRC_ALPHA, g0.ONE_MINUS_SRC_ALPHA);
-
-
-        g0.depthMask(false);
-
-
-        g0.uniform3f(this.U.uColorMul, 0.05, 0.045, 0.04);
-
-
-        g0.uniform1f(this.U.uAlpha, 0.5);
-
-
-        g0.uniform1f(this.U.uFlash, 0);
-
-
-        const k2 = scl || 1;
-
-
-        const sw = Math.max(0.6, (mesh.w || 3) * k2 * 0.55);
-
-
-        const sd = Math.max(0.6, (mesh.d || 3) * k2 * 0.55);
-
-
-        const sm = M4.mul(M4.mul(M4.trans(x, 0.04, z), M4.rotY(rot)), M4.scale(sw, 0.02, sd));
-
-
-        g0.uniformMatrix4fv(this.U.uMVP, false, M4.mul(this.vp, sm));
-
-
-        g0.uniformMatrix4fv(this.U.uModel, false, sm);
-
-
-        g0.uniformMatrix3fv(this.U.uNrm, false, M4.nrm(sm));
-
-
-        this.use(this.cube);
-
-
-        g0.drawElements(g0.TRIANGLES, this.cube.count, this.cube.type, 0);
-
-
-        g0.depthMask(true);
-
-
-        g0.disable(g0.BLEND);
-
-
-        g0.uniform1f(this.U.uAlpha, 1);
-
-
-        g0.uniform3f(this.U.uColorMul, 1, 1, 1);
-
-
-      }
-
-
-      if (!mesh) return;
-
-
-      const gl = this.gl;
-
-
-      gl.uniform1f(this.U.uFlash, flash || 0);
-
-
-      let model = M4.mul(M4.trans(x, y, z), M4.rotY(rot));
-
-
-      if (scl && scl !== 1) model = M4.mul(model, M4.scale(scl, scl, scl));
-
-
-      const mvp = M4.mul(this.vp, model);
-
-
-      gl.uniformMatrix4fv(this.U.uMVP, false, mvp);
-
-
-      gl.uniformMatrix4fv(this.U.uModel, false, model);
-
-
-      gl.uniformMatrix3fv(this.U.uNrm, false, M4.nrm(model));
-
-
-      this.use(mesh);
-
-
-      gl.drawElements(gl.TRIANGLES, mesh.count, mesh.type, 0);
-
-
-    },
-
-
-
-
-
-    // 自由视角：拖拽旋转 / 滚轮缩放 / 双击回到追车视角
-
-
-    bindCamera: function () {
-
-
-      if (this._camBound || !this.cv) return;
-
-
-      this._camBound = true;
-
-
-      const cv = this.cv;
-
-
-      let drag = false, lx = 0, ly = 0;
-
-
-      const cam = this.cam || (this.cam = { yaw: 0, pitch: 0.30, dist: 60, manual: false });
-
-
-      cv.style.touchAction = "none";
-
-
-      cv.addEventListener("pointerdown", function (e) {
-
-
-        drag = true; lx = e.clientX; ly = e.clientY;
-
-
-        try { cv.setPointerCapture(e.pointerId); } catch (err) {}
-
-
-      });
-
-
-      cv.addEventListener("pointerup", function () { drag = false; });
-
-
-      cv.addEventListener("pointercancel", function () { drag = false; });
-
-
-      cv.addEventListener("pointermove", function (e) {
-
-
-        if (!drag) return;
-
-
-        cam.yaw -= (e.clientX - lx) * 0.008;
-
-
-        cam.pitch = Math.max(0.04, Math.min(1.35, cam.pitch + (e.clientY - ly) * 0.006));
-
-
-        cam.manual = true;
-
-
-        lx = e.clientX; ly = e.clientY;
-
-
-      });
-
-
-      cv.addEventListener("wheel", function (e) {
-
-
-        e.preventDefault();
-
-
-        cam.dist = Math.max(14, Math.min(260, cam.dist * (e.deltaY > 0 ? 1.12 : 0.89)));
-
-
-        cam.manual = true;
-
-
-      }, { passive: false });
-
-
-      cv.addEventListener("dblclick", function () { cam.manual = false; });
-
-
-    },
-
-
-
-
-
+    // 线段类特效：曳光 / 电磁弧 / 喷火锥
+    drawTracers: function (vp) {
+      const list = (Z.Fx && Z.Fx.list) ? Z.Fx.list : null;
+      if (!list || !list.length) return;
+      const pos = [], col = [];
+      const rgb = function (h) {
+        if (typeof h !== 'string' || h[0] !== '#') return [1, 0.8, 0.4];
+        const v = parseInt(h.slice(1), 16);
+        return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255];
+      };
+      const seg = function (x0, y0, z0, x1, y1, z1, c, a) {
+        pos.push(x0, y0, z0, x1, y1, z1);
+        col.push(c[0] * a, c[1] * a, c[2] * a, c[0] * a, c[1] * a, c[2] * a);
+      };
+      for (const f of list) {
+        const o = f.o;
+        const k = Math.min(1, f.t / f.dur);
+        const a = Math.max(0, 1 - k);
+        if (f.kind === 'tracer') {
+          const c = rgb(o.color);
+          seg(o.x0, o.h0 || 2.2, o.y0, o.x1, o.h1 || 2.2, o.y1, c, a);
+        } else if (f.kind === 'chain' && o.pts) {
+          const c = rgb(o.color);
+          for (let i = 1; i < o.pts.length; i++) {
+            const p0 = o.pts[i - 1], p1 = o.pts[i];
+            // 折线抖动，像电弧
+            const steps = 5;
+            for (let j = 0; j < steps; j++) {
+              const t0 = j / steps, t1 = (j + 1) / steps;
+              const jx = (Math.random() - 0.5) * 3.2, jz = (Math.random() - 0.5) * 3.2;
+              seg(
+                p0.x + (p1.x - p0.x) * t0 + (j ? jx : 0), 3.2 + (j ? (Math.random() - 0.5) * 1.2 : 0), p0.y + (p1.y - p0.y) * t0 + (j ? jz : 0),
+                p0.x + (p1.x - p0.x) * t1 + (j === steps - 1 ? 0 : jx), 3.2, p0.y + (p1.y - p0.y) * t1 + (j === steps - 1 ? 0 : jz),
+                c, a);
+            }
+          }
+        } else if (f.kind === 'cone') {
+          const c = rgb(o.color);
+          const n = 9;
+          for (let i = 0; i < n; i++) {
+            const aa = o.a + (i / (n - 1) - 0.5) * 2 * (o.ha || 0.4);
+            const len = (o.range || 30) * (0.7 + Math.random() * 0.3) * (1 - k * 0.5);
+            seg(o.x, 2.6, o.y, o.x + Math.cos(aa) * len, 2.6 + Math.random() * 2, o.y + Math.sin(aa) * len, c, a * 0.8);
+          }
+        }
+      }
+      if (!pos.length) return;
+      const gl = this.gl, A = this.A;
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      gl.depthMask(false);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.lineBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pos), gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(A.pos); gl.vertexAttribPointer(A.pos, 3, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.lineCol);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(col), gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(A.col); gl.vertexAttribPointer(A.col, 3, gl.FLOAT, false, 0, 0);
+      gl.disableVertexAttribArray(A.nor);
+      gl.vertexAttrib3f(A.nor, 0, 1, 0);
+      const model = M4.ident();
+      gl.uniformMatrix4fv(this.U.uMVP, false, vp);
+      gl.uniformMatrix4fv(this.U.uModel, false, model);
+      gl.uniformMatrix3fv(this.U.uNrm, false, M4.nrm(model));
+      gl.uniform1f(this.U.uFlash, 0);
+      gl.uniform1f(this.U.uAlpha, 1);
+      gl.uniform3f(this.U.uColorMul, 1, 1, 1);
+      gl.drawArrays(gl.LINES, 0, pos.length / 3);
+      gl.enableVertexAttribArray(A.nor);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+    },
+
+    // 自由视角：拖拽旋转 / 滚轮缩放 / 双击回到追车视角
+    bindCamera: function () {
+      if (this._camBound || !this.cv) return;
+      this._camBound = true;
+      const cv = this.cv;
+      let drag = false, lx = 0, ly = 0;
+      const cam = this.cam || (this.cam = { yaw: 0, pitch: 0.30, dist: 60, manual: false });
+      cv.style.touchAction = "none";
+      cv.addEventListener("pointerdown", function (e) {
+        drag = true; lx = e.clientX; ly = e.clientY;
+        try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+      });
+      cv.addEventListener("pointerup", function () { drag = false; });
+      cv.addEventListener("pointercancel", function () { drag = false; });
+      cv.addEventListener("pointermove", function (e) {
+        if (!drag) return;
+        cam.yaw -= (e.clientX - lx) * 0.008;
+        cam.pitch = Math.max(0.04, Math.min(1.35, cam.pitch + (e.clientY - ly) * 0.006));
+        cam.manual = true;
+        lx = e.clientX; ly = e.clientY;
+      });
+      cv.addEventListener("wheel", function (e) {
+        e.preventDefault();
+        cam.dist = Math.max(14, Math.min(260, cam.dist * (e.deltaY > 0 ? 1.12 : 0.89)));
+        cam.manual = true;
+      }, { passive: false });
+      cv.addEventListener("dblclick", function () { cam.manual = false; });
+    },
+
+
     setMode: function (on) {
       if (on && !this.init()) return false;
       this.on = !!on;

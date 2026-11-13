@@ -121,24 +121,27 @@ window.ZT = window.ZT || {};
     const def = w.def(), f = w.formDef() || {};
     if (Z.Sound) Z.Sound.play(w.key === 'flamer' ? 'flamer' : (w.key === 'flak' ? 'flak' : (w.key === 'tesla' ? 'tesla' : (w.key === 'mortar' ? 'mortar' : 'mg'))), { vol: volAt(mount.x, mount.y) });
     const dmg = w.dps() / Math.max(0.1, w.rof()) * over;
+    // 炮口位置（所有特效统一从这里出）
+    const BORE = { mg: 2.7, flamer: 1.9, flak: 3.1, tesla: 1.7, mortar: 2.3 };
+    const bore = BORE[w.key] || 2.4;
+    const mzx = mount.x + Math.cos(w.aim) * bore;
+    const mzy = mount.y + Math.sin(w.aim) * bore;
+    const mzh = mount.h + (w.form === 'B' ? 0.75 : 0.62);
     run.shots++;
     if (def.mode === 'hitscan' || def.mode === 'burst') {
       const t = w.target, n = def.burst || 1;
       const fw = f === 'B' ? 2.8 : (f === 'A' ? 1.1 : 1.5);
       for (let i = 0; i < n; i++) {
-        // 炮口位置：炮塔中心沿瞄准方向推出炮管长度（3D 里才不会从塔里开枪）
-    const BORE = { mg: 2.7, flamer: 1.9, flak: 3.1, tesla: 1.7, mortar: 2.3 };
-    const bore = BORE[w.key] || 2.4;
-    const mx = mount.x + Math.cos(w.aim) * bore;
-    const my = mount.y + Math.sin(w.aim) * bore;
-    Fx.tracer(mx, my, mount.h + (w.form === 'B' ? 0.75 : 0.62), t.x + (Math.random() - 0.5) * 3, t.y + (Math.random() - 0.5) * 3, 1.4, def.color, fw);
+        Fx.tracer(mzx, mzy, mzh, t.x + (Math.random() - 0.5) * 3, t.y + (Math.random() - 0.5) * 3, 1.4, def.color, fw);
       }
-      Fx.flash(mount.x, mount.y, mount.h, def.color, f === 'B' ? 3.6 : 2.6);
+      Fx.flash(mzx, mzy, mzh, def.color, f === 'B' ? 3.6 : 2.6);
       hit(t, dmg * n * (run.buffs.ap && t.elite ? CFG.BUFFS.ap.ap : 1), run, elementOf(w.key));
+      if (w.key === 'mg') Fx.sparks(t.x, t.y, 1.3, 4, def.color);
+      if (w.key === 'flak') { Fx.ring(t.x, t.y, 1.6, 7, def.color); Fx.sparks(t.x, t.y, 1.6, 6, '#ffd8a0'); }
       w.target = null;
     } else if (def.mode === 'cone') {
-      Fx.cone(mount.x, mount.y, w.aim, w.range(), w.coneDeg() / 2 * Math.PI / 180, '#ff8a2f');
-      Fx.flash(mount.x, mount.y, mount.h, def.color, 2);
+      Fx.cone(mzx, mzy, w.aim, w.range(), w.coneDeg() / 2 * Math.PI / 180, '#ff8a2f');
+      Fx.flash(mzx, mzy, mzh, def.color, 2);
       let hits = 0;
       for (const zb of zs) {
         if (zb.dead || hits >= def.targets) continue;
@@ -149,7 +152,7 @@ window.ZT = window.ZT || {};
       }
     } else if (def.mode === 'chain') {
       let cur = w.target, dd = dmg, seen = [];
-      const pts = [{ x: mount.x, y: mount.y }];
+      const pts = [{ x: mzx, y: mzy }];
       for (let i = 0; i < w.chain() && cur; i++) {
         pts.push({ x: cur.x, y: cur.y });
         hit(cur, dd, run, 'shock'); seen.push(cur); dd *= 0.62;
@@ -161,7 +164,7 @@ window.ZT = window.ZT || {};
         cur = best;
       }
       Fx.chain(pts, def.color);
-      Fx.flash(mount.x, mount.y, mount.h, def.color, f === 'B' ? 4.4 : 3.4);
+      Fx.flash(mzx, mzy, mzh, def.color, f === 'B' ? 4.4 : 3.4);
       w.target = null;
     } else if (def.mode === 'shell') {
       const t = w.target, salvo = f.salvo || 1;
@@ -172,7 +175,7 @@ window.ZT = window.ZT || {};
           radius: def.splash * (f.splashMul || 1), dmg: dmg * 1.6
         });
       }
-      Fx.flash(mount.x, mount.y, mount.h, def.color, f === 'B' ? 4.2 : 3);
+      Fx.flash(mzx, mzy, mzh, def.color, f === 'B' ? 4.2 : 3);
       w.target = null;
     }
   };

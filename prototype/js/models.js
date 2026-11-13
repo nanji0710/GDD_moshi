@@ -2,6 +2,8 @@
 // 3D 模型：程序化几何 → 顶点数组（pos/nor/col/emi/idx）。
 // 同一份代码既供游戏内 WebGL 视图渲染，也供 tools/export-glb.mjs 导出 .glb 资产。
 (function (root) {
+  // 共享外观表（2D 也读它，保证两边一致）
+  const ART = (typeof require === "function") ? require("./art.js") : (root.ZT && root.ZT.Art);
   const NS = root.ZT = root.ZT || {};
 
   function Builder() { this.pos = []; this.nor = []; this.col = []; this.emi = []; this.idx = []; this.n = 0; }
@@ -458,15 +460,42 @@
 
   // 丧尸拆件：身体 / 腿 / 手臂，供 3D 做走路摆动
   const ZP = { skin: '#7c8a6a', cloth: '#4e5a49', dark: '#2f382e' };
-  function buildZBody() {
+  function buildZBody(kind) {
+    const a = (ART && ART.ZOMBIE && ART.ZOMBIE[kind]) || { body: '#55684f', head: '#5a6350', w: 1, h: 1 };
     const b = new Builder();
-    b.box(0, 1.12, 0, 0.72, 0.5, 0.42, ZP.cloth);
-    b.box(0, 1.5, 0, 0.8, 0.34, 0.46, ZP.cloth);
-    b.box(0, 1.86, 0.02, 0.42, 0.42, 0.4, ZP.skin);
-    b.box(0, 1.92, 0.21, 0.3, 0.12, 0.04, '#1a1410');
-    b.box(-0.1, 1.9, 0.22, 0.07, 0.07, 0.03, '#e8564a', { emit: 1.0 });
-    b.box(0.1, 1.9, 0.22, 0.07, 0.07, 0.03, '#e8564a', { emit: 1.0 });
-    b.box(0, 1.05, 0, 0.84, 0.18, 0.5, '#3d4739');
+    const w = a.w || 1, h = a.h || 1;
+    const eye = '#e8564a';
+    // 躯干
+    b.box(0, 1.12 * h, 0, 0.72 * w, 0.50 * h, 0.42 * w, a.body);
+    b.box(0, 1.50 * h, 0, 0.80 * w, 0.34 * h, 0.46 * w, a.body);
+    // 头
+    b.box(0, 1.86 * h, 0.02, 0.42, 0.42, 0.40, a.head);
+    b.box(0, 1.92 * h, 0.21, 0.30, 0.12, 0.04, '#1a1410');
+    b.box(-0.10, 1.90 * h, 0.22, 0.07, 0.07, 0.03, eye, { emit: 1.0 });
+    b.box(0.10, 1.90 * h, 0.22, 0.07, 0.07, 0.03, eye, { emit: 1.0 });
+    // 腰带
+    b.box(0, 1.05 * h, 0, 0.84 * w, 0.18, 0.50 * w, '#3d4739');
+    // 种类特征
+    if (a.sac) {                                  // 吐酸者：背上的毒囊
+      b.box(0, 1.42 * h, -0.40 * w, 0.52, 0.54, 0.34, '#7a8a3a');
+      b.box(0, 1.42 * h, -0.56 * w, 0.30, 0.30, 0.12, '#93a34a');
+    }
+    if (a.tool) {                                 // 撬轨者：右臂的撬棍
+      b.box(0.46 * w, 1.40 * h, 0.42, 0.13, 0.13, 0.70, '#8a8f95');
+      b.box(0.46 * w, 1.40 * h, 0.78, 0.22, 0.10, 0.18, '#5a5f65');
+    }
+    if (a.mouth) {                                // 尖啸者：张开的嘴
+      b.box(0, 1.80 * h, 0.21, 0.16, 0.24, 0.05, '#120c0c');
+      b.box(0, 1.80 * h, 0.23, 0.10, 0.16, 0.03, '#3a1010');
+    }
+    if (a.fat) {                                  // 肿胀者：鼓起的肚子
+      b.box(0, 1.04 * h, 0, 0.94 * w, 0.52, 0.62 * w, a.body);
+      b.box(0, 1.04 * h, 0.34 * w, 0.60, 0.40, 0.10, '#7a7a52');
+    }
+    if (a.longArms) {                             // 攀爬者：更长的前臂
+      b.box(-0.44 * w, 1.36 * h, 0.62, 0.20, 0.20, 0.62, a.body);
+      b.box(0.44 * w, 1.36 * h, 0.62, 0.20, 0.20, 0.62, a.body);
+    }
     return b;
   }
   function buildZLeg() {
@@ -577,7 +606,14 @@
     t_flak: function () { return turretBodyOf('flak'); }, t_flak_b: function () { return turretBarrelOf('flak'); },
     t_tesla: function () { return turretBodyOf('tesla'); }, t_tesla_b: function () { return turretBarrelOf('tesla'); },
     t_mortar: function () { return turretBodyOf('mortar'); }, t_mortar_b: function () { return turretBarrelOf('mortar'); }, turret_body: buildTurretBody, turret_barrel: buildTurretBarrel, tree: buildTree,
-    zbody: buildZBody, zleg: buildZLeg, zarm: buildZArm
+    zbody: function () { return buildZBody("walker"); },
+    zbody_walker: function () { return buildZBody("walker"); },
+    zbody_runner: function () { return buildZBody("runner"); },
+    zbody_climber: function () { return buildZBody("climber"); },
+    zbody_ripper: function () { return buildZBody("ripper"); },
+    zbody_spitter: function () { return buildZBody("spitter"); },
+    zbody_screamer: function () { return buildZBody("screamer"); },
+    zbody_bloater: function () { return buildZBody("bloater"); }, zleg: buildZLeg, zarm: buildZArm
   };
 
   NS.Models = {

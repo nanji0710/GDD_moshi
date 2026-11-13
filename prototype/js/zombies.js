@@ -408,13 +408,14 @@ window.ZT = window.ZT || {};
         ctx.globalAlpha = 1;
         return;
       }
-      const bodyCol = zb.boss ? '#7a5c8a' : (zb.mini ? '#8a5a4a' : (zb.elite ? '#6d7d45' : (zb.kind === 'runner' ? '#6a7a58' : (zb.kind === 'spitter' ? '#5f7a4a' : (zb.kind === 'bloater' ? '#6a6a4a' : '#55684f')))));
+      const zart2 = (Z.Art && Z.Art.zOf) ? Z.Art.zOf(zb) : null;
+      const bodyCol = zart2 ? zart2.body : '#55684f';
       const flash = zb.flash > 0.35;
       const cloth = flash ? '#ffffff' : bodyCol;
-      const headCol = flash ? '#ffffff' : (zb.boss ? '#9a7aaa' : (zb.elite ? '#7d8a4e' : '#5a6350'));
+      const headCol = flash ? '#ffffff' : (zart2 ? zart2.head : '#5a6350');
       // 走路：上下起伏 + 冲锋者前倾
       const bob = Math.sin(zb.phase * 2) * r * 0.10;
-      const lean = zb.kind === 'runner' ? 0.14 : (zb.kind === 'bloater' ? -0.05 : 0);
+      const lean = zart2 ? zart2.lean : 0;
       const cy = p.y - r * 0.95 + bob;
       const hy = p.y - r * 1.95 + bob;
       const wob = Math.sin(zb.phase) * 0.18 * r;
@@ -435,17 +436,18 @@ window.ZT = window.ZT || {};
       ctx.strokeStyle = flash ? '#ffffff' : U.mix(bodyCol, '#000000', 0.28);
       ctx.lineWidth = Math.max(1, r * 0.40);
       ctx.beginPath();
+      const armLen = zart2 && zart2.longArms ? 1.38 : 1.05;
       ctx.moveTo(p.x - r * 0.2, p.y - r * 1.25 + bob);
-      ctx.lineTo(p.x - r * 1.05, p.y - r * 1.02 + wob + bob * 0.5);
+      ctx.lineTo(p.x - r * armLen, p.y - r * 1.02 + wob + bob * 0.5);
       ctx.moveTo(p.x + r * 0.2, p.y - r * 1.25 + bob);
-      ctx.lineTo(p.x + r * 1.05, p.y - r * 1.02 - wob + bob * 0.5);
+      ctx.lineTo(p.x + r * armLen, p.y - r * 1.02 - wob + bob * 0.5);
       ctx.stroke();
 
       // 身体：先描一圈深色轮廓，再填色，再补受光面
       ctx.fillStyle = 'rgba(8,10,8,0.85)';
-      ctx.beginPath(); ctx.ellipse(p.x, cy, r * 0.62, r * 0.96, lean, 0, 6.2832); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(p.x, cy, r * 0.62 * (zart2 ? zart2.w : 1), r * 0.96 * (zart2 ? zart2.h : 1), lean, 0, 6.2832); ctx.fill();
       ctx.fillStyle = cloth;
-      ctx.beginPath(); ctx.ellipse(p.x, cy, r * 0.52, r * 0.86, lean, 0, 6.2832); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(p.x, cy, r * 0.52 * (zart2 ? zart2.w : 1), r * 0.86 * (zart2 ? zart2.h : 1), lean, 0, 6.2832); ctx.fill();
       if (!flash) {
         ctx.fillStyle = U.mix(cloth, '#ffffff', 0.16);
         ctx.beginPath(); ctx.ellipse(p.x - r * 0.12, cy - r * 0.22, r * 0.28, r * 0.48, lean, 0, 6.2832); ctx.fill();
@@ -467,6 +469,36 @@ window.ZT = window.ZT || {};
       ctx.beginPath(); ctx.arc(p.x, hy, r * 0.48, 0, 6.2832); ctx.fill();
       ctx.fillStyle = headCol;
       ctx.beginPath(); ctx.arc(p.x, hy, r * 0.40, 0, 6.2832); ctx.fill();
+
+      // 种类特征（与 3D 模型的构件对应）
+      if (zart2 && !flash) {
+        if (zart2.sac) {                       // 吐酸者：背后的毒囊
+          ctx.fillStyle = "#7a8a3a";
+          ctx.beginPath(); ctx.ellipse(p.x, cy - r * 0.25, r * 0.34, r * 0.42, lean, 0, 6.2832); ctx.fill();
+          ctx.fillStyle = "#93a34a";
+          ctx.beginPath(); ctx.ellipse(p.x - r * 0.08, cy - r * 0.35, r * 0.16, r * 0.2, lean, 0, 6.2832); ctx.fill();
+        }
+        if (zart2.tool) {                      // 撬轨者：右手的撬棍
+          ctx.strokeStyle = "#8a8f95";
+          ctx.lineWidth = Math.max(1, r * 0.16);
+          ctx.beginPath();
+          ctx.moveTo(p.x + r * 0.45, p.y - r * 1.28 + bob);
+          ctx.lineTo(p.x + r * 0.95, p.y - r * 0.72 + bob);
+          ctx.stroke();
+          ctx.fillStyle = "#5a5f65";
+          ctx.fillRect(p.x + r * 0.88, p.y - r * 0.82 + bob, r * 0.22, r * 0.12);
+        }
+        if (zart2.mouth) {                     // 尖啸者：张开的嘴
+          ctx.fillStyle = "#120c0c";
+          ctx.beginPath(); ctx.ellipse(p.x, hy + r * 0.16, r * 0.16, r * 0.22, 0, 0, 6.2832); ctx.fill();
+          ctx.fillStyle = "#3a1010";
+          ctx.beginPath(); ctx.ellipse(p.x, hy + r * 0.2, r * 0.09, r * 0.12, 0, 0, 6.2832); ctx.fill();
+        }
+        if (zart2.fat) {                       // 肿胀者：鼓起的肚子
+          ctx.fillStyle = U.mix(bodyCol, "#ffffff", 0.10);
+          ctx.beginPath(); ctx.ellipse(p.x, cy + r * 0.18, r * 0.52 * (zart2.w || 1), r * 0.42, lean, 0, 6.2832); ctx.fill();
+        }
+      }
 
       // 红眼
       if (z > 0.8) {
