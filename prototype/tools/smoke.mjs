@@ -648,6 +648,55 @@ try {
   check('冲撞会高速位移', boss.moved > 5, boss)
   check('召唤会带来新的丧尸', boss.summoned >= 6, boss)
   check('破坏轨道会累积损伤', boss.rip > 0, boss)
+  console.log('\n[26] 元素连携与 Boss 冷却')
+  const elem = JSON.parse(await ev(`(() => {
+    const R = ZT.Run, Z = window.ZT;
+    ZT.Game.startLevel(1);
+    R.state = 'run';
+    R.cars[1].slots[0] = new Z.Weapon('flamer', 8);
+    ZT.Zombies.list.length = 0;
+    const p = Z.U.posAt(Z.World.path, R.km + 26, {});
+    const zb = Z.Zombies.make(p.x, p.y + 3, {});
+    zb.hp = 5000; zb.maxHp = 5000;
+    ZT.Zombies.list.push(zb);
+    for (let i = 0; i < 40; i++) R.tick(1 / 60);
+    const burning = zb.burn > 0 && !zb.dead;
+    // 撤掉火焰武器，只看燃烧持续伤害
+    R.cars[1].slots[0] = null;
+    const hp0 = zb.hp;
+    for (let i = 0; i < 90; i++) R.tick(1 / 60);
+    const dot = hp0 - zb.hp;
+    ZT.Zombies.list.length = 0;
+    return JSON.stringify({ burning: burning, dot: Math.round(dot) });
+  })()`))
+  check('火焰武器会点燃目标', elem.burning === true, elem)
+  check('燃烧会持续掉血', elem.dot > 3, elem)
+
+  const cd = JSON.parse(await ev(`(() => {
+    const R = ZT.Run, Z = window.ZT, B = Z.CFG.BOSS;
+    ZT.Game.startLevel(1);
+    R.state = 'run';
+    ZT.Zombies.list.length = 0;
+    const p = Z.U.posAt(Z.World.path, R.km + 40, {});
+    const zb = Z.Zombies.make(p.x, p.y, {});
+    zb.boss = true; zb.aiCd = 0; zb.mode = 'walk';
+    ZT.Zombies.list.push(zb);
+    ZT.Zombies.update(1 / 60, R);
+    const windup = zb.mode === 'windup';
+    const cdAfterPick = zb.aiCd;
+    zb.modeT = 0.001;
+    ZT.Zombies.update(1 / 60, R);
+    const charging = zb.mode === 'charge';
+    // 冲撞结束后进入冷却
+    zb.modeT = 0.001;
+    for (let i = 0; i < 3; i++) ZT.Zombies.update(1 / 60, R);
+    const cdAfterUse = zb.aiCd;
+    ZT.Zombies.list.length = 0;
+    return JSON.stringify({ windup: windup, pick: Math.round(cdAfterPick * 10) / 10, charging: charging,
+      after: Math.round(cdAfterUse * 10) / 10, cfgCharge: B.cd.charge });
+  })()`))
+  check('Boss 出招前就有冷却计时', cd.windup === true && cd.pick === cd.cfgCharge, cd)
+  check('冲撞结束后进入冷却', cd.after >= cd.cfgCharge - 1.5, cd)
 } catch (e) {
   fail++
   console.error('冒烟测试中断：', e.message)

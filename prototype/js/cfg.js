@@ -96,7 +96,7 @@ window.ZT = window.ZT || {};
     ZOMBIE: {
       hp: 26, speed: 2.5, attack: 7, attackRate: 1.1, attackRange: 6,
       maxAliveBase: 120, maxAlivePerLevel: 18,
-      scrap: 2, eliteScrap: 5, bossScrap: 250, miniScrap: 200,
+      scrap: 2, eliteScrap: 5, burnDps: 7, bossScrap: 250, miniScrap: 200,
       eliteHpMul: 3.4, eliteAtkMul: 2.2
     },
     WAVE: { baseInterval: 28, intervalPerLevel: 1.2, minInterval: 12 },
@@ -196,6 +196,13 @@ window.ZT = window.ZT || {};
     WEATHER: { rainBrake: 1.4, rainFlamer: 0.7 },
     BRIDGE: { spawnMul: 1.3, latMax: 7, rampM: 60 },   // 桥上只能沿轨道来
     STRAIGHT: { speedMul: 1.2, rateMul: 1.15, runnerChance: 0.32, aheadMin: 320, aheadMax: 700 },
+    // Boss 招式：前摇 + 冷却（秒）
+    BOSS: {
+      windup: { charge: 0.9, summon: 0.7, rip: 0.6 },
+      cd: { charge: 9, summon: 12, rip: 10 },
+      chargeSpeed: 46, chargeMul: 9, summonCount: 6, ripMul: 1.4
+    },
+
     ENDLESS: {
       pathKm: 120,        // 一条 120 km 的走廊，跑到头就算结束
       stationKm: 6,       // 每 6 km 一个补给站

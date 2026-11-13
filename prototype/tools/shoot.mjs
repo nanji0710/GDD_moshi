@@ -381,11 +381,12 @@ try {
     ZT.Zombies.list.length = 0;
     const p = ZT.U.posAt(ZT.World.path, R.km + 58, {});
     const zb = ZT.Zombies.make(p.x + 6, p.y + 8, {});
-    zb.boss = true; zb.hp = zb.maxHp; zb.mode = 'windup'; zb.modeT = 0.55; zb.nextMode = 'charge'; zb.aiCd = 0;
+    zb.boss = true; zb.hp = zb.maxHp; zb.mode = 'windup'; zb.modeT = 0.55; zb.nextMode = 'charge'; zb.aiCd = 0.05;
     ZT.Zombies.list.push(zb);
     for (let i = 0; i < 14; i++) {
       const q = ZT.U.posAt(ZT.World.path, R.km + 8 + i * 4, {});
       const w = ZT.Zombies.make(q.x + (i % 2 ? 9 : -9), q.y + (i % 2 ? 6 : -6), {});
+      if (i % 3 === 0) { w.burn = 3.4; w.burnDps = 7; }
       ZT.Zombies.list.push(w);
     }
     ZT.R.cam.cx = me.x + 14; ZT.R.cam.cy = me.y - 8; ZT.R.cam.zoom = 4.6; ZT.R.compute();

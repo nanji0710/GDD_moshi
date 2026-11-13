@@ -129,7 +129,7 @@ window.ZT = window.ZT || {};
         Fx.tracer(mount.x, mount.y, mount.h, t.x + (Math.random() - 0.5) * 3, t.y + (Math.random() - 0.5) * 3, 1.4, def.color, fw);
       }
       Fx.flash(mount.x, mount.y, mount.h, def.color, f === 'B' ? 3.6 : 2.6);
-      hit(t, dmg * n * (run.buffs.ap && t.elite ? CFG.BUFFS.ap.ap : 1), run);
+      hit(t, dmg * n * (run.buffs.ap && t.elite ? CFG.BUFFS.ap.ap : 1), run, elementOf(w.key));
       w.target = null;
     } else if (def.mode === 'cone') {
       Fx.cone(mount.x, mount.y, w.aim, w.range(), w.coneDeg() / 2 * Math.PI / 180, '#ff8a2f');
@@ -140,14 +140,14 @@ window.ZT = window.ZT || {};
         const dd = Math.hypot(zb.x - mount.x, zb.y - mount.y);
         if (dd > w.range()) continue;
         if (Math.abs(U.angleDiff(w.aim, Math.atan2(zb.y - mount.y, zb.x - mount.x))) > w.coneDeg() / 2 * Math.PI / 180) continue;
-        hit(zb, dmg * 1.6 * (run.flamerMul || 1), run); hits++;
+        hit(zb, dmg * 1.6 * (run.flamerMul || 1), run, 'fire'); hits++;
       }
     } else if (def.mode === 'chain') {
       let cur = w.target, dd = dmg, seen = [];
       const pts = [{ x: mount.x, y: mount.y }];
       for (let i = 0; i < w.chain() && cur; i++) {
         pts.push({ x: cur.x, y: cur.y });
-        hit(cur, dd, run); seen.push(cur); dd *= 0.62;
+        hit(cur, dd, run, 'shock'); seen.push(cur); dd *= 0.62;
         let best = null, bd = 1600;
         for (const zb of zs) {
           if (zb.dead || seen.indexOf(zb) >= 0) continue;
@@ -184,14 +184,31 @@ window.ZT = window.ZT || {};
     }
     return best;
   }
-  function hit(zb, dmg, run) {
+  // 元素：mg/flak = bullet，flamer = fire，tesla = shock，mortar = blast
+  function elementOf(key) {
+    return key === 'flamer' ? 'fire' : key === 'tesla' ? 'shock' : key === 'mortar' ? 'blast' : 'bullet';
+  }
+
+  function hit(zb, dmg, run, el) {
     if (!zb || zb.dead) return;
+    el = el || 'bullet';
     // 攻击力 Lv5：对精英/Boss 额外 +20%
     if ((zb.elite || zb.boss || zb.mini) && Z.Meta && Z.Meta.has5 && Z.Meta.has5('dmg')) dmg *= 1.2;
+
+    // ---- 元素连携 ----
+    let combo = '';
+    const wet = !!(run.mods && run.mods.indexOf('rain') >= 0);
+    if (el === 'bullet' && zb.burn > 0) { dmg *= 1.30; combo = '爆燃'; }
+    else if (el === 'shock' && (wet || zb.burn > 0)) { dmg *= 1.35; combo = '导电'; }
+    else if (el === 'blast' && zb.burn > 0) { dmg *= 1.5; combo = '殉爆'; zb.burn = 0; }
+    if (el === 'fire') { zb.burn = Math.max(zb.burn || 0, 3.5); zb.burnDps = Math.max(zb.burnDps || 0, CFG.ZOMBIE.burnDps || 7); }
+    if (combo && Math.random() < 0.45) {
+      Fx.text(zb.x, zb.y, 2.9, combo, el === 'shock' ? '#a8d8ff' : '#ffab4a');
+    }
     if (Z.Sound) Z.Sound.play('hit', { vol: 0.35 });
     zb.hp -= dmg; zb.flash = 1;
     if (zb.hp <= 0) {
-      zb.dead = true; zb.deadT = 0;
+      zb.dead = true; zb.deadT = 0; zb.burn = 0;
       run.kills++;
       run.scrap += (zb.boss ? (CFG.ZOMBIE.bossScrap || 250)
         : zb.mini ? (CFG.ZOMBIE.miniScrap || 200)

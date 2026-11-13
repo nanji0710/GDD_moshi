@@ -37,6 +37,8 @@ window.ZT = window.ZT || {};
 
     // Boss 三招：冲撞（远）/ 召唤（中）/ 破坏轨道（近）
     bossAI: function (zb, run, dt, dx, dy, dist, reach) {
+      const B = CFG.BOSS || { cd: { charge: 9, summon: 12, rip: 10 }, windup: { charge: 0.9, summon: 0.7, rip: 0.6 },
+        chargeSpeed: 46, chargeMul: 9, summonCount: 6, ripMul: 1.4 };
       zb.aiCd = (zb.aiCd || 0) - dt;
       // 蓄力：站着不动，屏幕上给红线预警
       if (zb.mode === 'windup') {
@@ -44,7 +46,7 @@ window.ZT = window.ZT || {};
         if (zb.modeT <= 0) {
           if (zb.nextMode === 'charge') {
             const inv = 1 / (dist || 1);
-            zb.vx = dx * inv * 46; zb.vy = dy * inv * 46;
+            zb.vx = dx * inv * B.chargeSpeed; zb.vy = dy * inv * B.chargeSpeed;
             zb.mode = 'charge'; zb.modeT = 0.85;
             if (Z.Fx) Z.Fx.sparks(zb.x, zb.y, 3, 10, '#ff6a4a');
           } else if (zb.nextMode === 'summon') {
@@ -53,14 +55,14 @@ window.ZT = window.ZT || {};
               const m = this.make(zb.x + Math.cos(a) * d, zb.y + Math.sin(a) * d, { kind: 'walker' });
               this.list.push(m);
             }
-            zb.mode = 'walk'; zb.aiCd = 9;
+            zb.mode = 'walk'; zb.aiCd = B.cd.summon;
             if (Z.UI) Z.UI.toast('Boss 召来了尸群', 'bad');
             if (Z.Sound) Z.Sound.play('roar', { vol: 0.6 });
           } else if (zb.nextMode === 'rip') {
-            run.ripTrack(CFG.PARK.ripPerSec * 1.4);
+            run.ripTrack(CFG.PARK.ripPerSec * (B.ripMul || 1.4));
             if (Z.UI) Z.UI.toast('Boss 正在撕开轨道！', 'bad');
             if (Z.Fx) Z.Fx.boom(zb.x, zb.y, 1, 6);
-            zb.mode = 'walk'; zb.aiCd = 8;
+            zb.mode = 'walk'; zb.aiCd = B.cd.rip;
           }
         }
         return true;
@@ -80,21 +82,22 @@ window.ZT = window.ZT || {};
           }
           car = car || zb.target.car;
           if (car) {
-            run.damageCar(car, CFG.ZOMBIE.attack * 9 * this.atkMulOf(zb));
+            run.damageCar(car, CFG.ZOMBIE.attack * (B.chargeMul || 9) * (1 + 0.12 * (((Z.Run && Z.Run.level) || 1) - 1)));
             if (Z.Sound) Z.Sound.play('boom', { vol: 0.7 });
             if (Z.Fx) Z.Fx.shake = 0.9;
           }
-          zb.mode = 'walk'; zb.aiCd = 7;
+          zb.mode = 'walk'; zb.aiCd = B.cd.charge;
           return true;
         }
-        if (zb.modeT <= 0) { zb.mode = 'walk'; zb.aiCd = 7; }
+        if (zb.modeT <= 0) { zb.mode = 'walk'; zb.aiCd = B.cd.charge; }
         return true;
       }
       // 平时：按距离挑一招
       if (zb.aiCd <= 0 && run.state === 'run') {
-        if (dist > 26 && dist < 95) { zb.mode = 'windup'; zb.modeT = 0.9; zb.nextMode = 'charge'; zb.aiCd = 12; }
-        else if (dist <= 26 && dist > 14) { zb.mode = 'windup'; zb.modeT = 0.7; zb.nextMode = 'summon'; zb.aiCd = 12; }
-        else if (dist <= 14) { zb.mode = 'windup'; zb.modeT = 0.6; zb.nextMode = 'rip'; zb.aiCd = 12; }
+        const B2 = CFG.BOSS;
+        if (dist > 26 && dist < 95) { zb.mode = 'windup'; zb.modeT = B2.windup.charge; zb.nextMode = 'charge'; zb.aiCd = B2.cd.charge; }
+        else if (dist <= 26 && dist > 14) { zb.mode = 'windup'; zb.modeT = B2.windup.summon; zb.nextMode = 'summon'; zb.aiCd = B2.cd.summon; }
+        else if (dist <= 14) { zb.mode = 'windup'; zb.modeT = B2.windup.rip; zb.nextMode = 'rip'; zb.aiCd = B2.cd.rip; }
         else zb.aiCd = 1.2;
       }
       return false;
@@ -135,6 +138,21 @@ window.ZT = window.ZT || {};
         const zb = this.list[i];
         if (zb.dead) { zb.deadT += dt; if (zb.deadT > 3.4) this.list.splice(i, 1); continue; }
         zb.flash = Math.max(0, zb.flash - dt * 4);
+        if (zb.burn > 0) {
+          zb.burn -= dt;
+          zb.hp -= (zb.burnDps || 7) * dt;
+          if (zb.hp > 0 && Math.random() < 0.08 && Z.Fx) Z.Fx.sparks(zb.x, zb.y, 2.2, 1, '#ff9a3a');
+          if (zb.hp <= 0) {
+            zb.dead = true; zb.deadT = 0; zb.burn = 0;
+            run.kills++;
+            run.scrap += (zb.boss ? (CFG.ZOMBIE.bossScrap || 250)
+              : zb.mini ? (CFG.ZOMBIE.miniScrap || 200)
+              : (zb.elite ? CFG.ZOMBIE.eliteScrap : CFG.ZOMBIE.scrap));
+            if (zb.boss) run.bossKills++;
+            if (Z.Fx) { Z.Fx.blood(zb.x, zb.y, 1.2); Z.Fx.boom(zb.x, zb.y, 1.2, 5); }
+            continue;
+          }
+        }
         zb.cd -= dt; zb.retarget -= dt;
         if (zb.retarget <= 0 || !zb.target || zb.target.car.dead) {
           zb.retarget = 0.45 + Math.random() * 0.3;
@@ -368,6 +386,31 @@ window.ZT = window.ZT || {};
           ctx.beginPath(); ctx.arc(p.x - r * 0.16, hy - r * 0.04, r * 0.34, 0, 6.2832); ctx.fill();
           ctx.beginPath(); ctx.arc(p.x + r * 0.16, hy - r * 0.04, r * 0.34, 0, 6.2832); ctx.fill();
         }
+      }
+      // 燃烧：身上跳动的火苗
+      if (zb.burn > 0) {
+        const T2 = performance.now() / 1000;
+        for (let i = 0; i < 3; i++) {
+          const ph = (T2 * 6 + i * 2.1) % 1;
+          ctx.globalAlpha = 0.55 * (1 - ph);
+          ctx.fillStyle = i === 1 ? '#ffd479' : '#ff8a3a';
+          ctx.beginPath();
+          ctx.ellipse(p.x + Math.sin(T2 * 9 + i) * r * 0.3, cy - r * (0.4 + ph * 1.1),
+            r * 0.22 * (1 - ph * 0.5), r * 0.4 * (1 - ph * 0.4), 0, 0, 6.2832);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+      // Boss 招式冷却：头顶一圈进度环，满了就是"可以出招"
+      if (zb.boss && zb.aiCd > 0) {
+        const totalCd = (CFG.BOSS && CFG.BOSS.cd && CFG.BOSS.cd.summon) || 12;
+        const kk = Math.min(1, 1 - zb.aiCd / totalCd);
+        const cyc = p.y - r * 4.25;
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+        ctx.lineWidth = Math.max(2, r * 0.22);
+        ctx.beginPath(); ctx.arc(p.x, cyc, r * 0.62, 0, 6.2832); ctx.stroke();
+        ctx.strokeStyle = kk >= 0.999 ? '#ffd479' : '#8fa0b0';
+        ctx.beginPath(); ctx.arc(p.x, cyc, r * 0.62, -1.5708, -1.5708 + 6.2832 * kk); ctx.stroke();
       }
       // Boss 蓄力预警：朝列车方向的红色指示线
       if (zb.boss && zb.mode === 'windup' && zb.target) {
