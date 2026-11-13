@@ -31,7 +31,7 @@
 
 没有构建、没有 npm install、没有服务器要求。
 
-首屏只同步加载界面脚本与样式（实测 **478,428 B / 26 个请求（467 KiB）**，4× CPU 降速下 DCL 91ms、标题可交互 191ms）；
+首屏只同步加载界面脚本与样式（实测 **478,428 B / 26 个请求（467 KiB）**，4× CPU 降速下 DCL≈0.09s（83–107ms）、标题可交互≈0.19s（161–201ms））；
 1.3MB 的 3D 模型数据（`assets/models-data.js`）**进入游戏后才异步加载**，加载期间底部有「模型资源加载中…」提示，
 3D 按钮在就绪前不会硬切（先提示、就绪后再切）。复测命令见「开发」里的 `node tools/perf.mjs`。
 
@@ -135,7 +135,9 @@ CI 需要两个仓库密钥（Settings → Secrets and variables → Actions）�
 
 本地手动发一次（需要 node；装配与 CI 共用 `tools/stage-site.mjs`）：`$env:CF_API_TOKEN=...; $env:CF_ACCOUNT_ID=...; pwsh -File tools/deploy-cloudflare.ps1`
 
-`release/last-train-prototype.zip` 是**只含游戏本体**的发布包：**323,531 B（316 KiB，27 项）**，
+`release/last-train-prototype.zip` 是**只含游戏本体**的发布包：**322,764 B（315.2 KiB，27 项）**，
+sha256 `419cfc60a754f3032cafa45d2a2eafdd749c934852809c9c6765bf19b6b42581`，用
+`node tools/package-release.mjs` 可逐字节重复重出（与 CI 上传共用 `tools/release-manifest.mjs` 白名单）。
 解压后根目录就是 `index.html`，可直接拖进 Cloudflare Pages 的 Upload assets。
 模型数据在部署产物里只有 `assets/models-data.js` 一份（40 个 `.glb` 源文件在 `models/glb/`，不进部署目录）。
 完整步骤（含绑域名、国内加速取舍）见 [docs/发布指南.md](docs/发布指南.md)。

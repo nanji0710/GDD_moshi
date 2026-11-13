@@ -29,7 +29,10 @@ import netMod from 'node:net'
 const EDGE = process.env.EDGE_PATH || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
 const CPU_RATE = Number(process.env.CPU_RATE || 4)
 const HERE = dirname(fileURLToPath(import.meta.url))
-const PAGE_URL = 'file:///' + pjoin(HERE, '..', 'index.html').replace(/\\/g, '/') + '?perf=' + Date.now().toString(36)
+// PAGE_URL 可用环境变量覆盖：除默认的仓库 prototype/index.html，也可指向
+// 解压后的发布包（file:///…/index.html）或线上地址（https://…/），走同一套 CDP 判据。
+const PAGE_BASE = process.env.PAGE_URL || 'file:///' + pjoin(HERE, '..', 'index.html').replace(/\\/g, '/')
+const PAGE_URL = PAGE_BASE + (PAGE_BASE.includes('?') ? '&' : '?') + 'perf=' + Date.now().toString(36)
 const SHOTS = !!process.env.SHOTS
 const MODE = process.env.MODE || 'full'    // full | a（只跑首屏段，用于 3 次中位对照）
 const SHOT_DIR = pjoin(HERE, 'shots-perf')
