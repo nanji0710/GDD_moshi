@@ -231,7 +231,8 @@ window.ZT = window.ZT || {};
               return b ? ('最佳 ' + b.km.toFixed(1) + ' km · 开多远算多远') : '开多远算多远 · 车厢无上限';
             })(), function () { Z.Game.startEndless(); }),
             bigBtn('科技', '里程点 ' + U.fmt(meta.points) + ' · 6 条强化线', function () { Z.UI.showTech(); }),
-            bigBtn('设置', '音效 · 镜头 · 重看教学 · 清存档', function () { Z.UI.showSettings(); })),
+            bigBtn('设置', '音效 · 镜头 · 重看教学 · 清存档', function () { Z.UI.showSettings(); }),
+            bigBtn('3D 模型', 'GLB 资产预览 · 机车 / 货车 / 武器 / 丧尸 / 建筑', function () { Z.View3D.open(); })),
           h('div', { class: 'start-foot' }, 'v' + CFG.VERSION + ' · 零依赖 · MIT'))));
     },
 
