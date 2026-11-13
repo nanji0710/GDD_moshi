@@ -773,3 +773,15 @@ button.carline.on { border-color: var(--accent); background: rgba(255,179,71,0.1
 }
 .goalchip.hidden { display: none; }
 .goalchip.danger { background: #e0564a; color: #fff; }
+
+
+/* 科技专精分支 */
+.branch {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 8px;
+  margin-top: 6px; padding: 6px 10px; border-radius: 9px;
+  background: rgba(255,179,71,0.08); border: 1px dashed rgba(255,179,71,0.45);
+}
+.branch.on { background: rgba(255,179,71,0.14); border-style: solid; }
+.branch .bq { font-size: .78em; color: var(--ink-2); }
+.branch b { font-size: .84em; color: var(--accent); }
+.branch span { font-size: .78em; color: var(--ink-3); }

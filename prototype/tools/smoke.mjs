@@ -739,6 +739,51 @@ try {
   check('速度长期低于阈值 → 任务失败', goal.sprintFail === true, goal)
   check('守站关进入倒计时状态', goal.holdState === true, goal)
   check('守站倒计时结束 → 胜利', goal.holdWin === true, goal)
+  console.log('\n[28] 科技专精分支')
+  const br = JSON.parse(await ev(`(() => {
+    const M = ZT.Meta, R = ZT.Run;
+    const keepLv = JSON.parse(JSON.stringify(M.levels));
+    const keepBr = JSON.parse(JSON.stringify(M.branch || {}));
+    M.branch = {};
+    // 未到 Lv5 不能选
+    M.levels.speed = 3;
+    const noEarly = M.canBranch('speed') === false && M.chooseBranch('speed', 'A') === false;
+    // 到 Lv5 可以选，且只能选一次
+    M.levels.speed = 5;
+    const canNow = M.canBranch('speed') === true;
+    const ok1 = M.chooseBranch('speed', 'A');
+    const ok2 = M.chooseBranch('speed', 'B') === false;
+    // 速度分支 A：+12%
+    ZT.Game.startLevel(1);
+    R.cars = [new ZT.Car('engine'), new ZT.Car('weapon')];
+    const vA = R.speedCap();
+    M.branch.speed = 'B';
+    const vB = R.speedCap();
+    // 重载分支 B：每节车厢惩罚更小 → 同样多车厢下更快
+    const heavier = (() => {
+      M.branch.speed = 'A';
+      R.cars = [new ZT.Car('engine')];
+      for (let i = 0; i < 13; i++) R.cars.push(new ZT.Car('weapon'));
+      const a = R.speedCap();
+      M.branch.speed = 'B';
+      const b = R.speedCap();
+      return { a: Math.round(a), b: Math.round(b) };
+    })();
+    M.levels = keepLv; M.branch = keepBr;
+    return JSON.stringify({ noEarly: noEarly, canNow: canNow, ok1: ok1, ok2: ok2, vA: Math.round(vA), vB: Math.round(vB), heavier: heavier });
+  })()`))
+  check('Lv5 之前不能选专精', br.noEarly === true, br)
+  check('Lv5 后可选且不可改', br.canNow === true && br.ok1 === true && br.ok2 === true, br)
+  check('速度专精 A 提高极速', br.vA > br.vB, br)
+  check('重载专精 B 在长编组（14 节）时更快', br.heavier.b > br.heavier.a, br)
+  check('科技页显示专精按钮', await ev(`(() => {
+    const M = ZT.Meta, keep = JSON.parse(JSON.stringify(M.levels)), kb = JSON.parse(JSON.stringify(M.branch || {}));
+    M.branch = {}; M.levels.speed = 5;
+    ZT.UI.showTech();
+    const has = document.querySelectorAll('.panel-tech .branch .btn').length >= 2;
+    M.levels = keep; M.branch = kb; ZT.UI.showStart();
+    return has;
+  })()`))
 } catch (e) {
   fail++
   console.error('冒烟测试中断：', e.message)

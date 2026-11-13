@@ -8,6 +8,7 @@ window.ZT = window.ZT || {};
     points: 0,
     levels: {},
     skins: { owned: ['rust'], active: 'rust' },
+    branch: {},
     selectedLevel: 1,
     load: function () {
       for (const m of CFG.META) this.levels[m.key] = this.levels[m.key] || 0;
@@ -20,6 +21,11 @@ window.ZT = window.ZT || {};
           this.points = Math.max(0, d.points | 0);
           this.selectedLevel = Math.min(12, Math.max(1, d.selectedLevel | 0 || 1));
           for (const m of CFG.META) this.levels[m.key] = Math.min(10, Math.max(0, (d.levels && d.levels[m.key]) | 0));
+          if (d.branch && typeof d.branch === 'object') {
+            for (const k in d.branch) {
+              if (CFG.BRANCH[k] && (d.branch[k] === 'A' || d.branch[k] === 'B')) this.branch[k] = d.branch[k];
+            }
+          }
           if (d.skins) {
             const owned = Array.isArray(d.skins.owned) && d.skins.owned.length ? d.skins.owned.filter(function (k) {
               return CFG.SKINS.some(function (x) { return x.key === k; });
@@ -33,7 +39,7 @@ window.ZT = window.ZT || {};
     },
     save: function () {
       try {
-        localStorage.setItem(KEY, JSON.stringify({ points: this.points, levels: this.levels, selectedLevel: this.selectedLevel, skins: this.skins }));
+        localStorage.setItem(KEY, JSON.stringify({ points: this.points, levels: this.levels, selectedLevel: this.selectedLevel, skins: this.skins, branch: this.branch }));
       } catch (e) { /* 隐私模式下静默失败 */ }
     },
     addPoints: function (n) { this.points += Math.max(0, n | 0); this.save(); return this.points; },
@@ -71,6 +77,14 @@ window.ZT = window.ZT || {};
       return s;
     },
     maxed: function (key) { return this.levels[key] >= 10; },
+    hasBranch: function (key, b) { return this.branch[key] === b; },
+    canBranch: function (key) { return this.levels[key] >= 5 && !this.branch[key]; },
+    chooseBranch: function (key, b) {
+      if (!this.canBranch(key)) return false;
+      this.branch[key] = b;
+      this.save();
+      return true;
+    },
     has5: function (key) { return (this.levels[key] || 0) >= 5; },
     skinDef: function () {
       const k = this.skins && this.skins.active;

@@ -296,6 +296,34 @@ window.ZT = window.ZT || {};
             } else Z.UI.toast('里程点不足（需要 ' + row.cost + '）', 'bad');
           }
         }, row.maxed ? '已满级' : '升级 · ' + row.cost);
+        const BR = CFG.BRANCH && CFG.BRANCH[row.key];
+        const chosen = meta.branch && meta.branch[row.key];
+        let branchRow = null;
+        if (BR) {
+          if (chosen) {
+            branchRow = h('div', { class: 'branch on' },
+              h('b', null, '专精 · ' + BR[chosen].name), h('span', null, BR[chosen].desc));
+          } else if (meta.canBranch(row.key)) {
+            branchRow = h('div', { class: 'branch' },
+              h('span', { class: 'bq' }, 'Lv5 专精（二选一，不可回退）：'),
+              h('button', {
+                class: 'btn sm primary', title: BR.A.desc,
+                onclick: function () {
+                  meta.chooseBranch(row.key, 'A');
+                  Z.UI.toast('专精：' + BR.A.name, 'good');
+                  Z.UI.showTech();
+                }
+              }, BR.A.name),
+              h('button', {
+                class: 'btn sm', title: BR.B.desc,
+                onclick: function () {
+                  meta.chooseBranch(row.key, 'B');
+                  Z.UI.toast('专精：' + BR.B.name, 'good');
+                  Z.UI.showTech();
+                }
+              }, BR.B.name));
+          }
+        }
         return h('div', { class: 'mrow' },
           h('div', { class: 'mrow-l' },
             h('b', null, m.name, m.ms ? h('em', { class: 'milestone' }, 'Lv5') : null),
@@ -305,7 +333,8 @@ window.ZT = window.ZT || {};
             h('div', { class: 'pips' }, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (i) {
               return h('i', { class: 'pip' + (i < row.lv ? ' on' : '') + (i === 4 ? ' mark' : '') });
             })),
-            h('span', { class: 'lv' }, 'Lv' + row.lv + '/10'), btn));
+            h('span', { class: 'lv' }, 'Lv' + row.lv + '/10'), btn),
+          branchRow);
       });
       R_.screen.appendChild(h('div', { class: 'panel-tech' },
         h('h1', null, '科技'),

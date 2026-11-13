@@ -65,7 +65,9 @@ window.ZT = window.ZT || {};
     const hpMul = Z.Meta ? Z.Meta.mult('hp') : 1;
     this.id = ++carSeq;
     this.type = type;
-    this.maxHp = Math.round(t.hp * hpMul);
+    let bHp = 1;
+    if (Z.Meta && Z.Meta.hasBranch && Z.Meta.hasBranch('hp', 'A')) bHp = 1.10;
+    this.maxHp = Math.round(t.hp * hpMul * bHp);
     this.hp = this.maxHp;
     this.slots = [];
     for (let i = 0; i < t.slots; i++) this.slots.push(null);
@@ -104,11 +106,13 @@ window.ZT = window.ZT || {};
       const t = CFG.TRAIN;
       const power = this.cars.filter(function (c) { return c.type === 'power' && !c.dead; }).length;
       // 不设上限、不设下限：纯由车厢数决定（越挂越慢，加速车厢往回拉）
-      let v = t.maxSpeed * (1 - t.speedPerCar * (n - 1)) * (1 + t.powerBonus * power);
+      const perCar = (Z.Meta && Z.Meta.hasBranch && Z.Meta.hasBranch('speed', 'B')) ? 0.02 : t.speedPerCar;
+      let v = t.maxSpeed * (1 - perCar * (n - 1)) * (1 + t.powerBonus * power);
       if (v < 0) v = 0;                      // 太重开不动（无尽模式里就是死局）
       if (this.buffs.tail) v *= CFG.BUFFS.tail.speed;
       if (this.straight) v *= CFG.STRAIGHT.speedMul;      // 长直道：地面好，能跑更快
       if (Z.Meta) v *= Z.Meta.mult('speed');
+      if (Z.Meta && Z.Meta.hasBranch && Z.Meta.hasBranch('speed', 'A')) v *= 1.12;
       return v;
     },
     totalHp: function () { let h = 0; for (const c of this.cars) if (!c.dead) h += c.hp; return h; },
@@ -286,6 +290,7 @@ window.ZT = window.ZT || {};
         }
       }
       let regen = Z.Meta ? Z.Meta.regen() : 0;
+      if (regen > 0 && Z.Meta.hasBranch && Z.Meta.hasBranch('regen', 'A')) regen *= 1.375;
       if (regen > 0 && this.state === 'parked' && Z.Meta && Z.Meta.has5 && Z.Meta.has5('regen')) regen *= 2.5;
       if (regen > 0) for (const c of this.cars) if (!c.dead && c.hp < c.maxHp) c.hp = Math.min(c.maxHp, c.hp + regen * dt);
 
@@ -444,6 +449,11 @@ window.ZT = window.ZT || {};
         car.hp = Math.round(car.maxHp * 0.15);
         car.revived = true;
         if (Z.UI) Z.UI.toast(CFG.CAR_TYPES[car.type].name + ' 撑住了（科技·免死）', 'good');
+      }
+      if (car.hp <= 0 && Z.Meta && Z.Meta.hasBranch && Z.Meta.hasBranch('regen', 'B') && !this.emergencyUsed) {
+        this.emergencyUsed = true;
+        for (const c of this.cars) if (!c.dead) c.hp = Math.min(c.maxHp, c.hp + c.maxHp * 0.20);
+        if (Z.UI) Z.UI.toast('应急供电：全场回复 20% 耐久', 'good');
       }
       if (car.hp <= 0) {
         car.dead = true;
@@ -623,6 +633,10 @@ window.ZT = window.ZT || {};
       if (Z.Fx) Z.Fx.shake = 1;
     },
     endPark: function () {
+      if (Z.Meta && Z.Meta.hasBranch && Z.Meta.hasBranch('repair', 'B')) {
+        for (const c of this.cars) if (!c.dead) c.hp = Math.min(c.maxHp, c.hp + c.maxHp * 0.15);
+        if (Z.UI) Z.UI.toast('备件整备：全场 +15% 耐久', 'good');
+      }
       this.state = 'run';
       this.trackDamage = 0;
       this.parkT = 0;

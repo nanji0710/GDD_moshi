@@ -195,6 +195,16 @@ window.ZT = window.ZT || {};
     // 攻击力 Lv5：对精英/Boss 额外 +20%
     if ((zb.elite || zb.boss || zb.mini) && Z.Meta && Z.Meta.has5 && Z.Meta.has5('dmg')) dmg *= 1.2;
 
+    // 科技分支：精准（暴击）
+    if (Z.Meta && Z.Meta.hasBranch && Z.Meta.hasBranch('rof', 'B') && Math.random() < 0.15) {
+      dmg *= 2;
+      Fx.text(zb.x, zb.y, 3.4, '暴击', '#ffe08a');
+    }
+    // 科技分支：燃烧弹（所有命中点燃）
+    if (Z.Meta && Z.Meta.hasBranch && Z.Meta.hasBranch('dmg', 'B') && el !== 'fire') {
+      zb.burn = Math.max(zb.burn || 0, 2.2);
+      zb.burnDps = Math.max(zb.burnDps || 0, 6);
+    }
     // ---- 元素连携 ----
     let combo = '';
     const wet = !!(run.mods && run.mods.indexOf('rain') >= 0);

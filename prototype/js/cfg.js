@@ -197,6 +197,16 @@ window.ZT = window.ZT || {};
     WEATHER: { rainBrake: 1.4, rainFlamer: 0.7 },
     BRIDGE: { spawnMul: 1.3, latMax: 7, rampM: 60 },   // 桥上只能沿轨道来
     STRAIGHT: { speedMul: 1.2, rateMul: 1.15, runnerChance: 0.32, aheadMin: 320, aheadMax: 700 },
+    // 科技分支：到 Lv5 后二选一（不可回退）
+    BRANCH: {
+      speed:  { A: { name: '超速', desc: '最高速度再 +12%' },                         B: { name: '重载', desc: '每节车厢减速 3% → 2%' } },
+      hp:     { A: { name: '厚甲', desc: '耐久再 +10%' },                              B: { name: '自愈', desc: '所有车厢 +2 HP/s' } },
+      rof:    { A: { name: '速射', desc: '每级射速 +3%（原 2%）' },                    B: { name: '精准', desc: '15% 概率暴击（伤害 ×2）' } },
+      dmg:    { A: { name: '重弹', desc: '每级伤害 +4%（原 3%）' },                    B: { name: '燃烧弹', desc: '所有命中附带点燃' } },
+      repair: { A: { name: '抢修', desc: '每级修轨 -5%（原 -4%）' },                   B: { name: '备件', desc: '每次修复完顺带全场 +15% 耐久' } },
+      regen:  { A: { name: '再生', desc: '每级回血 +0.55/s（原 0.4）' },               B: { name: '应急', desc: '首次车厢损毁时全场回满 20%' } }
+    },
+
     // 关卡目标
     GOAL: {
       sprint: { grace: 6, recover: 0.6 }   // 低于限速累计 6 秒就失败

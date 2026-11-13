@@ -89,7 +89,7 @@ try {
   await shot('01d-card')
 
   console.log('场景 1c：科技')
-  await evJs('window.ZT.UI.showTech()')
+  await evJs('ZT.Meta.levels.speed = 5; ZT.Meta.levels.dmg = 5; ZT.Meta.branch = {}; window.ZT.UI.showTech()')
   await sleep(500)
   await shot('01c-tech')
   console.log('场景 1e：设置')
