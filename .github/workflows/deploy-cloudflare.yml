@@ -20,6 +20,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Release gate (fail fast)
+        run: node tools/check-release.mjs prototype
+
       - name: Stage site (white-list + version.json)
         run: node tools/stage-site.mjs --out _site --commit "${GITHUB_SHA}" --branch "${GITHUB_REF_NAME}"
 

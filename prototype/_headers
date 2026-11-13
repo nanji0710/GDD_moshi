@@ -1,0 +1,25 @@
+# Cloudflare Pages 缓存策略（GitHub Pages 会忽略本文件，不影响备用站）
+#
+# 目的：发版即取新，杜绝「index 是新的、js 还是旧缓存」的新旧混跑。
+# version.json 用来判断线上版本是否等于本次部署提交。
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+
+/index.html
+  Cache-Control: no-cache
+
+/*.js
+  Cache-Control: no-cache
+
+/*.css
+  Cache-Control: no-cache
+
+/assets/models-data.js
+  Cache-Control: no-cache
+
+/version.json
+  Cache-Control: no-store
+  Content-Type: application/json; charset=utf-8

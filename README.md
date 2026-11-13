@@ -118,13 +118,15 @@ node tools/verify-deploy.mjs --url https://last-train-87y.pages.dev  # 线上 co
 | **Cloudflare Pages** | `.github/workflows/deploy-cloudflare.yml`（`node tools/stage-site.mjs` 装配 `_site/` 后上传） | https://last-train-87y.pages.dev |
 | **GitHub Pages** | `.github/workflows/pages.yml`（同一份 `_site/`） | https://nanji0710.github.io/GDD_moshi/ |
 
-两个入口都先跑 `node tools/stage-site.mjs`：只把 `index.html` + `css/` + `js/` + `assets/models-data.js` 复制进 `_site/`，
-`prototype/tools/`（冒烟/截图/性能脚本与 `shots-*` 测试截图）一律不进站点；同时写入 `_site/version.json`（commit / branch / builtAt / 文件数与字节数）。
-白名单只有这一处实现，本地脚本与 CI 共用，不再各写一份过滤。
+两个入口都**先过门禁、再装配**：`node tools/check-release.mjs prototype`（失败即中止发布：models-data 同步引用 0 个、classic script=22、首屏同步 ≤921,600 B、白名单/`_headers`/`404.html`/部署项数齐全）→ `node tools/stage-site.mjs`（白名单唯一实现，来自 `tools/release-manifest.mjs`；`prototype/tools/` 与 `shots-*` 一律不上线）。
+部署产物固定 **30 项**：`index.html` + `js/` 22 个 + `css/` 3 个 + `assets/models-data.js` + `_headers` + `404.html` + 由 stage-site 生成的 `version.json`（commit / branch / builtAt / 文件数与字节数）。
 
-上线自检两条（`node tools/stage-site.mjs` 的 `version.json` 就是为此；CI 部署后会用 `tools/verify-deploy.mjs` 自动跑，最多重试 3 分钟）：
-- `GET /version.json` 的 `commit` 应等于刚推的 sha；
-- `GET /tools/smoke.mjs` 不应再返回 JavaScript（Cloudflare Pages 对未知路径会回退到 `index.html`，返回 200 text/html，所以按内容/类型判，不按状态码判）。
+发版同版本与缓存（**不做 `?v=`**：同一提交内 sha 自指不可能，且会让线上 index 与仓库 index 不再逐字节相等）：
+- `_headers` 对 `/*.js`、`/*.css`、`/index.html`、`/assets/models-data.js` 设 `Cache-Control: no-cache`，发版即取新，杜绝新旧混跑；
+- `GET /version.json` 返回 `application/json`，`commit` == 本次部署 sha；
+- `GET /` 的字节数与 sha256 应等于仓库 `prototype/index.html`；
+- `/tools/smoke.mjs`、`/freeze-smoke.log` 等测试面必须不可达；`/nope` 返回 `404.html`，不再由 `index.html` 200 兜底。
+CI 部署后由 `tools/verify-deploy.mjs` 自动复验，最多重试 3 分钟。
 
 CI 需要两个仓库密钥（Settings → Secrets and variables → Actions）：
 
