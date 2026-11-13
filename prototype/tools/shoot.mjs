@@ -333,9 +333,13 @@ try {
     R.cars[2].slots[1] = new ZT.Weapon('flak', 6); R.cars[2].slots[1].form = 'B';
     document.querySelector('.drawer').classList.add('hidden');
     R.state = 'run'; R.stationIdx = 3; R.km = R.totalKm * 0.45; R.train = new ZT.Train(R); R.train.s = R.km; R.speed = 14;
-    for (let i = 0; i < 12; i++) ZT.Zombies.spawnOne(R);
-    const lay = R.train.layout(ZT.World); const c0 = lay[1];
-    ZT.R.cam.cx = c0.x; ZT.R.cam.cy = c0.y; ZT.R.cam.zoom = 7.6; ZT.R.compute();
+    ZT.Zombies.list.length = 0;
+    for (let i = 0; i < 10; i++) ZT.Zombies.spawnOne(R);
+    const lay = R.train.layout(ZT.World);
+    const z0 = ZT.Zombies.list[0];
+    if (z0) { z0.x = ZT.U.posAt(ZT.World.path, R.km, {}).x + 6; z0.y = ZT.U.posAt(ZT.World.path, R.km, {}).y + 10; z0.phase = 0.8; }
+    const c0 = (z0 && Math.random() < 2) ? z0 : lay[1];
+    ZT.R.cam.cx = c0.x; ZT.R.cam.cy = c0.y; ZT.R.cam.zoom = 9.0; ZT.R.compute();
     ZT.Game.setSpeed(1);
     return 1;
   })()`)

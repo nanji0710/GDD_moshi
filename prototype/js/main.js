@@ -422,14 +422,17 @@ window.ZT = window.ZT || {};
       }
     }
 
-    // 耐久条（受损才显示）
-    if (frac < 0.999) {
-      const p = R.P(c.x, c.y, c.h + hgt + 3.2, {});
-      const wbar = Math.max(18, z * 26), bh = Math.max(2.5, z * 2.4);
-      ctx.fillStyle = 'rgba(0,0,0,0.65)';
-      ctx.fillRect(p.x - wbar / 2, p.y, wbar, bh);
+    // 耐久条（明显受损才显示，避免满血时一排绿条糊在车顶）
+    if (frac < 0.72) {
+      const p = R.P(c.x, c.y, c.h + hgt + 7.0, {});
+      // 屏幕尺寸上限：放大到 8 倍以上时不要变成一条巨型绿条
+      const wbar = U.clamp(z * 20, 16, 62), bh = U.clamp(z * 1.8, 2.2, 3.4);
+      ctx.fillStyle = 'rgba(0,0,0,0.68)';
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(p.x - wbar / 2 - 1, p.y - 1, wbar + 2, bh + 2, 3) : ctx.rect(p.x - wbar / 2 - 1, p.y - 1, wbar + 2, bh + 2);
+      ctx.fill();
       ctx.fillStyle = car.dead ? '#5a1f1f' : (frac < 0.35 ? '#e05a4a' : (frac < 0.65 ? '#e0b04a' : '#5fc47a'));
-      ctx.fillRect(p.x - wbar / 2, p.y, wbar * Math.max(0, frac), bh);
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(p.x - wbar / 2, p.y, wbar * Math.max(0, frac), bh, 2) : ctx.rect(p.x - wbar / 2, p.y, wbar * Math.max(0, frac), bh);
+      ctx.fill();
     }
   }
 

@@ -227,28 +227,75 @@ window.ZT = window.ZT || {};
         return;
       }
       const bodyCol = zb.boss ? '#7a5c8a' : (zb.mini ? '#8a5a4a' : (zb.elite ? '#6d7d45' : (zb.kind === 'runner' ? '#6a7a58' : (zb.kind === 'spitter' ? '#5f7a4a' : (zb.kind === 'bloater' ? '#6a6a4a' : '#55684f')))));
-      const cloth = zb.flash > 0.35 ? '#ffffff' : bodyCol;
+      const flash = zb.flash > 0.35;
+      const cloth = flash ? '#ffffff' : bodyCol;
+      const headCol = flash ? '#ffffff' : (zb.boss ? '#9a7aaa' : (zb.elite ? '#7d8a4e' : '#5a6350'));
+      // 走路：上下起伏 + 冲锋者前倾
+      const bob = Math.sin(zb.phase * 2) * r * 0.10;
+      const lean = zb.kind === 'runner' ? 0.14 : (zb.kind === 'bloater' ? -0.05 : 0);
+      const cy = p.y - r * 0.95 + bob;
+      const hy = p.y - r * 1.95 + bob;
       const wob = Math.sin(zb.phase) * 0.18 * r;
-      // 描边
-      ctx.strokeStyle = 'rgba(8,10,8,0.75)';
-      ctx.lineWidth = Math.max(1, r * 0.34);
-      // 手臂
-      ctx.strokeStyle = cloth; ctx.lineWidth = Math.max(1, r * 0.42); ctx.lineCap = 'round';
+      const legSw = Math.sin(zb.phase * 2) * r * 0.34;
+
+      // 腿：左右交替，走路有节奏
+      ctx.strokeStyle = 'rgba(10,12,10,0.85)';
+      ctx.lineWidth = Math.max(1.2, r * 0.30);
+      ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(p.x - r * 0.2, p.y - r * 1.25); ctx.lineTo(p.x - r * 1.05, p.y - r * 1.05 + wob);
-      ctx.moveTo(p.x + r * 0.2, p.y - r * 1.25); ctx.lineTo(p.x + r * 1.05, p.y - r * 1.05 - wob);
+      ctx.moveTo(p.x - r * 0.18, p.y - r * 0.35);
+      ctx.lineTo(p.x - r * 0.22 + legSw, p.y + r * 0.02);
+      ctx.moveTo(p.x + r * 0.18, p.y - r * 0.35);
+      ctx.lineTo(p.x + r * 0.22 - legSw, p.y + r * 0.02);
       ctx.stroke();
-      // 身体
+
+      // 手臂（在身体后面，先画）
+      ctx.strokeStyle = flash ? '#ffffff' : U.mix(bodyCol, '#000000', 0.28);
+      ctx.lineWidth = Math.max(1, r * 0.40);
+      ctx.beginPath();
+      ctx.moveTo(p.x - r * 0.2, p.y - r * 1.25 + bob);
+      ctx.lineTo(p.x - r * 1.05, p.y - r * 1.02 + wob + bob * 0.5);
+      ctx.moveTo(p.x + r * 0.2, p.y - r * 1.25 + bob);
+      ctx.lineTo(p.x + r * 1.05, p.y - r * 1.02 - wob + bob * 0.5);
+      ctx.stroke();
+
+      // 身体：先描一圈深色轮廓，再填色，再补受光面
+      ctx.fillStyle = 'rgba(8,10,8,0.85)';
+      ctx.beginPath(); ctx.ellipse(p.x, cy, r * 0.62, r * 0.96, lean, 0, 6.2832); ctx.fill();
       ctx.fillStyle = cloth;
-      ctx.beginPath(); ctx.ellipse(p.x, p.y - r * 0.95, r * 0.52, r * 0.86, 0, 0, 6.2832); ctx.fill();
-      // 头
-      ctx.fillStyle = zb.flash > 0.35 ? '#ffffff' : (zb.boss ? '#9a7aaa' : (zb.elite ? '#7d8a4e' : '#5a6350'));
-      ctx.beginPath(); ctx.arc(p.x, p.y - r * 1.95, r * 0.42, 0, 6.2832); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(p.x, cy, r * 0.52, r * 0.86, lean, 0, 6.2832); ctx.fill();
+      if (!flash) {
+        ctx.fillStyle = U.mix(cloth, '#ffffff', 0.16);
+        ctx.beginPath(); ctx.ellipse(p.x - r * 0.12, cy - r * 0.22, r * 0.28, r * 0.48, lean, 0, 6.2832); ctx.fill();
+      }
+      // 破衣：下摆几道暗口
+      if (z > 1.1) {
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+        ctx.lineWidth = Math.max(0.8, r * 0.10);
+        ctx.beginPath();
+        ctx.moveTo(p.x - r * 0.28, cy + r * 0.55);
+        ctx.lineTo(p.x - r * 0.20, cy + r * 0.80);
+        ctx.moveTo(p.x + r * 0.10, cy + r * 0.62);
+        ctx.lineTo(p.x + r * 0.18, cy + r * 0.84);
+        ctx.stroke();
+      }
+
+      // 头：描边 + 填充
+      ctx.fillStyle = 'rgba(8,10,8,0.85)';
+      ctx.beginPath(); ctx.arc(p.x, hy, r * 0.48, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = headCol;
+      ctx.beginPath(); ctx.arc(p.x, hy, r * 0.40, 0, 6.2832); ctx.fill();
+
       // 红眼
       if (z > 0.8) {
-        ctx.fillStyle = '#d8483a';
-        ctx.beginPath(); ctx.arc(p.x - r * 0.17, p.y - r * 2.0, Math.max(0.9, r * 0.2), 0, 6.2832); ctx.fill();
-        ctx.beginPath(); ctx.arc(p.x + r * 0.17, p.y - r * 2.0, Math.max(0.9, r * 0.2), 0, 6.2832); ctx.fill();
+        ctx.fillStyle = flash ? '#ffffff' : '#e8564a';
+        ctx.beginPath(); ctx.arc(p.x - r * 0.16, hy - r * 0.04, Math.max(0.9, r * 0.19), 0, 6.2832); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x + r * 0.16, hy - r * 0.04, Math.max(0.9, r * 0.19), 0, 6.2832); ctx.fill();
+        if (z > 1.4) {
+          ctx.fillStyle = 'rgba(232,86,74,0.22)';
+          ctx.beginPath(); ctx.arc(p.x - r * 0.16, hy - r * 0.04, r * 0.34, 0, 6.2832); ctx.fill();
+          ctx.beginPath(); ctx.arc(p.x + r * 0.16, hy - r * 0.04, r * 0.34, 0, 6.2832); ctx.fill();
+        }
       }
       // 撬轨标记
       if (zb.kind === 'ripper') {
