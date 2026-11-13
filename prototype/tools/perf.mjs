@@ -27,6 +27,7 @@ import { mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import netMod from 'node:net'
 
 const EDGE = process.env.EDGE_PATH || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
+const WIN = process.env.WIN || '1500,860'   // 视口：桌面 1570,805 / 移动 390,844 可覆盖
 const CPU_RATE = Number(process.env.CPU_RATE || 4)
 const HERE = dirname(fileURLToPath(import.meta.url))
 // PAGE_URL 可用环境变量覆盖：除默认的仓库 prototype/index.html，也可指向
@@ -48,7 +49,7 @@ const PORT = Number(process.env.PORT || await freePort())
 const PROFILE = pjoin(tmpdir(), 'zt-perf-' + Date.now().toString(36))
 
 const proc = spawn(EDGE, ['--headless=new', '--enable-unsafe-swiftshader', '--use-angle=swiftshader',
-  '--mute-audio', '--no-first-run', '--hide-scrollbars', '--window-size=1500,860',
+  '--mute-audio', '--no-first-run', '--hide-scrollbars', '--window-size=' + WIN,
   '--remote-debugging-port=' + PORT, '--user-data-dir=' + PROFILE, 'about:blank'], { stdio: 'ignore' })
 
 async function killTree(pid) {
