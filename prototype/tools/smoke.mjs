@@ -9,15 +9,44 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join as pjoin } from 'node:path'
 import { join } from 'node:path'
 import { rmSync } from 'node:fs'
+import net from 'node:net'
 
 const EDGE = process.env.EDGE_PATH || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
-const PORT = Number(process.env.PORT || 9496)
-const PROFILE = join(tmpdir(), 'zt-smoke3-' + Date.now())
+// A1：不再用固定端口。随机端口 + 每次运行唯一 nonce（页面 URL 与 user-data-dir 都带），
+// 这样并发跑两份 smoke 不会串台（此前 9496 被占用时会连到上一只 Edge）。
+async function freePort() {
+  return await new Promise((res, rej) => {
+    const s = net.createServer()
+    s.once('error', rej)
+    s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => res(p)) })
+  })
+}
+const PORT = Number(process.env.PORT || await freePort())
+const NONCE = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8)
+const PROFILE = join(tmpdir(), 'zt-smoke3-' + NONCE)
 const HERE = dirname(fileURLToPath(import.meta.url))
-const PAGE_URL = 'file:///' + pjoin(HERE, '..', 'index.html').replace(/\\/g, '/')
+const PAGE_URL = 'file:///' + pjoin(HERE, '..', 'index.html').replace(/\\/g, '/') + '?zt=' + NONCE
 
 const proc = spawn(EDGE, ['--headless=new', '--disable-gpu', '--mute-audio', '--no-first-run',
   '--window-size=1500,860', '--remote-debugging-port=' + PORT, '--user-data-dir=' + PROFILE, PAGE_URL], { stdio: 'ignore' })
+
+// A1：进程树 kill —— proc.kill() 只杀启动器，Edge 的子进程会留着占端口/目录
+async function killTree(pid) {
+  if (!pid) return
+  if (process.platform === 'win32') {
+    await new Promise(res => {
+      const k = spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' })
+      k.on('exit', res); k.on('error', res)
+    })
+  } else {
+    try { process.kill(pid, 'SIGKILL') } catch (e) {}
+  }
+}
+async function cleanupProfile() {
+  for (let i = 0; i < 8; i++) {
+    try { rmSync(PROFILE, { recursive: true, force: true }); return } catch (e) { await sleep(250) }
+  }
+}
 
 let ws, seq = 0
 const pending = new Map()
@@ -36,12 +65,12 @@ async function findTarget() {
   for (let i = 0; i < 60; i++) {
     try {
       const list = await (await fetch('http://127.0.0.1:' + PORT + '/json/list')).json()
-      const p = list.find(t => t.type === 'page' && t.url.startsWith('file:'))
+      const p = list.find(t => t.type === 'page' && t.url.includes(NONCE))
       if (p) return p
     } catch (e) {}
     await sleep(200)
   }
-  throw new Error('no target')
+  throw new Error('no target on port ' + PORT + ' (nonce ' + NONCE + ')')
 }
 async function ev(expr) {
   const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true })
@@ -825,6 +854,269 @@ try {
   check('贴身先进入起手（不立刻掉血）', atk.started === true && atk.noDamageYet === true, atk)
   check('起手结束才造成伤害', atk.hurt === true, atk)
   check('攻击距离外不造成伤害', atk.farNoHit === true, atk)
+
+  console.log('\n[30] 结算：完美与报废折价同源（P0-1 / P0-2）')
+  const score = JSON.parse(await ev(`(() => {
+    const R = ZT.Run;
+    R.cars = [new ZT.Car('engine'), new ZT.Car('passenger')];
+    R.km = R.totalKm; R.scrap = 100; R.kills = 0; R.bossKills = 0;
+    R.stats = { t: 120, maxSpeed: 10, maxCars: 2, deaths: 0, repairs: 0 };
+    const clean = R.settle(true);
+    R.stats.deaths = 2;
+    const dirty = R.settle(true);
+    return JSON.stringify({ clean: clean.perfect, dirty: dirty.perfect, leftover: clean.leftover, scrap: R.scrap });
+  })()`))
+  check('完美 = 200 + 150（零损车零伤亡）', score.clean === 350, score)
+  check('有伤亡时完美只剩 200', score.dirty === 200, score)
+  check('报废折价只按废料折算（弹药/燃料不白送）', score.leftover === 50, score)
+
+  console.log('\n[31] B3 改装暂停一致性（含手动暂停保留）')
+  await ev(`(() => { ZT.Game.startLevel(1); const R = ZT.Run; R.state = 'run'; R.speed = 10; ZT.Game.setSpeed(3); ZT.UI.openRefit(0); return 1 })()`)
+  await sleep(150)
+  const b3a = JSON.parse(await ev(`JSON.stringify({
+    paused: ZT.Game.paused, flag: !!ZT.UI._pausedByRefit, km: ZT.Run.km,
+    mul: ZT.Game.speedMul, drawer: ZT.UI.drawerState,
+    fabHidden: document.querySelector('.fab').classList.contains('hidden')
+  })`))
+  await sleep(2100)
+  const b3b = JSON.parse(await ev(`JSON.stringify({ km: ZT.Run.km, paused: ZT.Game.paused })`))
+  check('改装面板开着 = 真暂停（2.1s 里程增量严格为 0）', b3a.paused === true && b3a.flag === true && b3b.km === b3a.km, { a: b3a, b: b3b })
+  check('改装态抽屉可见且 FAB 让位', b3a.drawer === 'refit' && b3a.fabHidden === true, b3a)
+  await ev('ZT.UI.closeDrawer()')
+  const b3c = JSON.parse(await ev(`JSON.stringify({ paused: ZT.Game.paused, mul: ZT.Game.speedMul, drawer: ZT.UI.drawerState })`))
+  check('关闭改装恢复原倍速且解除暂停', b3c.paused === false && b3c.mul === 3 && b3c.drawer === null, b3c)
+  await ev(`(() => { ZT.Game.paused = true; ZT.UI.openRefit(0); return 1 })()`)
+  const b3d = JSON.parse(await ev(`JSON.stringify({ paused: ZT.Game.paused, flag: !!ZT.UI._pausedByRefit })`))
+  await ev('ZT.UI.closeDrawer()')
+  const b3e = JSON.parse(await ev(`JSON.stringify({ paused: ZT.Game.paused })`))
+  check('手动暂停 → 开关改装 → 仍然暂停（不吞玩家的暂停态）', b3d.paused === true && b3d.flag === false && b3e.paused === true, { d: b3d, e: b3e })
+  await ev('ZT.Game.paused = false')
+
+  console.log('\n[32] B1/B2 抽屉命中与热区')
+  const b1 = JSON.parse(await ev(`(() => {
+    const UI = ZT.UI, R = ZT.Run;
+    R.state = 'station'; R.station = { idx: 1, isStart: false };
+    R.scrap = 5000; R.cars[1].slots = [null];
+    UI.openRefit(1);
+    const dr = document.querySelector('.drawer');
+    const els = [...dr.querySelectorAll('.witem,.btn')];
+    const bad = []; let n = 0;
+    for (const el of els) {
+      if (!el.offsetParent) continue;
+      el.scrollIntoView({ block: 'nearest' });
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+      n++;
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const hit = document.elementFromPoint(x, y);
+      if (!(hit === el || el.contains(hit))) bad.push((el.className || '') + ' | ' + (el.textContent || '').trim().slice(0, 12));
+    }
+    return JSON.stringify({ n: n, bad: bad });
+  })()`))
+  check('B1 改装抽屉内可点元素无遮挡', b1.n >= 6 && b1.bad.length === 0, b1)
+
+  const b2refit = JSON.parse(await ev(`(() => {
+    const dr = document.querySelector('.drawer');
+    const els = [...dr.querySelectorAll('button,.dcard,.carline,.witem,.shop-item')].filter(el => el.offsetParent);
+    const small = [];
+    for (const el of els) {
+      const r = el.getBoundingClientRect();
+      if (r.width < 1) continue;
+      if (r.width < 43.5 || r.height < 43.5) small.push({ c: el.className, w: Math.round(r.width), h: Math.round(r.height) });
+    }
+    return JSON.stringify({ n: els.length, small: small });
+  })()`))
+  check('B2 改装抽屉内可点目标 ≥44×44', b2refit.small.length === 0, b2refit)
+
+  const b2station = JSON.parse(await ev(`(() => {
+    const UI = ZT.UI;
+    UI.openStation(ZT.Run.station);
+    const dr = document.querySelector('.drawer');
+    const els = [...dr.querySelectorAll('button,.dcard,.carline,.witem,.shop-item')].filter(el => el.offsetParent);
+    const small = [];
+    for (const el of els) {
+      const r = el.getBoundingClientRect();
+      if (r.width < 1) continue;
+      if (r.width < 43.5 || r.height < 43.5) small.push({ c: el.className, w: Math.round(r.width), h: Math.round(r.height), t: (el.textContent || '').trim().slice(0, 10) });
+    }
+    return JSON.stringify({ n: els.length, small: small });
+  })()`))
+  check('B2 站台抽屉内可点目标 ≥44×44', b2station.small.length === 0, b2station)
+  check('站台抽屉只剩一个主 CTA（出发）', await ev(`document.querySelectorAll('.drawer .btn.primary.big').length === 1`))
+  const repairTxt = await ev(`(() => { const b = [...document.querySelectorAll('.shop-item')].find(x => /整车维修/.test(x.textContent)); return b ? b.textContent.replace(/\\s+/g, ' ').trim() : '' })()`)
+  check('整车维修显示实际废料价', /整车维修.*(废料|车体完好)/.test(repairTxt), repairTxt)
+
+  console.log('\n[32b] 模态栈与焦点回落')
+  const modal = JSON.parse(await ev(`(() => {
+    const UI = ZT.UI, R = ZT.Run;
+    R.state = 'station';
+    UI.openStation(R.station);
+    const trigger = document.querySelector('.drawer .dw-close');
+    trigger.focus();
+    UI.confirm('测试确认', '仅测试', '确认', function () {});
+    const confirmOpen = !!document.querySelector('.confirm-layer');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    const confirmClosed = !document.querySelector('.confirm-layer');
+    const drawerStill = UI.drawerState === 'station';
+    const focusBack = document.activeElement === trigger;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    const drawerClosed = !UI.drawerState;
+    UI.tick(0);   // FAB 的显隐在 tick 里统一算，等一帧
+    const fabVisible = !document.querySelector('.fab').classList.contains('hidden');
+    return JSON.stringify({ confirmOpen: confirmOpen, confirmClosed: confirmClosed, drawerStill: drawerStill,
+      focusBack: focusBack, drawerClosed: drawerClosed, fabVisible: fabVisible });
+  })()`))
+  check('Esc 先关确认框、不连带关抽屉', modal.confirmOpen === true && modal.confirmClosed === true && modal.drawerStill === true, modal)
+  check('关闭确认框后焦点回到触发按钮', modal.focusBack === true, modal)
+  check('再按 Esc 才关抽屉，且 FAB 常驻可回站台', modal.drawerClosed === true && modal.fabVisible === true, modal)
+
+  console.log('\n[33] U1/U2/U3 文案、对比度、三选一键盘')
+  const u1 = JSON.parse(await ev(`(() => {
+    const C = ZT.CFG;
+    function read(km) {
+      const R = ZT.Run; R.state = 'run'; R.km = km; ZT.UI.tick(0);
+      const t = document.querySelector('.route-now').textContent;
+      const m = t.match(/距下一站 (\\d+(?:\\.\\d+)?) km/);
+      let nx = null;
+      for (const f of C.STATION_AT) { const abs = f * R.totalKm; if (abs > R.km + 1) { nx = abs; break; } }
+      return { km: km, txt: t, got: m ? +m[1] : null, exp: nx ? +((nx - R.km) / 1000).toFixed(1) : null };
+    }
+    ZT.Game.startLevel(3);
+    const a = read(5000);
+    ZT.Game.startLevel(9);
+    const b = read(19000);
+    return JSON.stringify({ a: a, b: b });
+  })()`))
+  check('U1 下一站显示剩余距离（第 3 关 5 km）', u1.a.got !== null && u1.a.exp !== null && Math.abs(u1.a.got - u1.a.exp) < 0.1, u1.a)
+  check('U1 下一站显示剩余距离（第 9 关 19 km）', u1.b.got !== null && u1.b.exp !== null && Math.abs(u1.b.got - u1.b.exp) < 0.1, u1.b)
+
+  const u2 = JSON.parse(await ev(`(() => {
+    ZT.Meta.selectedLevel = 1;
+    ZT.UI.showLevels(1);
+    function rgb(s) {
+      const m = s.match(/rgba?\\(([^)]+)\\)/); if (!m) return null;
+      const p = m[1].split(',').map(Number);
+      return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+    }
+    function lum(c) {
+      const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+    }
+    function ratio(a, b) { const L1 = lum(a), L2 = lum(b); const hi = Math.max(L1, L2), lo = Math.min(L1, L2); return (hi + .05) / (lo + .05); }
+    function blend(fg, bg, al) { return { r: fg.r * al + bg.r * (1 - al), g: fg.g * al + bg.g * (1 - al), b: fg.b * al + bg.b * (1 - al) }; }
+    const land = { r: 27, g: 35, b: 32 }, panel = { r: 30, g: 34, b: 40 };
+    const locked = document.querySelector('.map-city.locked .mc-name');
+    const sub = document.querySelector('.panel-map .sub');
+    if (!locked || !sub) return JSON.stringify({ locked: 0, sub: 0, missing: true });
+    const lf = rgb(getComputedStyle(locked).fill);
+    const op = parseFloat(getComputedStyle(locked.closest('.map-city')).opacity);
+    const sc = rgb(getComputedStyle(sub).color);
+    return JSON.stringify({ locked: ratio(blend(lf, land, op), land), sub: ratio(sc, panel), op: op, fill: lf, subColor: sc });
+  })()`))
+  check('U2 未解锁城市名对比度 ≥4.5', u2.locked >= 4.5, u2)
+  check('U2 正文（--ink-3）对比度 ≥4.5', u2.sub >= 4.5, u2)
+
+  const u3 = JSON.parse(await ev(`(() => {
+    ZT.Game.startLevel(1);
+    const R = ZT.Run;
+    R.state = 'run';
+    R.offer = R.rollCars();
+    ZT.UI.openCarOffer(R.offer);
+    const before = R.cars.length;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2', bubbles: true }));
+    return JSON.stringify({ before: before, after: R.cars.length, offer: R.offer });
+  })()`))
+  check('U3 三选一可按数字键 2 选择', u3.offer === null && u3.after === u3.before + 1, u3)
+
+  console.log('\n[34] 布局：无溢出、竖屏提示、44 热区')
+  async function layoutAt(w, h) {
+    await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 700 })
+    await sleep(450)
+    return JSON.parse(await ev(`(() => {
+      function vis(el) { const s = getComputedStyle(el); const r = el.getBoundingClientRect(); return s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0; }
+      const sels = ['.hud.top', '.drawer', '.dw-body', '.panel-tech', '.panel-map', '.panel-title', '.panel-offer', '.confirm-box', '.rotate-card', '.carbar'];
+      const out = [];
+      for (const sel of sels) for (const el of document.querySelectorAll(sel)) {
+        if (!vis(el)) continue;
+        const r = el.getBoundingClientRect();
+        if (r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1)
+          out.push(sel + ' rect ' + [r.left, r.top, r.right, r.bottom].map(v => Math.round(v)).join(','));
+        if (el.scrollWidth > el.clientWidth + 2 && !el.classList.contains('drawer') && !el.classList.contains('panel-tech'))
+          out.push(sel + ' scrollX ' + el.scrollWidth + '/' + el.clientWidth);
+      }
+      const dr = document.querySelector('.drawer');
+      let drawerX = 0;
+      if (dr && vis(dr)) drawerX = dr.scrollWidth - dr.clientWidth;
+      const top = document.querySelector('.hud.top');
+      return JSON.stringify({ w: innerWidth, h: innerHeight, out: out, drawerX: drawerX,
+        topOverflow: top ? top.scrollWidth - top.clientWidth : 0 });
+    })()`))
+  }
+  const FAKE_RES = `{ timeSec: 483, km: 26.7, maxSpeed: 21.4, maxCars: 8, kills: 412, bossKills: 2,
+    refugees: 14, capacity: 24, deadRefugees: 0, deadCars: 0, repairs: 3, miles: 2670, esc: 560,
+    combat: 806, perfect: 350, leftover: 120, penalty: 0, points: 4506, grade: '稳',
+    line: '一节车厢都没丢，14 个人全须全尾进了墙。', endless: false, level: 9,
+    prevBest: 0, isBest: true, bestPoints: 0 }`
+
+  await ev(`(() => { ZT.Game.startLevel(1); ZT.UI.openStation(ZT.Run.station); return 1 })()`)
+  const L15 = await layoutAt(1500, 860)
+  check('1500×860：站台面板与 HUD 无溢出', L15.out.length === 0 && L15.topOverflow <= 1 && L15.drawerX <= 1, L15)
+  await ev('ZT.UI.openRefit(0)')
+  const L15r = await layoutAt(1500, 860)
+  check('1500×860：改装抽屉无溢出', L15r.out.length === 0 && L15r.drawerX <= 1, L15r)
+  await ev(`(() => { const R = ZT.Run; ZT.UI.closeDrawer(); R.state = 'run'; R.offer = R.rollCars(); ZT.UI.openCarOffer(R.offer); return 1 })()`)
+  const L15o = await layoutAt(1500, 860)
+  check('1500×860：三选一无溢出', L15o.out.length === 0, L15o)
+  await ev('ZT.UI.takeCar(ZT.Run.offer[0])')
+  await ev('ZT.UI.showSettings()')
+  const L15s = await layoutAt(1500, 860)
+  check('1500×860：设置页无溢出', L15s.out.length === 0, L15s)
+  await ev('ZT.UI.showLevels(1)')
+  const L15m = await layoutAt(1500, 860)
+  check('1500×860：关卡地图无溢出', L15m.out.length === 0, L15m)
+  await ev(`ZT.UI.showResult(${FAKE_RES}, true)`)
+  const L15x = await layoutAt(1500, 860)
+  check('1500×860：结算页无溢出', L15x.out.length === 0, L15x)
+
+  await ev(`(() => { ZT.Game.startLevel(1); ZT.UI.openStation(ZT.Run.station); return 1 })()`)
+  const L10 = await layoutAt(1024, 768)
+  check('1024×768：站台面板与 HUD 无溢出', L10.out.length === 0 && L10.topOverflow <= 1, L10)
+
+  await ev(`(() => { ZT.Game.startLevel(1); ZT.UI.openStation(ZT.Run.station); return 1 })()`)
+  const Lm = await layoutAt(390, 844)
+  const portraitShown = await ev(`!document.querySelector('.rotate-layer').classList.contains('hidden')`)
+  check('390×844：竖屏进局出现「横屏更好开」提示', portraitShown === true)
+  check('390×844：竖屏 HUD 与站台抽屉无溢出', Lm.out.length === 0 && Lm.topOverflow <= 1 && Lm.drawerX <= 1, Lm)
+  await ev(`(() => { const b = [...document.querySelectorAll('.rotate-card .btn')].find(x => /继续竖屏/.test(x.textContent)); if (b) b.click(); return 1 })()`)
+  await sleep(120)
+  check('390×844：一键继续竖屏后提示关闭', await ev(`document.querySelector('.rotate-layer').classList.contains('hidden')`) === true)
+  await ev('ZT.UI.openRefit(0)')
+  const Lmr = await layoutAt(390, 844)
+  check('390×844：改装抽屉无溢出', Lmr.out.length === 0 && Lmr.drawerX <= 1, Lmr)
+  await ev(`(() => { const R = ZT.Run; ZT.UI.closeDrawer(); R.state = 'run'; R.offer = R.rollCars(); ZT.UI.openCarOffer(R.offer); return 1 })()`)
+  const Lmo = await layoutAt(390, 844)
+  check('390×844：三选一纵向卡片无溢出', Lmo.out.length === 0, Lmo)
+  await ev('ZT.UI.takeCar(ZT.Run.offer[0])')
+  await ev('ZT.UI.showSettings()')
+  const Lms = await layoutAt(390, 844)
+  check('390×844：设置页无溢出', Lms.out.length === 0, Lms)
+  await ev(`ZT.UI.showResult(${FAKE_RES}, true)`)
+  const Lmx = await layoutAt(390, 844)
+  check('390×844：结算页无溢出', Lmx.out.length === 0, Lmx)
+
+  await ev(`(() => { ZT.Game.startLevel(1); ZT.UI.openStation(ZT.Run.station); return 1 })()`)
+  const mTouch = JSON.parse(await ev(`(() => {
+    const dr = document.querySelector('.drawer');
+    const els = [...dr.querySelectorAll('button,.dcard,.carline,.witem,.shop-item')].filter(el => el.offsetParent);
+    const small = [];
+    for (const el of els) { const r = el.getBoundingClientRect(); if (r.width < 1) continue; if (r.width < 43.5 || r.height < 43.5) small.push({ c: el.className, w: Math.round(r.width), h: Math.round(r.height) }); }
+    return JSON.stringify({ n: els.length, small: small });
+  })()`))
+  check('390×844：站台抽屉热区仍 ≥44×44', mTouch.small.length === 0, mTouch)
+  await send('Emulation.clearDeviceMetricsOverride')
+  await sleep(300)
+
+  check('运行期 console 无报错', errors.length === 0, errors.slice(0, 3))
 } catch (e) {
   fail++
   console.error('冒烟测试中断：', e.message)
@@ -834,7 +1126,7 @@ try {
   console.log('  console 报错 ' + errors.length)
   errors.slice(0, 3).forEach(e => console.log('   ---\n' + String(e).slice(0, 700)))
   try { ws.close() } catch (e) {}
-  proc.kill(); await sleep(400)
-  try { rmSync(PROFILE, { recursive: true, force: true }) } catch (e) {}
+  await killTree(proc.pid); await sleep(400)
+  await cleanupProfile()
   if (fail) process.exitCode = 1
 }

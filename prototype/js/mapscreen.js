@@ -68,6 +68,26 @@ window.ZT = window.ZT || {};
         const p = proj(L.lon, L.lat);
         return { i: i, L: L, x: p.x + pad, y: p.y + pad };
       });
+      // 近邻避让：合肥/芜湖这类相邻城市投影后圆心只差 12px，编号会叠在一起。
+      // 只挪显示坐标（几像素），不改经纬度、不改路线连接与解锁逻辑。
+      const MIN_NODE_D = 19;
+      for (let iter = 0; iter < 60; iter++) {
+        let moved = false;
+        for (let i = 0; i < nodes.length; i++) {
+          for (let j = i + 1; j < nodes.length; j++) {
+            const a = nodes[i], b = nodes[j];
+            let dx = b.x - a.x, dy = b.y - a.y;
+            let d = Math.hypot(dx, dy);
+            if (d >= MIN_NODE_D) continue;
+            if (d < 0.01) { dx = 1; dy = 0; d = 1; }
+            const push = (MIN_NODE_D - d) / 2;
+            a.x -= dx / d * push; a.y -= dy / d * push;
+            b.x += dx / d * push; b.y += dy / d * push;
+            moved = true;
+          }
+        }
+        if (!moved) break;
+      }
       for (let k = 0; k < nodes.length - 1; k++) {
         const a = nodes[k], b = nodes[k + 1];
         const dist = Math.hypot(b.L.lon - a.L.lon, b.L.lat - a.L.lat);

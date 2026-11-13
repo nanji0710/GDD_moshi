@@ -9,20 +9,58 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dirname } from 'node:path'
+import { createHash } from 'node:crypto'
+import net from 'node:net'
 
 const EDGE = process.env.EDGE_PATH || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
-const PORT = Number(process.env.PORT || 9477)
+// A1：随机端口 + 每次运行唯一 nonce，截图工具也能并发/被占用端口时安全重跑
+async function freePort() {
+  return await new Promise((res, rej) => {
+    const s = net.createServer()
+    s.once('error', rej)
+    s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => res(p)) })
+  })
+}
+const PORT = Number(process.env.PORT || await freePort())
+const NONCE = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8)
 const OUT = process.argv[2] || 'tools/shots'
-const PROFILE = join(tmpdir(), 'zt-shoot3-' + Date.now())
+const PROFILE = join(tmpdir(), 'zt-shoot3-' + NONCE)
+const PAGE_URL = 'file:///' + join(dirname(fileURLToPath(import.meta.url)), '..', 'index.html').replace(/\\/g, '/') + '?zt=' + NONCE
 mkdirSync(OUT, { recursive: true })
 
 const proc = spawn(EDGE, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--mute-audio',
   '--no-first-run', '--window-size=1600,900', '--remote-debugging-port=' + PORT,
-  '--user-data-dir=' + PROFILE, 'file:///' + join(dirname(fileURLToPath(import.meta.url)), '..', 'index.html').replace(/\\/g, '/')], { stdio: 'ignore' })
+  '--user-data-dir=' + PROFILE, PAGE_URL], { stdio: 'ignore' })
+
+async function killTree(pid) {
+  if (!pid) return
+  if (process.platform === 'win32') {
+    await new Promise(res => {
+      const k = spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' })
+      k.on('exit', res); k.on('error', res)
+    })
+  } else {
+    try { process.kill(pid, 'SIGKILL') } catch (e) {}
+  }
+}
+async function cleanupProfile() {
+  for (let i = 0; i < 8; i++) {
+    try { rmSync(PROFILE, { recursive: true, force: true }); return } catch (e) { await sleep(250) }
+  }
+}
 
 let ws = null, seq = 0
 const pending = new Map()
 const logs = []
+const manifest = []
+function flushManifest() {
+  try {
+    writeFileSync(join(OUT, 'manifest.json'), JSON.stringify({
+      tool: 'shoot.mjs', generatedAt: new Date().toISOString(), nonce: NONCE,
+      page: PAGE_URL, window: '1600x900', shots: manifest
+    }, null, 2))
+  } catch (e) {}
+}
 
 function send(method, params) {
   const id = ++seq
@@ -36,17 +74,24 @@ async function findTarget() {
   for (let i = 0; i < 60; i++) {
     try {
       const list = await (await fetch('http://127.0.0.1:' + PORT + '/json/list')).json()
-      const p = list.find(t => t.type === 'page' && t.url.startsWith('file:'))
+      const p = list.find(t => t.type === 'page' && t.url.includes(NONCE))
       if (p) return p
     } catch (e) {}
     await sleep(250)
   }
-  throw new Error('no target')
+  throw new Error('no target on port ' + PORT + ' (nonce ' + NONCE + ')')
 }
 async function shot(name) {
   const r = await send('Page.captureScreenshot', { format: 'png' })
-  writeFileSync(join(OUT, name + '.png'), Buffer.from(r.data, 'base64'))
-  console.log('  shot ->', join(OUT, name + '.png'))
+  const buf = Buffer.from(r.data, 'base64')
+  const file = name + '.png'
+  writeFileSync(join(OUT, file), buf)
+  let vp = {}
+  try { vp = JSON.parse(await evJs(`JSON.stringify({w:innerWidth,h:innerHeight,dpr:devicePixelRatio})`)) } catch (e) {}
+  manifest.push({ id: name, file: file, width: vp.w, height: vp.h, dpr: vp.dpr, bytes: buf.length,
+    sha256: createHash('sha256').update(buf).digest('hex'), at: new Date().toISOString() })
+  flushManifest()
+  console.log('  shot ->', join(OUT, file))
 }
 async function evJs(expr) {
   const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true })
@@ -97,6 +142,13 @@ try {
   await sleep(400)
   await shot('01e-settings')
 
+  console.log('场景 1f：危险操作确认框')
+  await evJs(`ZT.UI.confirm('清除全部进度？', '关卡解锁、里程点、涂装与最佳记录都会清空，且不可恢复。', '确认清除', function () {})`)
+  await sleep(350)
+  await shot('01f-confirm')
+  await evJs(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
+  await sleep(250)
+
   await evJs('window.ZT.UI.showStart()')
   await sleep(300)
 
@@ -104,6 +156,11 @@ try {
   await evJs('window.ZT.Game.startLevel(1)')
   await sleep(700)
   await shot('02-station')
+
+  console.log('场景 2b：收起站台，FAB 常驻')
+  await evJs(`(() => { const b = document.querySelector('.drawer .dw-close'); if (b) b.click(); return 1 })()`)
+  await sleep(600)
+  await shot('02b-station-closed')
 
   console.log('场景 3：出发后装弹开打')
   await evJs(`(() => {
@@ -119,7 +176,7 @@ try {
       c.slots[j] = new ZT.Weapon(k, 1 + (n % 6));
       if (c.slots[j].level >= 3) c.slots[j].form = (n % 2) ? 'A' : 'B';
     }
-    document.querySelector('.drawer').classList.add('hidden');
+    ZT.UI.closeStation();
     R.state = 'run'; R.speed = 20; R.km = 260; R.stationIdx = 0;
     ZT.Game.setSpeed(3);
     return 1;
@@ -138,15 +195,15 @@ try {
   await evJs(`(() => { ZT.Game.setSpeed(0); ZT.UI.openRefit(3); return 1 })()`)
   await sleep(700)
   await shot('05-refit')
-  await evJs('window.ZT.Game.setSpeed(3)')
+  await evJs('ZT.UI.closeDrawer(); ZT.Game.setSpeed(2)')   // 改装面板自己会恢复暂停，不能只 setSpeed
 
   console.log('场景 6：停车防守')
-  await evJs(`(() => { const R = ZT.Run; R.closeStation && R.closeStation(); R.ripTrack(120); return 1 })()`)
+  await evJs(`(() => { const R = ZT.Run; R.ripTrack(120); return 1 })()`)
   await sleep(900)
   await shot('06-parked')
 
   console.log('场景 7：结算')
-  await evJs(`(() => { const R = ZT.Run; R.endPark(); R.km = R.totalKm; return 1 })()`)
+  await evJs(`(() => { const R = ZT.Run; if (ZT.UI.drawerState) ZT.UI.closeStation(); R.endPark(); ZT.Game.paused = false; R.km = R.totalKm; return 1 })()`)
   await sleep(900)
   await shot('07-result')
 
@@ -162,7 +219,7 @@ try {
       if (i === 3) c.hp = c.maxHp * 0.18;
       if (i >= 4 && c.type === 'weapon') { c.slots[0] = new ZT.Weapon('flak', 4); c.slots[0].form = 'B'; }
     });
-    document.querySelector('.drawer').classList.add('hidden');
+    ZT.UI.closeStation();
     R.state = 'run'; R.speed = 12; R.km = 400;
     ZT.R.cam.zoom = 4.2;
     return 1;
@@ -175,6 +232,7 @@ try {
     ZT.Game.startLevel(3);
     const R = ZT.Run;
     R.scrap = 2400; R.ammo = 5200; R.km = 4200; R.state = 'run'; R.stationIdx = 1; R.speed = 25;
+    R.nextCarKm = 1e9; R.offer = null; ZT.UI.closeCarOffer();
     R.cars[0].slots[0] = new ZT.Weapon('tesla', 5); R.cars[0].slots[0].form = 'A';
     if (R.cars[1]) R.cars[1].refugees = 9;
     ZT.Save.save(R);
@@ -203,7 +261,7 @@ try {
         c.slots[j] = new ZT.Weapon(keys[n++ % keys.length], 4);
         if (c.slots[j].level >= 3) c.slots[j].form = (n % 2) ? 'A' : 'B';
       }
-      document.querySelector('.drawer').classList.add('hidden');
+      ZT.UI.closeStation();
       R.state = 'run'; R.stationIdx = 1; R.km = R.totalKm * 0.34; R.train.s = R.km; R.speed = 22; R.nextCarKm = 1e9; R.offer = null; ZT.UI.closeCarOffer(); const lay = R.train.layout(ZT.World); const mid = lay[(lay.length/2)|0]; if (mid) { ZT.R.cam.cx = mid.x; ZT.R.cam.cy = mid.y; } ZT.R.compute();
       ZT.Game.setSpeed(2);
       return 1;
@@ -223,7 +281,7 @@ try {
     for (const c of R.cars) for (let j = 0; j < c.slots.length; j++) {
       c.slots[j] = new ZT.Weapon(keys[n++ % keys.length], 4);
     }
-    document.querySelector('.drawer').classList.add('hidden');
+    ZT.UI.closeStation();
     const mid = (ZT.World.bridge.s0 + ZT.World.bridge.s1) / 2;
     R.state = 'run'; R.km = mid; R.train.s = mid; R.speed = 18; R.stationIdx = 1;
     const lay = R.train.layout(ZT.World);
@@ -245,7 +303,7 @@ try {
       const keys = ['mg','flak','flamer','tesla','mortar'];
       let n = 0;
       for (const c of R.cars) for (let j = 0; j < c.slots.length; j++) c.slots[j] = new ZT.Weapon(keys[n++ % keys.length], 4);
-      document.querySelector('.drawer').classList.add('hidden');
+      ZT.UI.closeStation();
       R.state = 'run'; R.stationIdx = 3; const L = ZT.CFG.LEVELS[${lv} - 1]; R.km = (L.lm ? L.lm.s : 0.42) * R.totalKm; R.train.s = R.km; R.speed = 20;
       const lay = R.train.layout(ZT.World); const c0 = lay[(lay.length / 2) | 0];
       ZT.R.cam.cx = c0.x; ZT.R.cam.cy = c0.y; ZT.R.compute();
@@ -265,7 +323,7 @@ try {
     const keys = ['mg','flak','flamer','tesla','mortar'];
     let n = 0;
     for (const c of R.cars) for (let j = 0; j < c.slots.length; j++) c.slots[j] = new ZT.Weapon(keys[n++ % keys.length], 5);
-    document.querySelector('.drawer').classList.add('hidden');
+    ZT.UI.closeStation();
     R.state = 'run'; R.stationIdx = 3; R.km = R.totalKm * 0.45; R.train.s = R.km; R.speed = 30;
     for (let i = 0; i < 26; i++) ZT.Zombies.spawnOne(R);
     const lay = R.train.layout(ZT.World); const c0 = lay[(lay.length / 2) | 0];
@@ -285,7 +343,7 @@ try {
     const keys = ['mg','flak','flamer','tesla','mortar'];
     let n = 0;
     for (const c of R.cars) for (let j = 0; j < c.slots.length; j++) c.slots[j] = new ZT.Weapon(keys[n++ % keys.length], 5);
-    document.querySelector('.drawer').classList.add('hidden');
+    ZT.UI.closeStation();
     R.state = 'run'; R.stationIdx = 3; R.km = R.totalKm * 0.5; R.train.s = R.km; R.speed = 26;
     for (let i = 0; i < 30; i++) ZT.Zombies.spawnOne(R);
     const lay = R.train.layout(ZT.World); const c0 = lay[(lay.length / 2) | 0];
@@ -305,7 +363,7 @@ try {
     for (const t of ['weapon','power','passenger']) R.cars.push(new ZT.Car(t));
     let n = 0;
     for (const c of R.cars) for (let j = 0; j < c.slots.length; j++) { c.slots[j] = new ZT.Weapon(['mg','flak','flamer'][n++ % 3], 3); }
-    document.querySelector('.drawer').classList.add('hidden');
+    ZT.UI.closeStation();
     R.state = 'run'; R.stationIdx = 1; R.km = R.totalKm * 0.3; R.train.s = R.km; R.speed = 22;
     const lay = R.train.layout(ZT.World); const c0 = lay[(lay.length / 2) | 0];
     ZT.R.cam.cx = c0.x; ZT.R.cam.cy = c0.y; ZT.R.compute();
@@ -318,9 +376,12 @@ try {
   console.log('场景：手机竖屏 390x844')
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true })
   await sleep(1200)
+  await shot('19a-portrait-prompt')
+  await evJs(`(() => { const b = [...document.querySelectorAll('.rotate-card .btn')].find(x => /继续竖屏/.test(x.textContent)); if (b) b.click(); return 1 })()`)
+  await sleep(500)
   await shot('19-mobile-portrait')
   await send('Emulation.clearDeviceMetricsOverride')
-  await sleep(300)
+  await sleep(500)
 
   console.log('场景：武器形态特写（左 A 双联 / 右 B 重管）')
   await evJs(`(() => {
@@ -331,7 +392,7 @@ try {
     R.cars[1].slots[0] = new ZT.Weapon('mg', 6); R.cars[1].slots[0].form = 'A';
     R.cars[2].slots[0] = new ZT.Weapon('mg', 6); R.cars[2].slots[0].form = 'B';
     R.cars[2].slots[1] = new ZT.Weapon('flak', 6); R.cars[2].slots[1].form = 'B';
-    document.querySelector('.drawer').classList.add('hidden');
+    ZT.UI.closeStation();
     R.state = 'run'; R.stationIdx = 3; R.km = R.totalKm * 0.45; R.train = new ZT.Train(R); R.train.s = R.km; R.speed = 14;
     ZT.Zombies.list.length = 0;
     for (let i = 0; i < 10; i++) ZT.Zombies.spawnOne(R);
@@ -354,7 +415,7 @@ try {
     R.nextCarKm = 1e9;
     R.cars = [new ZT.Car('engine'), new ZT.Car('weapon'), new ZT.Car('power'), new ZT.Car('armor')];
     R.cars[1].slots[0] = new ZT.Weapon('mortar', 6);
-    document.querySelector('.drawer').classList.add('hidden');
+    ZT.UI.closeStation();
     R.state = 'run'; R.stationIdx = 3; R.km = R.totalKm * 0.4;
     R.train = new ZT.Train(R); R.train.s = R.km; R.speed = 18;
     const lay = R.train.layout(ZT.World); const c0 = lay[1];
@@ -374,7 +435,7 @@ try {
     ZT.Game.startLevel(6);
     const R = ZT.Run;
     R.nextCarKm = 1e9;
-    document.querySelector('.drawer').classList.add('hidden');
+    ZT.UI.closeStation();
     R.state = 'run'; R.stationIdx = 3; R.km = R.totalKm * 0.34;
     R.train = new ZT.Train(R); R.train.s = R.km; R.speed = 22;
     const me = ZT.U.posAt(ZT.World.path, R.km, {});
@@ -401,7 +462,7 @@ try {
     ZT.Game.startLevel(10);
     const R = ZT.Run;
     R.nextCarKm = 1e9;
-    document.querySelector('.drawer').classList.add('hidden');
+    ZT.UI.closeStation();
     R.state = 'run'; R.speed = 18; R.km = R.totalKm * 0.55;
     R.train = new ZT.Train(R); R.train.s = R.km;
     const me = ZT.U.posAt(ZT.World.path, R.km, {});
@@ -430,10 +491,12 @@ try {
   process.exitCode = 1
 } finally {
   try { ws && ws.close() } catch (e) {}
-  proc.kill()
-  await sleep(600)
-  try { rmSync(PROFILE, { recursive: true, force: true }) } catch (e) {}
+  await killTree(proc.pid)
+  await sleep(400)
+  await cleanupProfile()
+  flushManifest()
   console.log('--- 运行期 console 报错（' + logs.length + '）---')
   for (const l of logs.slice(0, 20)) console.log(String(l).split('\n')[0])
   if (!logs.length) console.log('无')
+  console.log('  manifest ->', join(OUT, 'manifest.json'), '(' + manifest.length + ' 张)')
 }

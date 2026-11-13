@@ -786,12 +786,16 @@ window.ZT = window.ZT || {};
       const esc = ref * 40;
       const combat = Math.round(this.kills * 0.5 + this.bossKills * 300);
       const deadCars = this.cars.filter(function (c) { return c.dead; }).length;
-      const perfect = (deadCars === 0 ? 200 : 0) + (this.deadRefugees === 0 ? 150 : 0);
-      const leftover = Math.round(this.scrap * 0.5 + this.ammo * 0.1 + this.fuel * 2);
+      const st = this.stats || { t: 0, maxSpeed: 0, maxCars: this.cars.length, deaths: 0, repairs: 0 };
+      // 完美奖励与结算面板的「伤亡」同源：都用 st.deaths（此前误用从未赋值的 this.deadRefugees，
+      // 导致 +150 永远发不出来）。见 docs/评审-代码与交互-v1.md P0-1。
+      const perfect = (deadCars === 0 ? 200 : 0) + ((st.deaths || 0) === 0 ? 150 : 0);
+      // 弹药/燃料已无限（ECON.infinite*），折算只算真正花得掉的资源；
+      // 否则「剩余折算」会变成每局固定 +320 的常数，和打法无关。见 docs/评审-代码与交互-v1.md P0-2。
+      const leftover = Math.round(this.scrap * 0.5);
       const penalty = deadCars * 120;
       const base = miles + esc + combat + perfect + leftover - penalty;
       const points = Math.max(0, Math.round(base * (win ? 1 : 0.35)));
-      const st = this.stats || { t: 0, maxSpeed: 0, maxCars: this.cars.length, deaths: 0, repairs: 0 };
       const carLoss = this.cars.length ? deadCars / this.cars.length : 0;
       const refRate = ref / Math.max(1, this.capacity());
       if (this.endless) {

@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 // 渲染器 + 相机 + 输入 + 主循环。游戏逻辑在 state.js / train.js / zombies.js，界面在 ui.js。
 window.ZT = window.ZT || {};
 (function (Z) {
@@ -677,24 +677,33 @@ window.ZT = window.ZT || {};
         const t = e.target && e.target.tagName;
         if (t === 'INPUT' || t === 'TEXTAREA') return;
         if (e.key === ' ') { e.preventDefault(); Game.togglePause(); }
+        // 三选一是强制模态：数字键必须能选（此前只能鼠标，键盘玩家被卡住）
+        else if ((e.key === '1' || e.key === '2' || e.key === '3') && run && run.offer) {
+          const pick = run.offer[+e.key - 1];
+          if (pick) Z.UI.takeCar(pick);
+        }
         else if (e.key >= '1' && e.key <= '3') Game.setSpeed(+e.key);
         else if (e.key === 'Escape') Z.UI.closeTop();
         else if (e.key === 't' || e.key === 'T') { R.cam.tiltT = R.cam.tiltT > 0.1 ? 0 : CFG.CAM.tilt; }
         else if (e.key === 'g' || e.key === 'G') { R.showRanges = !R.showRanges; }
         else if (e.key === 'f' || e.key === 'F') { R.follow = true; }
-        else if (e.key === 'm' || e.key === 'M') { const on = Z.Sound.toggle(); Z.UI.toast(on ? '音效开' : '音效关', 'info'); }
+        else if (e.key === 'm' || e.key === 'M') { const on = Z.Sound.toggle(); if (Z.UI) Z.UI.refreshSound(); Z.UI.toast(on ? '音效开' : '音效关', 'info'); }
         else if (e.key === 'Tab') { e.preventDefault(); Z.UI.toggleRefit(); }
         else {
           const k = e.key.toLowerCase();
           for (const s of CFG.SKILLS) if (s.key2.toLowerCase() === k) { Z.Skills.activate(run, s.key); }
         }
       });
-      window.addEventListener('resize', function () { R.resize(); });
-      // 手机竖屏提示
+      window.addEventListener('resize', function () { R.resize(); if (Z.UI) Z.UI.maybePortraitHint(); });
+      // 手机竖屏提示：进局后由 UI 统一控制（只挡一次，可一键继续竖屏）
       setTimeout(function () {
-        const portrait = window.innerHeight > window.innerWidth * 1.1;
-        if (portrait && Math.min(window.innerWidth, window.innerHeight) < 900 && Z.UI) {
-          Z.UI.toast('竖屏能玩，但横屏更好操作（旋转手机试试）', 'info');
+        if (!Z.UI) return;
+        Z.UI.maybePortraitHint();
+        if (Z.Run.state !== 'run' && Z.Run.state !== 'station' && Z.Run.state !== 'parked') {
+          const portrait = window.innerHeight > window.innerWidth * 1.1;
+          if (portrait && Math.min(window.innerWidth, window.innerHeight) < 900) {
+            Z.UI.toast('竖屏能玩，但横屏更好操作（旋转手机试试）', 'info');
+          }
         }
       }, 2500);
       window.addEventListener('beforeunload', function () { if (Z.Save) Z.Save.save(run); });
@@ -765,6 +774,7 @@ window.ZT = window.ZT || {};
       R.cam.zoom = CFG.CAM.zoom; R.cam.tilt = R.cam.tiltT = CFG.CAM.tilt;
       R.follow = true; R.compute();
       Game.paused = false; Game.speedMul = 1; Game.acc = 0;
+      if (Z.UI) Z.UI._pausedByRefit = false;
       Z.UI.hideScreen();
       Z.UI.showHUD(true);
     },
@@ -777,6 +787,7 @@ window.ZT = window.ZT || {};
       R.cam.zoom = CFG.CAM.zoom; R.cam.tilt = R.cam.tiltT = CFG.CAM.tilt;
       R.follow = true; R.compute();
       Game.paused = false; Game.speedMul = 1; Game.acc = 0;
+      if (Z.UI) Z.UI._pausedByRefit = false;
       Z.UI.hideScreen();
       Z.UI.showHUD(true);
     },
@@ -791,6 +802,7 @@ window.ZT = window.ZT || {};
       R.cam.zoom = CFG.CAM.zoom; R.cam.tilt = R.cam.tiltT = CFG.CAM.tilt;
       R.follow = true; R.compute();
       Game.paused = false; Game.speedMul = 1; Game.acc = 0;
+      if (Z.UI) Z.UI._pausedByRefit = false;
       Z.UI.hideScreen();
       Z.UI.showHUD(true);
       if (run.state === 'station' && run.station) Z.UI.openStation(run.station);
@@ -799,13 +811,22 @@ window.ZT = window.ZT || {};
     },
     togglePause: function () {
       if (Z.Run.state !== 'run' && Z.Run.state !== 'parked') return;
+      if (Z.UI && Z.UI._pausedByRefit) { Z.UI.toast('改装面板开着，关掉面板再继续', 'info'); return; }
+      if (Z.Run.offer) return;                       // 三选一期间模拟本来就冻结
       Game.paused = !Game.paused;
       if (Z.UI) Z.UI.refreshSpeeds();
     },
     setSpeed: function (n) {
       if (Z.Run.state !== 'run' && Z.Run.state !== 'parked') return;
-      Game.speedMul = n; Game.paused = false;
+      Game.speedMul = n;
+      // 改装面板的暂停不能被倍速键偷偷解除：只改倍速，暂停状态交给面板生命周期
+      if (!(Z.UI && Z.UI._pausedByRefit)) Game.paused = false;
       if (Z.UI) Z.UI.refreshSpeeds();
+    },
+    // 顶栏倍速合成一个按钮：3 个 32px 目标变成 1 个 44px 目标
+    cycleSpeed: function () {
+      const cur = Game.speedMul || 1;
+      Game.setSpeed(cur >= 3 ? 1 : cur + 1);
     }
   };
 

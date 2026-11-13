@@ -18,12 +18,29 @@ window.ZT = window.ZT || {};
       this.root.appendChild(this.refs.toasts);
       this.refs.screen = h('div', { class: 'screen hidden' });
       this.root.appendChild(this.refs.screen);
+      // 车厢条右侧被遮住时的提示：让玩家知道还能横滑，而不是赌他会滑
+      this.refs.stripMore = h('button', {
+        class: 'strip-more hidden', 'aria-label': '车厢条还有更多，向右滚动',
+        onclick: function () {
+          const s = Z.UI.refs.carStrip;
+          try { s.scrollBy({ left: s.clientWidth * 0.8, behavior: 'smooth' }); } catch (e) { s.scrollLeft += s.clientWidth * 0.8; }
+        }
+      }, '');
+      this.root.appendChild(this.refs.stripMore);
       // 站台期间常驻的"回到站台"按钮：关掉面板也不会被困住
       this.refs.fab = h('button', {
-        class: 'fab hidden',
+        class: 'fab hidden', title: '打开站台面板（Esc 关面板不会困住你）',
         onclick: function () { if (Z.Run.station) Z.UI.openStation(Z.Run.station); }
       }, '回到站台');
       this.root.appendChild(this.refs.fab);
+      // 竖屏提示：只挡一次，一键继续竖屏；转横屏自动消失
+      this.refs.rotate = h('div', { class: 'rotate-layer hidden', role: 'dialog', 'aria-modal': 'true', 'aria-label': '横屏提示' },
+        h('div', { class: 'rotate-card' },
+          h('div', { class: 'rt-icon' }, '⟳'),
+          h('b', null, '横屏更好开'),
+          h('p', null, '竖屏能玩，但轨道两侧被挤窄，尸群会晚一点进画面。把手机横过来，这条提示会自动消失。'),
+          h('button', { class: 'btn primary', onclick: function () { Z.UI.dismissPortrait(); } }, '继续竖屏')));
+      this.root.appendChild(this.refs.rotate);
     },
 
     // ---------------- HUD ----------------
@@ -44,24 +61,29 @@ window.ZT = window.ZT || {};
           this.stat('难民', R_.ref = h('b', null, '0')),
           this.stat('车速', R_.spd = h('b', null, '0'))),
         h('div', { class: 'ctrls' },
-          R_.pause = h('button', { class: 'btn sm', onclick: function () { Z.Game.togglePause(); } }, '暂停'),
-          h('div', { class: 'speeds' }, [1, 2, 3].map(function (n) {
-            const b = h('button', { class: 'btn sm', onclick: function () { Z.Game.setSpeed(n); } }, n + '×');
-            (R_.speedBtns = R_.speedBtns || []).push(b);
-            return b;
-          })),
+          R_.pauseChip = h('em', { class: 'pausechip hidden' }, '已暂停'),
+          R_.pause = h('button', {
+            class: 'btn sm', title: '暂停 / 继续（空格）', 'aria-pressed': 'false',
+            onclick: function () { Z.Game.togglePause(); }
+          }, '暂停'),
+          (R_.speedBtn = h('button', {
+            class: 'btn sm speed-cycle', title: '倍速：1/2/3 键（点击循环 1×→2×→3×）', 'aria-label': '倍速，点击循环',
+            onclick: function () { Z.Game.cycleSpeed(); }
+          }, '1×')),
           (R_.btn3d = h('button', { class: 'btn sm', title: '2D / 2.5D 切换（V）', onclick: function () { Z.UI.toggle3D(); } },
             R_.btn3dLabel = h('span', null, '3D'), h('kbd', null, 'V'))),
           h('button', { class: 'btn sm', onclick: function () { Z.UI.toggleRefit(); } }, '改装', h('kbd', null, 'Tab')),
           R_.snd = h('button', {
-            class: 'btn sm' + (Z.Sound && Z.Sound.enabled ? ' on' : ''),
+            class: 'btn sm sound' + (Z.Sound && Z.Sound.enabled ? ' on' : ''),
+            title: '音效开关（M）', 'aria-pressed': String(!!(Z.Sound && Z.Sound.enabled)),
+            'aria-label': (Z.Sound && Z.Sound.enabled) ? '音效开，点击静音' : '音效关，点击开启',
             onclick: function () {
-              const on = Z.Sound.toggle();
-              R_.snd.classList.toggle('on', on);
-              R_.snd.textContent = on ? '音效' : '静音';
+              Z.Sound.toggle();
+              Z.UI.refreshSound();
             }
-          }, Z.Sound && Z.Sound.enabled ? '音效' : '静音')));
+          }, h('i', { class: 'snd-dot' }), '音效')));
       this.root.appendChild(top);
+      R_.topBar = top;
       // 站点标记
       const marks = top.querySelector('.route-marks');
       const world = Z.World;
@@ -81,14 +103,41 @@ window.ZT = window.ZT || {};
       }
       this.root.appendChild(bar);
       // 车厢条
-      R_.carStrip = h('div', { class: 'hud carbar' });
+      R_.carStrip = h('div', { class: 'hud carbar', role: 'list', 'aria-label': '车厢编组' });
+      R_.carStrip.addEventListener('scroll', function () { if (Z.UI) Z.UI.updateStripHint(); }, { passive: true });
       this.root.appendChild(R_.carStrip);
     },
     stat: function (label, val) { return h('div', { class: 'stat' }, h('span', null, label), val); },
 
     showHUD: function (on) {
+      this._hudOn = !!on;
       for (const el of this.root.querySelectorAll('.hud')) el.classList.toggle('hidden', !on);
+      if (on) { this.refreshSound(); this.maybePortraitHint(); }
+      else this.hidePortrait();
     },
+    // 音效按钮只有一处状态源：读 Sound.enabled，避免正文再出现「音效/静音」两套措辞
+    refreshSound: function () {
+      const el = this.refs.snd;
+      if (!el) return;
+      const on = !!(Z.Sound && Z.Sound.enabled);
+      el.classList.toggle('on', on);
+      el.setAttribute('aria-pressed', String(on));
+      el.setAttribute('aria-label', on ? '音效开，点击静音' : '音效关，点击开启');
+    },
+
+    // ---------------- 竖屏提示 ----------------
+    maybePortraitHint: function () {
+      const el = this.refs.rotate;
+      if (!el || this._portraitDismissed || !this._hudOn) { if (el) el.classList.add('hidden'); return; }
+      const portrait = window.innerHeight > window.innerWidth * 1.05;
+      const small = Math.min(window.innerWidth, window.innerHeight) < 900;
+      el.classList.toggle('hidden', !(portrait && small));
+    },
+    dismissPortrait: function () {
+      this._portraitDismissed = true;
+      this.hidePortrait();
+    },
+    hidePortrait: function () { if (this.refs.rotate) this.refs.rotate.classList.add('hidden'); },
 
     // ---------------- 每帧刷新 ----------------
     tick: function (dt) {
@@ -108,7 +157,7 @@ window.ZT = window.ZT || {};
         if (m > run.km + 1) { nx = { km: m / 1000 }; break; }
       }
       R_.routeNow.textContent = (run.km / 1000).toFixed(2) + ' / ' + (run.totalKm / 1000).toFixed(1) + ' km'
-        + (nx ? ' · 下一站 ' + (nx.km).toFixed(1) + ' km' : '');
+        + (nx ? ' · 距下一站 ' + Math.max(0, nx.km - run.km / 1000).toFixed(1) + ' km' : '');
       // 关卡目标
       if (R_.goal) {
         const g = run.goal || { type: 'reach' };
@@ -149,7 +198,15 @@ window.ZT = window.ZT || {};
       R_.spd.textContent = run.speed < 0.3 ? '停转' : (Math.round(run.speed * 3.6) + ' km/h');
       R_.spd.className = run.speed < 0.3 ? 'bad' : (run.speed < run.speedCap() * 0.5 ? 'warn' : '');
       R_.pause.textContent = Z.Game.paused ? '继续' : '暂停';
-      (R_.speedBtns || []).forEach(function (b, i) { b.classList.toggle('on', !Z.Game.paused && Z.Game.speedMul === i + 1); });
+      R_.pause.classList.toggle('on', !!Z.Game.paused);
+      R_.pause.setAttribute('aria-pressed', String(!!Z.Game.paused));
+      R_.pause.title = Z.Game.paused ? '继续（空格）' : '暂停（空格）';
+      if (R_.pauseChip) R_.pauseChip.classList.toggle('hidden', !Z.Game.paused);
+      if (R_.speedBtn) {
+        R_.speedBtn.textContent = (Z.Game.speedMul || 1) + '×';
+        R_.speedBtn.classList.toggle('on', !Z.Game.paused && (Z.Game.speedMul || 1) > 1);
+      }
+      this.root.classList.toggle('paused', !!Z.Game.paused);
       for (const it of R_.skillBtns || []) {
         const owned = run.skills.owned.indexOf(it.def.key) >= 0;
         const cd = run.skills.cd[it.def.key] || 0;
@@ -160,9 +217,26 @@ window.ZT = window.ZT || {};
         it.cd.style.height = (cd > 0 ? Math.min(100, cd / (it.def.cd + it.def.dur) * 100) : 0) + '%';
         it.el.style.setProperty('--sk', it.def.color);
       }
+      // 全屏面板打开时：旧提示一律清掉（否则「轨道被撬断」会盖住结算标题），
+      // 新提示改走底部 snackbar 位置，由 ui-realism.css 的 .screen-open 规则接管。
+      const screenOpen = !R_.screen.classList.contains('hidden');
+      if (this._screenOpen !== screenOpen) {
+        this._screenOpen = screenOpen;
+        this.root.classList.toggle('screen-open', screenOpen);
+        if (screenOpen) R_.toasts.innerHTML = '';
+      }
       const atStation = run.state === 'station';
-      if (this.refs.fab) this.refs.fab.classList.toggle('hidden', !atStation || this.drawerState === 'station');
-      this.renderCarStrip();
+      if (this.refs.fab) this.refs.fab.classList.toggle('hidden', !atStation || !!this.drawerState);
+      // 提示条永远贴在顶栏下沿：竖屏顶栏折成三行时，固定 76px 会盖住统计数字。
+      // 顶栏高度只在换行/缩放时变化，所以 0.25s 校一次就够，避免每帧量布局。
+      this._toastAcc = (this._toastAcc || 0) + (dt || 0);
+      if (this._toastAcc > 0.25 && R_.toasts && R_.topBar) {
+        this._toastAcc = 0;
+        const y = this._hudOn ? Math.round(R_.topBar.getBoundingClientRect().bottom + 8) : 76;
+        if (this._toastTop !== y) { this._toastTop = y; R_.toasts.style.top = y + 'px'; }
+      }
+      if (!R_.carStrip.classList.contains('hidden')) this.renderCarStrip();
+      this.updateStripHint();
       if (this.drawerState === 'station') this.tickStation();
       if (this.drawerState === 'refit') this.tickRefit();
     },
@@ -172,26 +246,31 @@ window.ZT = window.ZT || {};
       const run = this.run, strip = this.refs.carStrip;
       const n = run.cars.length;
       const wc = run.weaponCount();
-      if (this._stripN !== n || this._stripWeapons !== wc) {
-        this._stripN = n; this._stripWeapons = wc;
+      // 缓存键要含「挂了什么武器」：只比数量会在换武器/升级形态后留下旧色带
+      let wsig = '';
+      for (const c of run.cars) for (const w of c.slots) wsig += (w ? (w.key + w.level + (w.form || '')) : '-') + ',';
+      if (this._stripN !== n || this._stripSig !== wsig) {
+        this._stripN = n; this._stripSig = wsig;
         strip.innerHTML = '';
         this._cars = [];
         for (let k = 0; k < n; k++) {
           const car = run.cars[k], t = CFG.CAR_TYPES[car.type];
           const bar = h('i', { style: { width: '100%' } });
           const hp = h('div', { class: 'cc-hp' }, '100%');
-          const refEl = h('div', { class: 'cc-ref' }, '');
           const card = h('div', {
-            class: 'ccard', onclick: (function (kk) { return function () { Z.UI.openRefit(kk); }; })(k)
+            class: 'ccard' + (k === 0 ? ' head' : ''),
+            style: { '--cc': t.color }, tabindex: '0', role: 'button', 'aria-label': t.name + ' · 打开改装',
+            onclick: (function (kk) { return function () { Z.UI.openRefit(kk); }; })(k),
+            onkeydown: (function (kk) { return function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); Z.UI.openRefit(kk); } }; })(k)
           },
             h('div', { class: 'cc-name' }, h('i', { class: 'cc-type', style: { background: t.color } }), t.name),
             h('div', { class: 'cc-slots' }, car.slots.map(function (w) {
               return h('i', { class: 'slotp' + (w ? ' has' : ''), style: { background: w ? w.def().color : '' } });
             })),
             h('div', { class: 'cc-bar' }, bar),
-            hp, refEl);
+            hp);
           strip.appendChild(card);
-          this._cars.push({ card: card, bar: bar, hp: hp, ref: refEl });
+          this._cars.push({ card: card, bar: bar, hp: hp });
         }
       }
       for (let k = 0; k < n; k++) {
@@ -203,13 +282,25 @@ window.ZT = window.ZT || {};
         ref.hp.textContent = car.dead ? '损毁' : Math.round(frac * 100) + '%';
         ref.card.classList.toggle('dead', car.dead);
         ref.card.classList.toggle('flash', car.flash > 0.4);
-        if (car.type === 'passenger') ref.ref.textContent = '难民 ' + car.refugees;
         // 受击车厢自动滚进视野
         if (car.flash > 0.4 && this._scrollTo !== k) {
           this._scrollTo = k;
           try { strip.scrollTo({ left: Math.max(0, ref.card.offsetLeft - 60), behavior: 'smooth' }); } catch (e) {}
         }
       }
+    },
+    // 车厢条溢出提示：明确告诉玩家「还有 N 节」，别指望他自己发现能横滑
+    updateStripHint: function () {
+      const strip = this.refs.carStrip, more = this.refs.stripMore;
+      if (!strip || !more) return;
+      if (this.drawerState || !this._hudOn || strip.classList.contains('hidden')) { more.classList.add('hidden'); return; }
+      const hiddenPx = strip.scrollWidth - strip.clientWidth - strip.scrollLeft;
+      if (hiddenPx < 12) { more.classList.add('hidden'); return; }
+      const edge = strip.scrollLeft + strip.clientWidth + 2;
+      let n = 0;
+      for (const r of this._cars || []) if (r.card.offsetLeft + r.card.offsetWidth > edge) n++;
+      more.textContent = '还有 ' + n + ' 节 →';
+      more.classList.remove('hidden');
     },
 
     // ---------------- 标题 / 关卡选择 / 局外 ----------------
@@ -238,8 +329,7 @@ window.ZT = window.ZT || {};
               return b ? ('最佳 ' + b.km.toFixed(1) + ' km · 开多远算多远') : '开多远算多远 · 车厢无上限';
             })(), function () { Z.Game.startEndless(); }),
             bigBtn('科技', '里程点 ' + U.fmt(meta.points) + ' · 6 条强化线', function () { Z.UI.showTech(); }),
-            bigBtn('设置', '音效 · 镜头 · 重看教学 · 清存档', function () { Z.UI.showSettings(); }),
-            bigBtn('3D 模型', 'GLB 资产预览 · 机车 / 货车 / 武器 / 丧尸 / 建筑', function () { Z.View3D.open(); })),
+            bigBtn('设置', '音效 · 镜头 · 重看教学 · 清存档', function () { Z.UI.showSettings(); })),
           h('div', { class: 'start-foot' }, 'v' + CFG.VERSION + ' · 零依赖 · MIT'))));
     },
 
@@ -407,8 +497,9 @@ window.ZT = window.ZT || {};
           h('div', { class: 'set-row' },
             h('span', null, '新手提示'),
             h('button', {
-              class: 'btn sm', onclick: function () {
-                Z.Tips.reset(); Z.UI.toast('新手提示已重置，下次进入会重新出现', 'good');
+              class: 'btn sm', title: '重置并立刻弹一条示例提示', onclick: function () {
+                Z.Tips.reset();
+                Z.UI.toast('提示 · ' + Z.Tips.TEXT.start, 'tip');
               }
             }, '重看')),
           h('div', { class: 'set-row' },
@@ -422,19 +513,20 @@ window.ZT = window.ZT || {};
             h('span', null, '全部进度'),
             h('button', {
               class: 'btn sm danger', onclick: function () {
-                if (!Z.UI._confirmClear) {
-                  Z.UI._confirmClear = true;
-                  Z.UI.toast('再点一次确认清除全部进度', 'bad');
-                  setTimeout(function () { Z.UI._confirmClear = false; }, 4000);
-                  return;
-                }
-                Z.UI._confirmClear = false;
-                Z.Settings.clearAll();
-                Z.UI.toast('全部进度已清除', 'bad');
-                Z.UI.showStart();
+                Z.UI.confirm('清除全部进度？', '关卡解锁、里程点、涂装与最佳记录都会清空，且不可恢复。', '确认清除', function () {
+                  Z.Settings.clearAll();
+                  Z.UI.toast('全部进度已清除', 'bad');
+                  Z.UI.showStart();
+                });
               }
             }, '清除'))),
         h('div', { class: 'set-foot' }, 'v' + CFG.VERSION + ' · 零依赖 · MIT · 游戏内按 M 也可静音'),
+        h('div', { class: 'acts dev-row' },
+          h('button', {
+            class: 'btn sm ghost', title: '开发工具：GLB 资产预览，不影响存档',
+            onclick: function () { if (Z.View3D) Z.View3D.open(); }
+          }, '3D 资产预览'),
+          h('span', { class: 'dev-note' }, '开发用，玩家不需要它')),
         h('div', { class: 'acts' },
           h('button', { class: 'btn', onclick: function () { Z.UI.showStart(); } }, '返回'),
           h('button', { class: 'btn primary', onclick: function () { Z.UI.showLevels(); } }, '开始游戏'))));
@@ -455,7 +547,10 @@ window.ZT = window.ZT || {};
         const pct = c.dead ? 0 : Math.max(0, Math.min(100, Math.round(c.hp / c.maxHp * 100)));
         const main = h('div', {
           class: 'dcard' + (c.dead ? ' dead' : '') + (idx === 0 ? ' head' : ''),
+          style: { '--cc': t.color },
+          tabindex: '0', role: 'button', 'aria-label': t.name + ' · 点开改装',
           onclick: function () { self.openRefit(idx); },
+          onkeydown: (function (ii) { return function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); self.openRefit(ii); } }; })(idx),
           title: t.name + ' · 点开改装'
         },
           h('div', { class: 'dc-top' }, h('span', null, idx === 0 ? '车头' : '#' + (idx + 1)), h('b', null, t.name)),
@@ -477,13 +572,13 @@ window.ZT = window.ZT || {};
         );
         const mv = h('div', { class: 'dc-mv' },
           h('button', {
-            class: 'mv', title: '往前挪', onclick: function (e) {
+            class: 'mv', title: '往前挪', 'aria-label': '往前挪', onclick: function (e) {
               e.stopPropagation();
               if (run.moveCar(idx, -1)) Z.UI.renderStation();
             }
           }, '◀'),
           h('button', {
-            class: 'mv', title: '往后挪', onclick: function (e) {
+            class: 'mv', title: '往后挪', 'aria-label': '往后挪', onclick: function (e) {
               e.stopPropagation();
               if (run.moveCar(idx, 1)) Z.UI.renderStation();
             }
@@ -491,10 +586,13 @@ window.ZT = window.ZT || {};
         const cell = h('div', { class: 'dcell' }, main, mv);
         if (idx > 0) {
           cell.appendChild(h('button', {
-            class: 'dc-x', title: '丢弃这节', onclick: function (e) {
+            class: 'dc-x', title: '丢弃这节', 'aria-label': '丢弃这节车厢', onclick: function (e) {
               e.stopPropagation();
               if (run.cars.length <= 2) return Z.UI.toast('至少要留车头和 1 节', 'bad');
-              if (run.discardCar(idx)) { run.offer = null; Z.UI.renderStation(); }
+              const nm = t.name + '（第 ' + (idx + 1) + ' 节）';
+              Z.UI.confirm('丢弃 ' + nm + '？', '车厢上的武器会一起丢掉，遣散的人手也不会回来。', '丢弃', function () {
+                if (run.discardCar(idx)) { run.offer = null; Z.UI.renderStation(); }
+              });
             }
           }, '✕'));
         }
@@ -553,27 +651,54 @@ window.ZT = window.ZT || {};
       this.drawerState = 'station';
       this.renderStation();
       this.refs.drawer.classList.remove('hidden');
+      this._setDrawerOpen(true);
+    },
+    // 抽屉开合的统一副作用：底部车厢条让位（避免同一份编组信息画三遍）、视口加边距
+    _setDrawerOpen: function (on) {
+      if (!this.root) return;
+      this.root.classList.toggle('drawer-open', !!on);
+    },
+    // 抽屉 = 固定头 + 可滚动正文 + 固定脚（不用 position:sticky：
+    // sticky + 负 margin 会让正文被画到圆角边框外，headless 截图里能看到一条“漏出来”的商品行）
+    _drawerBody: function (box) {
+      const old = box.querySelector('.dw-body');
+      const keep = old ? old.scrollTop : 0;
+      box.innerHTML = '';
+      const body = h('div', { class: 'dw-body' });
+      box.appendChild(body);
+      return { body: body, keep: keep };
+    },
+    _drawerFoot: function (box, body, keep, foot) {
+      box.appendChild(foot);
+      body.scrollTop = keep;
     },
     renderStation: function () {
       const run = this.run, R_ = this.refs, box = R_.drawer;
       const st = run.station || { idx: 0, isStart: true };
-      box.innerHTML = '';
-      box.appendChild(h('div', { class: 'dw-head' },
+      box.dataset.mode = 'station';
+      const kept = this._drawerBody(box);
+      const body = kept.body;   // 买完东西不要跳回顶部
+      body.appendChild(h('div', { class: 'dw-head' },
         h('div', null, h('b', null, st.isStart ? '出发站' : '第 ' + (st.idx + 1) + ' 站'), h('div', { class: 'sub' }, '站台停靠中 · 游戏已暂停 · 点「继续出发」才开')),
-        h('button', { class: 'btn sm ghost', onclick: function () { Z.UI.depart(); } }, '出发')));
+        h('button', {
+          class: 'dw-close', title: '收起面板（不会出发）', 'aria-label': '收起站台面板',
+          onclick: function () { Z.UI.closeStation(); }
+        }, '✕')));
 
       // 总体
-      box.appendChild(h('div', { class: 'kv wide' },
-        h('span', null, '废料 ' + U.fmt(run.scrap)),
-        h('span', null, '弹药 ' + U.fmt(run.ammo)),
-        h('span', null, '燃料 ' + Math.round(run.fuel) + '%'),
-        h('span', null, '难民 ' + run.refugees() + '/' + run.capacity())));
+      // 概况行：弹药/燃料已无限，改显示真正会变的量；tickStation 里逐帧对齐 HUD，避免出现两个难民数
+      this._stationKv = {
+        scrap: h('span', null, '废料 ' + U.fmt(run.scrap)),
+        hp: h('span', null, '耐久 ' + Math.round((run.maxHp() ? run.totalHp() / run.maxHp() : 1) * 100) + '%'),
+        ref: h('span', null, '难民 ' + run.refugees() + '/' + run.capacity())
+      };
+      body.appendChild(h('div', { class: 'kv wide' }, this._stationKv.scrap, this._stationKv.hp, this._stationKv.ref));
 
-      box.appendChild(this.depotStrip(run));
+      body.appendChild(this.depotStrip(run));
 
       // 补给
       const unlimited = CFG.ECON.infiniteAmmo && CFG.ECON.infiniteFuel;
-      box.appendChild(h('div', { class: 'dw-sec' }, unlimited ? '维修与救助' : '补给'));
+      body.appendChild(h('div', { class: 'dw-sec' }, unlimited ? '维修与救助' : '补给'));
       const shop = h('div', { class: 'shop' });
       if (!unlimited) {
         shop.appendChild(this.shopRow('一键补给（弹药+燃料补满）', '按量计', function () {
@@ -597,7 +722,12 @@ window.ZT = window.ZT || {};
           Z.UI.renderStation();
         }));
       }
-      shop.appendChild(this.shopRow('整车维修', '按耐久', function () {
+      shop.appendChild(this.shopRow('整车维修', (function () {
+        let need = 0;
+        for (const c of run.cars) if (!c.dead) need += c.maxHp - c.hp;
+        const cost = Math.round(need * CFG.ECON.repairCostPerHp);
+        return cost > 0 ? cost + ' 废料' : '车体完好';
+      })(), function () {
         let need = 0;
         for (const c of run.cars) if (!c.dead) need += c.maxHp - c.hp;
         const cost = Math.round(need * CFG.ECON.repairCostPerHp);
@@ -607,19 +737,19 @@ window.ZT = window.ZT || {};
         for (const c of run.cars) if (!c.dead) { c.hp = c.maxHp; c.tier = 0; }
         Z.UI.toast('整车已修复（-' + cost + '）', 'good'); Z.UI.renderStation();
       }));
-      const rescueN = run.passengerCars().filter(function (c) { return c.hp / c.maxHp >= 0.4 && c.refugees < CFG.REFUGEE.perCar; }).length;
       shop.appendChild(this.shopRow('抢救难民（每车 +3）', '免费', function () {
         const n = run.rescue();
         Z.UI.toast(n ? '抢救回 ' + n + ' 人' : '没有可抢救的车厢', n ? 'good' : 'info');
         Z.UI.renderStation();
       }));
-      box.appendChild(shop);
+      body.appendChild(shop);
 
       // Buff
-      box.appendChild(h('div', { class: 'dw-sec' }, '本关增益'));
+      body.appendChild(h('div', { class: 'dw-sec' }, '本关增益'));
       const buffs = h('div', { class: 'shop' });
       for (const k in CFG.BUFFS) {
         const b = CFG.BUFFS[k];
+        if (k === 'tank' && CFG.ECON.infiniteFuel) continue;   // 燃料已无限，备用油箱是空购买
         buffs.appendChild(this.shopRow(b.name + ' · ' + b.desc, b.cost, function () {
           if (run.buffs[k]) return Z.UI.toast('已购买', 'info');
           if (run.scrap < b.cost) return Z.UI.toast('废料不足', 'bad');
@@ -627,19 +757,19 @@ window.ZT = window.ZT || {};
           Z.UI.toast('获得 ' + b.name, 'good'); Z.UI.renderStation();
         }, run.buffs[k]));
       }
-      box.appendChild(buffs);
+      body.appendChild(buffs);
 
       // 难民
-      box.appendChild(h('div', { class: 'dw-sec' }, '难民'));
+      body.appendChild(h('div', { class: 'dw-sec' }, '难民'));
       const boardPct = run.capacity() ? run.refugees() / run.capacity() : 0;
-      box.appendChild(h('div', { class: 'board' },
+      body.appendChild(h('div', { class: 'board' },
         h('div', { class: 'board-bar' }, h('i', { style: { width: boardPct * 100 + '%' } })),
         h('div', { class: 'sub' }, '自动上车中：' + run.refugees() + ' / ' + run.capacity()
           + (run.capacity() ? '' : '（需要人员车厢）') + ' · 每 0.5 秒 1 人')));
 
-      // 车厢
-
-      box.appendChild(h('div', { class: 'dw-sticky' }, h('button', { class: 'btn primary big', onclick: function () { Z.UI.depart(); } }, '继续出发 →')));
+      // 固定脚：出发按钮永远在面板底部，不随正文滚动
+      this._drawerFoot(box, body, kept.keep,
+        h('div', { class: 'dw-foot-bar' }, h('button', { class: 'btn primary big', onclick: function () { Z.UI.depart(); } }, '继续出发 →')));
     },
     shopRow: function (label, price, fn, done) {
       return h('button', { class: 'shop-item' + (done ? ' done' : ''), onclick: fn },
@@ -647,21 +777,42 @@ window.ZT = window.ZT || {};
     },
     tickStation: function () {
       // 上车进度每帧刷新（不重建 DOM）
+      const run = this.run;
       const bar = this.refs.drawer.querySelector('.board-bar i');
       if (bar) {
-        const run = this.run;
         bar.style.width = (run.capacity() ? run.refugees() / run.capacity() * 100 : 0) + '%';
         const label = this.refs.drawer.querySelector('.board .sub');
         if (label) label.textContent = '自动上车中：' + run.refugees() + ' / ' + run.capacity() + (run.capacity() ? '' : '（需要人员车厢）') + ' · 每 0.5 秒 1 人';
+      }
+      // 概况行必须和顶栏同源同值：上车是逐帧发生的，只在操作后重建会留下旧快照
+      const kv = this._stationKv;
+      if (kv) {
+        kv.ref.textContent = '难民 ' + run.refugees() + '/' + run.capacity();
+        kv.hp.textContent = '耐久 ' + Math.round((run.maxHp() ? run.totalHp() / run.maxHp() : 1) * 100) + '%';
+        kv.scrap.textContent = '废料 ' + U.fmt(run.scrap);
       }
     },
     depart: function () {
       this.refs.drawer.classList.add('hidden');
       this.drawerState = null;
+      this._setDrawerOpen(false);
+      this._releaseRefitPause();
       if (this.refs.fab) this.refs.fab.classList.add('hidden');
       this.run.departStation();
     },
-    closeStation: function () { this.refs.drawer.classList.add('hidden'); this.drawerState = null; },
+    closeStation: function () {
+      this.refs.drawer.classList.add('hidden');
+      this.drawerState = null;
+      this._setDrawerOpen(false);
+      this._releaseRefitPause();
+    },
+    // 行驶中打开改装页会暂停模拟（与面板页脚文案一致）；关闭时只还原「自己按下的那次暂停」
+    _releaseRefitPause: function () {
+      if (this._pausedByRefit) {
+        this._pausedByRefit = false;
+        if (Z.Game) Z.Game.paused = false;
+      }
+    },
 
     // ---------------- 车厢三选一 ----------------
     openCarOffer: function (list) {
@@ -670,15 +821,42 @@ window.ZT = window.ZT || {};
       R_.screen.innerHTML = '';
       R_.screen.classList.remove('hidden');
       const cards = h('div', { class: 'offer' });
-      list.forEach(function (type) {
+      // 每张卡显示「这节挂上去之后极速变成多少」：动力车 +8% 会盖过 -3% 编组惩罚，不能一律写 −3%
+      const runNow = Z.UI.run;
+      const T = CFG.TRAIN;
+      const n0 = runNow && runNow.aliveCars ? runNow.aliveCars() : 0;
+      const p0 = runNow && runNow.powerCars ? runNow.powerCars() : 0;
+      const perCar = (Z.Meta && Z.Meta.hasBranch && Z.Meta.hasBranch('speed', 'B')) ? 0.02 : T.speedPerCar;
+      const baseCap = runNow && runNow.speedCap ? runNow.speedCap() : 0;
+      const capNow = Math.round(baseCap * 3.6);
+      const capOf = function (type) {
+        const denom = (1 - perCar * (n0 - 1)) * (1 + T.powerBonus * p0);
+        if (denom <= 0) return capNow;
+        const after = (1 - perCar * n0) * (1 + T.powerBonus * (p0 + (type === 'power' ? 1 : 0)));
+        return Math.round(baseCap * (after / denom) * 3.6);
+      };
+      list.forEach(function (type, i) {
         const t = CFG.CAR_TYPES[type];
-        cards.appendChild(h('button', { class: 'ocard', onclick: function () { Z.UI.takeCar(type); } },
+        const after = capOf(type);
+        const delta = after - capNow;
+        cards.appendChild(h('button', {
+          class: 'ocard', 'aria-label': '选择 ' + t.name + '，数字键 ' + (i + 1),
+          onclick: function () { Z.UI.takeCar(type); }
+        },
+          h('span', { class: 'ocard-key' }, String(i + 1)),
           h('b', null, t.name),
-          h('span', null, '耐久 ' + t.hp + ' · 挂点 ' + t.slots),
-          h('i', null, t.refugees ? ('载 ' + t.refugees + ' 难民') : (t.power ? '速度 +8%' : (t.adjacentGuard ? '相邻减伤 40%' : (t.repairAura ? '自动修理' : '火力平台'))))));
+          h('span', null, '耐久 ' + t.hp + ' · 挂点 ' + t.slots + ' · 编组 ' + (n0 + 1) + ' 节'),
+          h('i', null, t.refugees ? ('载 ' + t.refugees + ' 难民') : (t.power ? '动力 +8%（盖过编组减速）' : (t.adjacentGuard ? '相邻减伤 40%' : (t.repairAura ? '自动修理' : '火力平台')))),
+          h('i', { class: 'ocard-cost' + (delta >= 0 ? ' up' : '') }, '极速 ' + capNow + ' → ' + after + ' km/h（' + (delta >= 0 ? '+' : '') + delta + '）')));
       });
-      R_.screen.appendChild(h('div', { class: 'panel-offer' },
-        h('h2', null, '获得车厢'), h('div', { class: 'tagline' }, '随机三选一（同类型可以重复获得）'), cards));
+      const panel = h('div', { class: 'panel-offer' },
+        h('div', { class: 'offer-stamp' }, '调 拨 单'),
+        h('h2', null, '获得车厢'),
+        h('div', { class: 'tagline' }, '随机三选一（同类型可以重复获得）· 按 1 / 2 / 3 选择'),
+        cards);
+      R_.screen.appendChild(panel);
+      const first = panel.querySelector('.ocard');
+      if (first) first.focus();
     },
     takeCar: function (type) {
       this.run.takeCar(type);
@@ -704,11 +882,17 @@ window.ZT = window.ZT || {};
       else if (this.canOpenRefit()) this.openRefit(0);
     },
     openRefit: function (carIdx) {
-      if (this.drawerState === 'car') this.refs.screen.classList.add('hidden');
       this.drawerState = 'refit';
       this.refitIdx = carIdx;
+      this._refitStamp = null;
+      // 行驶/停车中打开改装 = 暂停（面板页脚承诺过；空格键本来就能免费暂停，所以不新增漏洞）
+      if ((this.run.state === 'run' || this.run.state === 'parked') && Z.Game && !Z.Game.paused) {
+        Z.Game.paused = true;
+        this._pausedByRefit = true;
+      }
       this.renderRefit();
       this.refs.drawer.classList.remove('hidden');
+      this._setDrawerOpen(true);
     },
     renderRefit: function () {
       const run = this.run, R_ = this.refs, box = R_.drawer;
@@ -716,28 +900,34 @@ window.ZT = window.ZT || {};
       const car = run.cars[idx];
       if (!car) { this.closeDrawer(); return; }
       const t = CFG.CAR_TYPES[car.type];
-      box.innerHTML = '';
-      box.appendChild(h('div', { class: 'dw-head' },
+      box.dataset.mode = 'refit';
+      const kept = this._drawerBody(box);   // 重建后保住滚动位置：否则每买一次都跳回顶部
+      const body = kept.body;
+      body.appendChild(h('div', { class: 'dw-head' },
         h('div', null, h('b', null, '车厢 ' + (idx + 1) + ' · ' + t.name), h('div', { class: 'sub' }, '耐久 ' + Math.round(car.hp) + ' / ' + car.maxHp + (car.dead ? ' · 已损毁' : ''))),
-        h('button', { class: 'btn sm ghost', onclick: function () { Z.UI.closeDrawer(); } }, '关闭')));
+        h('button', { class: 'dw-close', title: '关闭改装（不会出发）', 'aria-label': '关闭改装面板', onclick: function () { Z.UI.closeDrawer(); } }, '✕')));
 
       if (car.slots.length === 0) {
-        box.appendChild(h('div', { class: 'sub' }, '这节车厢没有武器挂点。'));
+        body.appendChild(h('div', { class: 'sub' }, '这节车厢没有武器挂点。'));
       }
       car.slots.forEach(function (w, j) {
-        box.appendChild(Z.UI.slotCard(run, idx, j, w, car));
+        body.appendChild(Z.UI.slotCard(run, idx, j, w, car));
       });
 
       // 其它车厢快速切换
-      box.appendChild(h('div', { class: 'dw-sec' }, '编组'));
+      body.appendChild(h('div', { class: 'dw-sec' }, '编组'));
       const list = h('div', { class: 'carlist' });
       run.cars.forEach(function (c, k) {
         list.appendChild(h('button', { class: 'carline' + (k === idx ? ' on' : ''), onclick: function () { Z.UI.openRefit(k); } },
           h('b', null, (k + 1) + '. ' + CFG.CAR_TYPES[c.type].name),
           h('span', null, c.dead ? '损毁' : Math.round(c.hp / c.maxHp * 100) + '%')));
       });
-      box.appendChild(list);
-      box.appendChild(h('div', { class: 'dw-foot' }, '改装时游戏暂停 · 关闭后继续 ' + (Z.Game.paused ? '（当前暂停）' : (Z.Game.speedMul + '×'))));
+      body.appendChild(list);
+      this._drawerFoot(box, body, kept.keep,
+        h('div', { class: 'dw-foot-bar' },
+          h('span', { class: 'dw-hint' }, '改装期间保持暂停 · 关掉面板' +
+            (run.state === 'station' ? '回到站台' : '继续 ' + (Z.Game.speedMul || 1) + '×')),
+          h('button', { class: 'btn', onclick: function () { Z.UI.closeDrawer(); } }, '完成')));
     },
     // 武器小图标：俯视炮塔剪影，和 3D 模型同一套构件
     weaponIcon: function (key, form, lv, size) {
@@ -880,21 +1070,45 @@ window.ZT = window.ZT || {};
     },
     closeDrawer: function () {
       // 只有在"站台里打开改装页"时，关闭才退回站台面板；
-      // 直接关站台面板是允许的 —— 右下角会常驻「回到站台」，不会卡死。
+      // 直接关站台面板是允许的 —— 抽屉没开时右下角常驻「回到站台」，不会卡死。
+      this._releaseRefitPause();
       if (this.drawerState === 'refit' && this.run.state === 'station' && this.run.station) {
         this.openStation(this.run.station);
         return;
       }
       this.refs.drawer.classList.add('hidden');
       this.drawerState = null;
+      this._setDrawerOpen(false);
     },
+    // 弹出的层只有一个能关：确认框 > 抽屉。三选一是强制选择，不留 Esc 口子。
     closeTop: function () {
+      if (this.refs.confirm) { this._closeConfirm(); return; }
       if (this.drawerState) this.closeDrawer();
-      else if (!this.refs.screen.classList.contains('hidden')) {
-        const run = this.run;
-        if (run.state === 'menu') return;              // 标题页不关
-        if (this._offerOpen) this.refs.screen.classList.add('hidden');
+    },
+    // 危险操作统一走这里：真模态 + 焦点落在取消上，替代「再点一次」的隐藏约定
+    confirm: function (title, body, okLabel, onOk) {
+      this._closeConfirm(false);
+      this._confirmReturn = document.activeElement;
+      const self = this;
+      const box = h('div', { class: 'confirm-box', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+        h('b', { class: 'cf-title' }, title),
+        h('div', { class: 'cf-body' }, body),
+        h('div', { class: 'acts' },
+          h('button', { class: 'btn', onclick: function () { self._closeConfirm(); } }, '取消'),
+          h('button', { class: 'btn danger', onclick: function () { self._closeConfirm(false); onOk(); } }, okLabel)));
+      const layer = h('div', { class: 'confirm-layer' }, box);
+      layer.addEventListener('click', function (e) { if (e.target === layer) self._closeConfirm(); });
+      this.root.appendChild(layer);
+      this.refs.confirm = layer;
+      const first = box.querySelector('.btn');
+      if (first) first.focus();
+    },
+    _closeConfirm: function (restore) {
+      if (this.refs.confirm) { this.refs.confirm.remove(); this.refs.confirm = null; }
+      if (restore !== false && this._confirmReturn && this._confirmReturn.isConnected) {
+        try { this._confirmReturn.focus(); } catch (e) {}
       }
+      this._confirmReturn = null;
     },
     tickRefit: function () {
       // 只在数字变化时重建，避免每帧闪
@@ -929,8 +1143,11 @@ window.ZT = window.ZT || {};
       const rows = [
         ['里程', res.miles], ['护送（' + res.refugees + ' 人）', res.esc],
         ['战果（' + res.kills + ' 杀 / ' + res.bossKills + ' Boss）', res.combat],
-        ['完美', res.perfect], ['剩余折算', res.leftover], ['损毁扣分', -res.penalty]
-      ].map(function (r) { return h('div', { class: 'resrow' }, h('span', null, r[0]), h('b', null, (r[1] >= 0 ? '+' : '') + U.fmt(r[1]))); });
+        ['完美', res.perfect], ['报废折价', res.leftover], ['损毁扣分', -res.penalty]
+      ].map(function (r) {
+        const v = r[1] === 0 ? 0 : r[1];   // 归一化 -0：Intl 会把它格式化成 "-0"
+        return h('div', { class: 'resrow' }, h('span', null, r[0]), h('b', null, (v > 0 ? '+' : '') + U.fmt(v)));
+      });
 
       const bestLine = h('div', { class: 'bestline' },
         res.endless

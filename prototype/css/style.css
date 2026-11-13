@@ -178,7 +178,6 @@ html, body {
 .dw-head b { font-size: 1.06em; }
 .dw-head .sub { color: var(--ink-3); font-size: 0.86em; margin-top: 3px; line-height: 1.45; }
 .dw-sec { color: var(--ink-3); font-size: 0.78em; letter-spacing: 0.12em; margin-top: 4px; }
-.dw-foot { color: var(--ink-3); font-size: 0.78em; margin-top: auto; padding-top: 8px; }
 .dw-card {
   border: 1px solid var(--line); border-radius: 10px;
   padding: 9px 10px; background: rgba(255, 255, 255, 0.035);
@@ -449,11 +448,6 @@ button.carline {
 }
 button.carline:hover { background: rgba(255,255,255,0.10); }
 button.carline.on { border-color: var(--accent); background: rgba(255,179,71,0.10); }
-.dw-sticky {
-  position: sticky; bottom: -14px; margin: 10px -13px -14px; padding: 10px 13px 14px;
-  background: linear-gradient(0deg, var(--panel-2) 72%, rgba(30,34,40,0));
-}
-
 .cc-name { display: flex; align-items: center; gap: 4px; }
 .cc-type { width: 6px; height: 6px; border-radius: 2px; display: inline-block; flex: none; }
 .ccard.flash { border-color: var(--bad); box-shadow: 0 0 0 1px rgba(224,90,74,.45); }
