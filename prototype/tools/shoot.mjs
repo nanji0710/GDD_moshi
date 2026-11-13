@@ -369,6 +369,32 @@ try {
   await sleep(130)
   await shot('21-boom')
 
+  console.log('场景：Boss 蓄力预警')
+  await evJs(`(() => {
+    ZT.Game.startLevel(6);
+    const R = ZT.Run;
+    R.nextCarKm = 1e9;
+    document.querySelector('.drawer').classList.add('hidden');
+    R.state = 'run'; R.stationIdx = 3; R.km = R.totalKm * 0.34;
+    R.train = new ZT.Train(R); R.train.s = R.km; R.speed = 22;
+    const me = ZT.U.posAt(ZT.World.path, R.km, {});
+    ZT.Zombies.list.length = 0;
+    const p = ZT.U.posAt(ZT.World.path, R.km + 58, {});
+    const zb = ZT.Zombies.make(p.x + 6, p.y + 8, {});
+    zb.boss = true; zb.hp = zb.maxHp; zb.mode = 'windup'; zb.modeT = 0.55; zb.nextMode = 'charge'; zb.aiCd = 0;
+    ZT.Zombies.list.push(zb);
+    for (let i = 0; i < 14; i++) {
+      const q = ZT.U.posAt(ZT.World.path, R.km + 8 + i * 4, {});
+      const w = ZT.Zombies.make(q.x + (i % 2 ? 9 : -9), q.y + (i % 2 ? 6 : -6), {});
+      ZT.Zombies.list.push(w);
+    }
+    ZT.R.cam.cx = me.x + 14; ZT.R.cam.cy = me.y - 8; ZT.R.cam.zoom = 4.6; ZT.R.compute();
+    ZT.Game.setSpeed(1);
+    return 1;
+  })()`)
+  await sleep(220)
+  await shot('22-boss')
+
   const stat = await evJs(`(() => {
     const R = ZT.Run, Z = window.ZT;
     return JSON.stringify({ state: R.state, level: R.level, cars: R.cars.length, weapons: R.weaponCount(),

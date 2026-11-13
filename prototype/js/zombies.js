@@ -30,8 +30,78 @@ window.ZT = window.ZT || {};
         x: x, y: y, hp: hp, maxHp: hp, speed: speed, attack: atk,
         kind: kind, elite: !!opt.elite, boss: !!opt.boss, mini: !!opt.mini,
         dead: false, deadT: 0, flash: 0, cd: Math.random() * 0.7, retarget: Math.random() * 0.4,
-        target: null, phase: Math.random() * 6.28, ripT: 0
+        target: null, phase: Math.random() * 6.28, ripT: 0,
+        mode: 'walk', modeT: 0, nextMode: '', aiCd: 4.5, vx: 0, vy: 0
       };
+    },
+
+    // Boss 三招：冲撞（远）/ 召唤（中）/ 破坏轨道（近）
+    bossAI: function (zb, run, dt, dx, dy, dist, reach) {
+      zb.aiCd = (zb.aiCd || 0) - dt;
+      // 蓄力：站着不动，屏幕上给红线预警
+      if (zb.mode === 'windup') {
+        zb.modeT -= dt;
+        if (zb.modeT <= 0) {
+          if (zb.nextMode === 'charge') {
+            const inv = 1 / (dist || 1);
+            zb.vx = dx * inv * 46; zb.vy = dy * inv * 46;
+            zb.mode = 'charge'; zb.modeT = 0.85;
+            if (Z.Fx) Z.Fx.sparks(zb.x, zb.y, 3, 10, '#ff6a4a');
+          } else if (zb.nextMode === 'summon') {
+            for (let i = 0; i < 6; i++) {
+              const a = Math.random() * 6.2832, d = 6 + Math.random() * 10;
+              const m = this.make(zb.x + Math.cos(a) * d, zb.y + Math.sin(a) * d, { kind: 'walker' });
+              this.list.push(m);
+            }
+            zb.mode = 'walk'; zb.aiCd = 9;
+            if (Z.UI) Z.UI.toast('Boss 召来了尸群', 'bad');
+            if (Z.Sound) Z.Sound.play('roar', { vol: 0.6 });
+          } else if (zb.nextMode === 'rip') {
+            run.ripTrack(CFG.PARK.ripPerSec * 1.4);
+            if (Z.UI) Z.UI.toast('Boss 正在撕开轨道！', 'bad');
+            if (Z.Fx) Z.Fx.boom(zb.x, zb.y, 1, 6);
+            zb.mode = 'walk'; zb.aiCd = 8;
+          }
+        }
+        return true;
+      }
+      // 冲撞中：高速直线冲刺，撞到车厢就造成大伤害
+      if (zb.mode === 'charge') {
+        zb.modeT -= dt;
+        zb.x += zb.vx * dt; zb.y += zb.vy * dt;
+        zb.phase += dt * 12;
+        if (Z.Fx && Math.random() < 0.5) Z.Fx.sparks(zb.x, zb.y, 1.2, 1, '#8a3a2a');
+        if (dist < reach + 2.4) {
+          let car = null, bd = Infinity;
+          for (const c of run.cars) {
+            if (c.dead) continue;
+            const d2 = (c === zb.target.car) ? 0 : 1;
+            if (d2 < bd) { bd = d2; car = c; }
+          }
+          car = car || zb.target.car;
+          if (car) {
+            run.damageCar(car, CFG.ZOMBIE.attack * 9 * this.atkMulOf(zb));
+            if (Z.Sound) Z.Sound.play('boom', { vol: 0.7 });
+            if (Z.Fx) Z.Fx.shake = 0.9;
+          }
+          zb.mode = 'walk'; zb.aiCd = 7;
+          return true;
+        }
+        if (zb.modeT <= 0) { zb.mode = 'walk'; zb.aiCd = 7; }
+        return true;
+      }
+      // 平时：按距离挑一招
+      if (zb.aiCd <= 0 && run.state === 'run') {
+        if (dist > 26 && dist < 95) { zb.mode = 'windup'; zb.modeT = 0.9; zb.nextMode = 'charge'; zb.aiCd = 12; }
+        else if (dist <= 26 && dist > 14) { zb.mode = 'windup'; zb.modeT = 0.7; zb.nextMode = 'summon'; zb.aiCd = 12; }
+        else if (dist <= 14) { zb.mode = 'windup'; zb.modeT = 0.6; zb.nextMode = 'rip'; zb.aiCd = 12; }
+        else zb.aiCd = 1.2;
+      }
+      return false;
+    },
+    atkMulOf: function (zb) {
+      const lv = (Z.Run && Z.Run.level) || 1;
+      return 1 + 0.12 * (lv - 1);
     },
 
     // ---------------- 导演 ----------------
@@ -81,6 +151,8 @@ window.ZT = window.ZT || {};
         const dx = tgt.x - zb.x, dy = tgt.y - zb.y;
         const dist = Math.hypot(dx, dy);
         const reach = CFG.TRAIN.carLenM * 0.5 + 2.4;
+        // Boss 招式：冲撞 / 召唤 / 破坏轨道（蓄力 → 出手，有预警）
+        if (zb.boss && this.bossAI(zb, run, dt, dx, dy, dist, reach)) continue;
         // 撬轨者：贴近（34 m）就拆轨道，不咬车
         if (zb.kind === 'ripper') {
           if (dist < 34) {
@@ -296,6 +368,20 @@ window.ZT = window.ZT || {};
           ctx.beginPath(); ctx.arc(p.x - r * 0.16, hy - r * 0.04, r * 0.34, 0, 6.2832); ctx.fill();
           ctx.beginPath(); ctx.arc(p.x + r * 0.16, hy - r * 0.04, r * 0.34, 0, 6.2832); ctx.fill();
         }
+      }
+      // Boss 蓄力预警：朝列车方向的红色指示线
+      if (zb.boss && zb.mode === 'windup' && zb.target) {
+        const tt = 1 - Math.max(0, zb.modeT) / 0.9;
+        ctx.strokeStyle = zb.nextMode === 'charge' ? 'rgba(255,90,60,' + (0.35 + tt * 0.5) + ')'
+          : zb.nextMode === 'summon' ? 'rgba(180,120,255,' + (0.3 + tt * 0.5) + ')'
+            : 'rgba(255,200,80,' + (0.3 + tt * 0.5) + ')';
+        ctx.lineWidth = Math.max(1.6, z * 0.5);
+        ctx.setLineDash([6, 5]);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - r * 0.6);
+        ctx.lineTo(p.x + (zb.target.x - zb.x) * z * 0.92, p.y + (zb.target.y - zb.y) * R.cosT * z * 0.92 - r * 0.6);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
       // 撬轨标记
       if (zb.kind === 'ripper') {

@@ -611,6 +611,43 @@ try {
     ZT.UI.openStation(R.station);
     return document.querySelectorAll('.dcell .mv').length >= 2;
   })()`))
+  console.log('\n[25] Boss 招式')
+  const boss = JSON.parse(await ev(`(() => {
+    const R = ZT.Run, Z = window.ZT;
+    ZT.Game.startLevel(1);
+    R.state = 'run';
+    ZT.Zombies.reset ? ZT.Zombies.reset() : (ZT.Zombies.list.length = 0);
+    const p = Z.U.posAt(Z.World.path, R.km + 40, {});
+    const zb = Z.Zombies.make(p.x, p.y, {});
+    zb.boss = true; zb.aiCd = 0; zb.mode = 'walk';
+    ZT.Zombies.list.length = 0; ZT.Zombies.list.push(zb);
+    ZT.Zombies.update(1 / 60, R);
+    const windup = zb.mode === 'windup' && zb.nextMode === 'charge';
+    // 蓄力结束 → 冲撞
+    zb.modeT = 0.001;
+    ZT.Zombies.update(1 / 60, R);
+    const charging = zb.mode === 'charge';
+    const x0 = zb.x, y0 = zb.y;
+    for (let i = 0; i < 12; i++) ZT.Zombies.update(1 / 60, R);
+    const moved = Math.hypot(zb.x - x0, zb.y - y0);
+    // 召唤
+    zb.mode = 'windup'; zb.nextMode = 'summon'; zb.modeT = 0.001; zb.aiCd = 0;
+    const before = ZT.Zombies.list.length;
+    ZT.Zombies.update(1 / 60, R);
+    const summoned = ZT.Zombies.list.length - before;
+    // 破坏轨道
+    zb.mode = 'windup'; zb.nextMode = 'rip'; zb.modeT = 0.001; zb.aiCd = 0;
+    R.state = 'run'; R.trackDamage = 0;
+    ZT.Zombies.update(1 / 60, R);
+    const rip = R.trackDamage;
+    ZT.Zombies.list.length = 0;
+    return JSON.stringify({ windup: windup, charging: charging, moved: Math.round(moved), summoned: summoned, rip: Math.round(rip) });
+  })()`))
+  check('Boss 进入蓄力并锁定冲撞', boss.windup === true, boss)
+  check('蓄力结束进入冲撞', boss.charging === true, boss)
+  check('冲撞会高速位移', boss.moved > 5, boss)
+  check('召唤会带来新的丧尸', boss.summoned >= 6, boss)
+  check('破坏轨道会累积损伤', boss.rip > 0, boss)
 } catch (e) {
   fail++
   console.error('冒烟测试中断：', e.message)
