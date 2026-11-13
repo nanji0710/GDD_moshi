@@ -108,8 +108,16 @@ node tools/export-glb.cjs   # 重出 3D 资产：models/glb/*.glb + assets/model
 
 | 平台 | 触发方式 | 地址 |
 | --- | --- | --- |
-| **Cloudflare Pages** | `.github/workflows/deploy-cloudflare.yml`（wrangler 直传 `prototype/`） | https://last-train-87y.pages.dev |
-| **GitHub Pages** | `.github/workflows/pages.yml` | https://nanji0710.github.io/GDD_moshi/ |
+| **Cloudflare Pages** | `.github/workflows/deploy-cloudflare.yml`（`node tools/stage-site.mjs` 装配 `_site/` 后上传） | https://last-train-87y.pages.dev |
+| **GitHub Pages** | `.github/workflows/pages.yml`（同一份 `_site/`） | https://nanji0710.github.io/GDD_moshi/ |
+
+两个入口都先跑 `node tools/stage-site.mjs`：只把 `index.html` + `css/` + `js/` + `assets/models-data.js` 复制进 `_site/`，
+`prototype/tools/`（冒烟/截图/性能脚本与 `shots-*` 测试截图）一律不进站点；同时写入 `_site/version.json`（commit / branch / builtAt / 文件数与字节数）。
+白名单只有这一处实现，本地脚本与 CI 共用，不再各写一份过滤。
+
+上线自检两条（`node tools/stage-site.mjs` 的 `version.json` 就是为此）：
+- `GET /version.json` 的 `commit` 应等于刚推的 sha；
+- `GET /tools/smoke.mjs` 不应再返回 JavaScript（Cloudflare Pages 对未知路径会回退到 `index.html`，返回 200 text/html，所以按内容/类型判，不按状态码判）。
 
 CI 需要两个仓库密钥（Settings → Secrets and variables → Actions）：
 
@@ -118,7 +126,7 @@ CI 需要两个仓库密钥（Settings → Secrets and variables → Actions）�
 | `CLOUDFLARE_API_TOKEN` | API 令牌，权限仅 `Account · Cloudflare Pages · Edit` |
 | `CLOUDFLARE_ACCOUNT_ID` | 账户 ID（Workers & Pages 页右侧） |
 
-本地手动发一次：`$env:CF_API_TOKEN=...; $env:CF_ACCOUNT_ID=...; pwsh -File tools/deploy-cloudflare.ps1`
+本地手动发一次（需要 node；装配与 CI 共用 `tools/stage-site.mjs`）：`$env:CF_API_TOKEN=...; $env:CF_ACCOUNT_ID=...; pwsh -File tools/deploy-cloudflare.ps1`
 
 `release/last-train-prototype.zip` 是**只含游戏本体**的发布包：**323,531 B（316 KiB，27 项）**，
 解压后根目录就是 `index.html`，可直接拖进 Cloudflare Pages 的 Upload assets。

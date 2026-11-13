@@ -1,10 +1,12 @@
 ﻿<#
 .SYNOPSIS
     把 prototype/ 部署到 Cloudflare Pages（Direct Upload）。
-    不依赖 wrangler / npm / PowerShell 7 —— 只用系统自带的 curl.exe。
+    不依赖 wrangler / npm / PowerShell 7 —— 只用 node + 系统自带的 curl.exe。
+    「发哪些文件」由 tools/stage-site.mjs 统一决定（与两个 GitHub workflow 同一份实现），
+    本脚本只负责把它装配出的 _site/ 上传，不再自己维护过滤规则。
 
 .DESCRIPTION
-    需要两个环境变量：
+    需要 node（18+，装配 _site/ 与 version.json）和两个环境变量：
         CF_API_TOKEN   —— Cloudflare API 令牌
                           权限：Account → Cloudflare Pages → Edit
                           创建：https://dash.cloudflare.com/profile/api-tokens
@@ -21,7 +23,6 @@
 #>
 param(
     [string]$Project = 'last-train',
-    [string]$Dir     = 'prototype',
     [string]$Token   = $env:CF_API_TOKEN,
     [string]$Account = $env:CF_ACCOUNT_ID
 )
@@ -39,9 +40,10 @@ if (-not $Token -or -not $Account) {
     exit 1
 }
 
-if (-not (Test-Path $Dir)) { throw "找不到目录：$Dir" }
-$root = (Resolve-Path $Dir).Path.TrimEnd('\')
-$api  = "https://api.cloudflare.com/client/v4/accounts/$Account/pages/projects"
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+    throw '找不到 node：装配部署目录需要 node 18+（node tools/stage-site.mjs）'
+}
+$api = "https://api.cloudflare.com/client/v4/accounts/$Account/pages/projects"
 
 function Invoke-CfJson([string]$Method, [string]$Url, [string]$JsonBody) {
     $args = @('-s', '-X', $Method, $Url, '-H', "Authorization: Bearer $Token")
@@ -56,14 +58,23 @@ $created = Invoke-CfJson 'POST' $api (@{ name = $Project; production_branch = 'm
 if ($created -and $created.success) { Write-Host '  已创建项目' -ForegroundColor Green }
 else { Write-Host '  项目已存在，继续上传' -ForegroundColor DarkGray }
 
-# 2) 收集文件（键 = 站点内相对路径，正斜杠）
+# 2) 装配部署目录：白名单 + version.json 只在这里定义一次（与 CI 共用）
+$site = Join-Path (Get-Location) '_site'
+$sha  = ''
+try { $sha = (& git rev-parse HEAD 2>$null).Trim() } catch { }
+Write-Host '→ 装配部署目录（白名单 + version.json）...' -ForegroundColor Cyan
+$stageArgs = @('tools/stage-site.mjs', '--out', $site, '--branch', 'local')
+if ($sha) { $stageArgs += @('--commit', $sha) }
+& node @stageArgs
+if ($LASTEXITCODE -ne 0) { throw 'tools/stage-site.mjs 失败，已中止部署' }
+$root = (Resolve-Path $site).Path.TrimEnd('\')
+
 $files = @()
 Get-ChildItem -Recurse -File $root | Sort-Object FullName | ForEach-Object {
     $rel = $_.FullName.Substring($root.Length).TrimStart('\', '/').Replace('\', '/')
-    if ($rel -like 'tools/*') { return }          # 测试脚本不进站点
     $files += ,@($rel, $_.FullName)
 }
-if ($files.Count -eq 0) { throw "目录里没有可发布的文件：$Dir" }
+if ($files.Count -eq 0) { throw "目录里没有可发布的文件：$site" }
 $kb = (($files | ForEach-Object { (Get-Item $_[1]).Length } | Measure-Object -Sum).Sum) / 1KB
 Write-Host ("→ 上传 {0} 个文件（{1:N0} KB）..." -f $files.Count, $kb) -ForegroundColor Cyan
 

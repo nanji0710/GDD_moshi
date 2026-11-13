@@ -16,9 +16,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy prototype/ to Cloudflare Pages
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Stage site (white-list + version.json)
+        run: node tools/stage-site.mjs --out _site --commit "${GITHUB_SHA}" --branch "${GITHUB_REF_NAME}"
+
+      - name: Deploy _site/ to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy prototype --project-name last-train --branch main
+          command: pages deploy _site --project-name last-train --branch main

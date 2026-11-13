@@ -22,9 +22,17 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Upload prototype as site root
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Stage site (white-list + version.json)
+        run: node tools/stage-site.mjs --out _site --commit "${GITHUB_SHA}" --branch "${GITHUB_REF_NAME}"
+
+      - name: Upload _site as site root
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./prototype
+          path: ./_site
       - id: deployment
         uses: actions/deploy-pages@v4
