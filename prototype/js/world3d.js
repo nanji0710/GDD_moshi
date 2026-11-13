@@ -54,6 +54,7 @@ precision highp float;
 varying vec3 vNor, vCol, vWorld;
 uniform vec3 uEye, uFog;
 uniform float uFlash;
+uniform float uAlpha;
 void main() {
   vec3 N = normalize(vNor);
   vec3 V = normalize(uEye - vWorld);
@@ -71,7 +72,7 @@ void main() {
   float dist = length(uEye - vWorld);
   float fog = smoothstep(180.0, 520.0, dist);
   col = mix(col, uFog, fog);
-  gl_FragColor = vec4(col, 1.0);
+  gl_FragColor = vec4(col, uAlpha);
 }`;
 
   function compile(gl, type, src) {
@@ -112,7 +113,7 @@ void main() {
         col: gl.getAttribLocation(prog, 'aCol')
       };
       const Uu = {};
-      for (const k of ['uMVP', 'uModel', 'uNrm', 'uEye', 'uFog', 'uFlash']) Uu[k] = gl.getUniformLocation(prog, k);
+      for (const k of ['uMVP', 'uModel', 'uNrm', 'uEye', 'uFog', 'uFlash', 'uAlpha']) Uu[k] = gl.getUniformLocation(prog, k);
       this.A = A; this.U = Uu;
 
       // GLB 模型
@@ -122,6 +123,7 @@ void main() {
         catch (e) { /* 单个模型失败不影响整体 */ }
       }
       this.ground = this.upload(this.groundMesh());
+      this.cube = this.upload(this.cubeMesh());
       // 曳光弹：动态线段缓冲
       this.lineBuf = gl.createBuffer();
       this.lineCol = gl.createBuffer();
@@ -153,6 +155,28 @@ void main() {
       gl.bindBuffer(gl.ARRAY_BUFFER, m.cb);
       gl.enableVertexAttribArray(A.col); gl.vertexAttribPointer(A.col, 3, gl.FLOAT, false, 0, 0);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.ib);
+    },
+
+    cubeMesh: function () {
+      const p = [], n2 = [], c = [], idx = [];
+      const push = (x, y, z, nx, ny, nz) => { p.push(x, y, z); n2.push(nx, ny, nz); c.push(1, 1, 1); return p.length / 3 - 1; };
+      const faces = [
+        [[-1,1,-1],[1,1,-1],[1,1,1],[-1,1,1],[0,1,0]],
+        [[-1,-1,1],[1,-1,1],[1,-1,-1],[-1,-1,-1],[0,-1,0]],
+        [[-1,-1,1],[-1,1,1],[1,1,1],[1,-1,1],[0,0,1]],
+        [[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,-1],[0,0,-1]],
+        [[1,-1,1],[1,1,1],[1,1,-1],[1,-1,-1],[1,0,0]],
+        [[-1,-1,-1],[-1,1,-1],[-1,1,1],[-1,-1,1],[-1,0,0]]
+      ];
+      for (const f of faces) {
+        const a = push(f[0][0]*0.5, f[0][1]*0.5, f[0][2]*0.5, f[4][0], f[4][1], f[4][2]);
+        const b = push(f[1][0]*0.5, f[1][1]*0.5, f[1][2]*0.5, f[4][0], f[4][1], f[4][2]);
+        const c2 = push(f[2][0]*0.5, f[2][1]*0.5, f[2][2]*0.5, f[4][0], f[4][1], f[4][2]);
+        const d = push(f[3][0]*0.5, f[3][1]*0.5, f[3][2]*0.5, f[4][0], f[4][1], f[4][2]);
+        idx.push(a, b, c2, a, c2, d);
+      }
+      return { pos: new Float32Array(p), nor: new Float32Array(n2), col: new Float32Array(c),
+        idx: new Uint16Array(idx), count: idx.length };
     },
 
     groundMesh: function () {
@@ -266,6 +290,7 @@ void main() {
       this.vp = vp;
       gl.useProgram(this.prog);
       gl.uniform1f(this.U.uFlash, 0);
+      gl.uniform1f(this.U.uAlpha, 1);
       gl.uniform3fv(this.U.uEye, eye);
       gl.uniform3fv(this.U.uFog, [0.055, 0.06, 0.05]);
 
@@ -322,15 +347,17 @@ void main() {
           for (let si = 0; si < car.slots.length; si++) {
             const w = car.slots[si];
             if (!w) continue;
-            const off = (si - (car.slots.length - 1) / 2) * 2.4;
+            // 沿车身纵向排位（与 2D 挂点的 ±4.5 m 一致），两个炮塔不会叠在一起
+            const off = (si - (car.slots.length - 1) / 2) * 9.0;
             const px = tmp.x - Math.sin(tmp.a) * off;
             const pz = tmp.y + Math.cos(tmp.a) * off;
-            this.drawModel(this.mesh.turret, px, 2.55, pz, -w.aim, 1);
+            this.drawModel(this.mesh.turret, px, 2.22, pz, -w.aim, 1);
           }
         }
       }
 
       // 曳光弹（复用 2D 的 Fx 数据，转成 3D 线段）
+      this.drawBlasts(vp);
       this.drawTracers(vp);
 
       // 路边建筑（用 building.glb 摆到废墟位置，近处才画）
@@ -372,6 +399,39 @@ void main() {
         this.use(mesh);
         gl.drawElements(gl.TRIANGLES, mesh.count, mesh.type, 0);
       }
+    },
+
+    drawBlasts: function (vp) {
+      // 加色混合：火光/爆炸是发光体，不该是实心方块
+      const gl = this.gl;
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      gl.depthMask(false);
+      const list = (Z.Fx && Z.Fx.list) ? Z.Fx.list : null;
+      if (!list || !list.length || !this.cube) return;
+      for (const f of list) {
+        if (f.kind !== 'flash' && f.kind !== 'boom') continue;
+        const o = f.o;
+        const k = Math.min(1, f.t / f.dur);
+        let scls, alpha;
+        if (f.kind === 'flash') { scls = (0.5 + k * 0.9) * (o.r || 3) * 0.30; alpha = 1 - k; }
+        else { scls = (o.r || 12) * (0.30 + k * 0.55) * 0.34; alpha = 1 - k; }
+        if (alpha <= 0.02) continue;
+        const model = M4.mul(M4.trans(o.x, o.h || 2.4, o.y), M4.scale(scls, scls, scls));
+        const mvp = M4.mul(vp, model);
+        this.gl.uniformMatrix4fv(this.U.uMVP, false, mvp);
+        this.gl.uniformMatrix4fv(this.U.uModel, false, model);
+        this.gl.uniformMatrix3fv(this.U.uNrm, false, M4.nrm(model));
+        // 用 flash 通道把颜色推成炽白，越亮越像火
+        this.gl.uniform1f(this.U.uFlash, Math.min(1, alpha * 0.85 + 0.15));
+        this.gl.uniform1f(this.U.uAlpha, Math.min(0.92, alpha * 0.9));
+        this.use(this.cube);
+        this.gl.drawElements(this.gl.TRIANGLES, this.cube.count, this.cube.type, 0);
+      }
+      this.gl.uniform1f(this.U.uFlash, 0);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+      gl.uniform1f(this.U.uAlpha, 1);
     },
 
     drawTracers: function (vp) {
