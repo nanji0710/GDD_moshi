@@ -1116,6 +1116,84 @@ try {
   await send('Emulation.clearDeviceMetricsOverride')
   await sleep(300)
 
+  console.log('\n[35] #7 模型加载：2D 不预取 / 首切 3D / 超时与重试')
+  // ① 进关只走 2D：不应产生任何 models-data 请求（#7 的「2D 不付款」）
+  await ev(`(() => { ZT.Game.startLevel(1); ZT.UI.openStation(ZT.Run.station); if (ZT.World3D && ZT.World3D.on) ZT.UI.toggle3D(); return 1 })()`)
+  await sleep(2500)
+  const idle = JSON.parse(await ev(`JSON.stringify({
+    ready: !!(ZT.GLB && ZT.GLB.ready), loading: !!(ZT.GLB && ZT.GLB.loading),
+    scripts: [...document.querySelectorAll('script[src*="models-data"]')].length,
+    on: !!(ZT.World3D && ZT.World3D.on) })`))
+  check('进关静置 2.5s 不下载模型（ready=false、0 个 models-data script）', idle.ready === false && idle.loading === false && idle.scripts === 0 && idle.on === false, idle)
+
+  // ② 首次点 3D → 恰 1 次请求、就绪后 3D on + 40 网格（#7 的懒加载）
+  const t3d = Date.now()
+  await ev('ZT.UI.toggle3D()')
+  const ready1 = await waitFor('!!(ZT.GLB && ZT.GLB.ready)', 20000)
+  const on1 = await waitFor('!!window.ZT.World3D.on', 20000)
+  const after1 = JSON.parse(await ev(`JSON.stringify({
+    meshes: Object.keys((ZT.World3D && ZT.World3D.mesh) || {}).length,
+    scripts: [...document.querySelectorAll('script[src*="models-data"]')].length,
+    pillHidden: !!document.getElementById('asset-loading') && document.getElementById('asset-loading').classList.contains('hidden') })`))
+  check('首次点 3D 才加载模型：就绪 + 3D on + 40 网格 + pill 收起', ready1 && on1 && after1.meshes === 40 && after1.scripts === 1 && after1.pillHidden, { ms: Date.now() - t3d, ...after1 })
+
+  // ③ 脚本立即 onerror（404/缺失）→ 自动重试恰 1 次（共 2 次尝试）后转终态（D2）
+  const retryCount = JSON.parse(await ev(`(async () => {
+    if (ZT.World3D.on) ZT.UI.toggle3D();
+    ZT.GLB.ready = false; ZT.GLB.loading = false; ZT.GLB.error = null; ZT.GLB._fails = 0; ZT.GLB.TIMEOUT_MS = 10000;
+    const orig = Node.prototype.appendChild; let n = 0;
+    Node.prototype.appendChild = function (el) {
+      if (el && el.tagName === 'SCRIPT' && /models-data/.test(el.src)) { n++; setTimeout(function () { el.onerror && el.onerror() }, 10); return el }
+      return orig.call(this, el);
+    };
+    ZT.GLB.ensure();
+    await new Promise(function (r) { setTimeout(r, 1500) });
+    Node.prototype.appendChild = orig;
+    return JSON.stringify({ attempts: n, err: ZT.GLB.error ? String(ZT.GLB.error.message || ZT.GLB.error) : null, loading: !!(ZT.GLB && ZT.GLB.loading) });
+  })()`))
+  check('脚本 onerror 自动重试恰 1 次（共 2 次尝试）后转终态', retryCount.attempts === 2 && retryCount.err === 'models-data.js 加载失败' && retryCount.loading === false, retryCount)
+
+  // ④ 10s 超时是终态（这里把 TIMEOUT_MS 降到 120ms）：error 非空、pill 失败态、3D 不硬切
+  await ev(`(() => { ZT.GLB.ready = false; ZT.GLB.loading = false; ZT.GLB.error = null; ZT.GLB._fails = 0; ZT.GLB.TIMEOUT_MS = 120;
+    window.__realAppend = window.__realAppend || Node.prototype.appendChild;
+    window.__stubAppend = true;
+    if (!Node.prototype.__stubbed) {
+      Node.prototype.__stubbed = true;
+      Node.prototype.appendChild = function (el) {
+        if (window.__stubAppend && el && el.tagName === 'SCRIPT' && /models-data/.test(el.src)) return el;
+        return window.__realAppend.call(this, el);
+      };
+    }
+    return 1 })()`)
+  await ev('ZT.GLB.ensure()')
+  const timedOut = await waitFor('!!(ZT.GLB && ZT.GLB.error)', 6000)
+  const failState = JSON.parse(await ev(`JSON.stringify({
+    text: (document.getElementById('asset-loading') || {}).textContent || '',
+    hidden: !!document.getElementById('asset-loading') && document.getElementById('asset-loading').classList.contains('hidden'),
+    bad: !!document.getElementById('asset-loading') && document.getElementById('asset-loading').classList.contains('bad'),
+    on: !!(ZT.World3D && ZT.World3D.on) })`))
+  check('超时 → error 非空、pill 变「模型加载失败，点此重试」、3D 仍 false', timedOut && failState.text === '模型加载失败，点此重试' && failState.hidden === false && failState.bad === true && failState.on === false, failState)
+
+  // ⑤ error 不粘：再次 ensure 会重新发起请求，且 waiters 不丢（D3，玄策 A 的早返回已修）
+  await ev('window.__stubAppend = false')
+  await ev(`window.__waiter = { fired: false, err: 'pending' }; ZT.GLB.ensure(function (e) { window.__waiter.fired = true; window.__waiter.err = e ? String(e.message || e) : null })`)
+  const reloaded = await waitFor('!!(ZT.GLB && ZT.GLB.ready)', 20000)
+  const waiter = JSON.parse(await ev('JSON.stringify(window.__waiter)'))
+  check('error 后再 ensure 会重新请求且 _waiters 不丢（回调拿到 null）', reloaded && waiter.fired === true && waiter.err === null, waiter)
+
+  // ⑥ 失败态 pill 可点重试：再制造一次失败 → 点 pill → 重新加载成功并补切 3D（D4）
+  await ev(`(() => { ZT.GLB.ready = false; ZT.GLB.loading = false; ZT.GLB.error = null; ZT.GLB._fails = 0; ZT.GLB.TIMEOUT_MS = 120; window.__stubAppend = true; ZT.GLB.ensure(); return 1 })()`)
+  await waitFor('!!(ZT.GLB && ZT.GLB.error)', 6000)
+  await ev(`(() => { window.__stubAppend = false; ZT.GLB.TIMEOUT_MS = 10000; const a = document.getElementById('asset-loading'); if (!a) return 0; a.click(); return 1 })()`)
+  const retryOk = await waitFor('!!(ZT.GLB && ZT.GLB.ready)', 20000)
+  const onRetry = await waitFor('!!window.ZT.World3D.on', 20000)
+  const finalState = JSON.parse(await ev(`JSON.stringify({
+    meshes: Object.keys((ZT.World3D && ZT.World3D.mesh) || {}).length,
+    pillHidden: !!document.getElementById('asset-loading') && document.getElementById('asset-loading').classList.contains('hidden'),
+    prepText: document.body.innerText.indexOf('准备模型资源') >= 0 })`))
+  check('点失败态 pill 重试 → 重新加载、pill 收起、补切 3D on + 40 网格', retryOk && onRetry && finalState.meshes === 40 && finalState.pillHidden && !finalState.prepText, finalState)
+  await ev(`(() => { if (window.__realAppend) Node.prototype.appendChild = window.__realAppend; delete Node.prototype.__stubbed; return 1 })()`)
+
   check('运行期 console 无报错', errors.length === 0, errors.slice(0, 3))
 } catch (e) {
   fail++

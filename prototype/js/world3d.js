@@ -2359,7 +2359,8 @@ const TINTS = [
 
     setMode: function (on) {
       // 模型数据是异步的：没就绪就先发起加载并拒绝这次切换（否则 3D 里列车会是空的）
-      if (on && Z.GLB && Z.GLB.ensure && !Z.GLB.ready) { Z.GLB.ensure(); return false; }
+      // #7 D4：记录「用户想切 3D」的意图，加载成功后由 UI.finishPending3D 直接完成切换
+      if (on && Z.GLB && Z.GLB.ensure && !Z.GLB.ready) { Z.GLB._intent3D = true; Z.GLB.ensure(); return false; }
       if (on && !this.init()) return false;
       this.on = !!on;
       const c2 = document.getElementById('map');

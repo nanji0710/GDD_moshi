@@ -297,9 +297,10 @@ try {
   await waitFor(`[...document.querySelectorAll('.mc-acts .btn')].some(b => /出发/.test(b.textContent))`, 5000)
   await ev(`(() => { const b = [...document.querySelectorAll('.mc-acts .btn')].find(x => /出发/.test(x.textContent)); if (!b) return false; b.click(); return true })()`)
   await waitFor('window.ZT.Run.state === "station"', 15000)
-  // 等 Fetch 真正挂住 models-data.js，再断言加载态（否则本地盘读太快，断言会空转）
+  // #7：进关不再预取模型数据 —— 必须先点 3D 才会发 models-data 请求；等 Fetch 真正挂住再断言加载态
   const tPause = Date.now()
-  while (paused.length === 0 && Date.now() - tPause < 5000) await sleep(50)
+  await ev('window.ZT.UI.toggle3D()')
+  while (paused.length === 0 && Date.now() - tPause < 8000) await sleep(50)
   const glbState = await ev(`JSON.stringify({ ready: !!(window.ZT.GLB && ZT.GLB.ready), loading: !!(window.ZT.GLB && ZT.GLB.loading), req: (window.ZT.GLB ? 'ensure' : 'none') })`)
   const pillShown = await waitFor(`(() => { const a = document.getElementById('asset-loading'); return !!a && !a.classList.contains('hidden') })()`, 5000)
   const pillText = await ev(`(() => { const a = document.getElementById('asset-loading'); return a ? a.textContent : '' })()`)
@@ -316,11 +317,12 @@ try {
   console.log('   模型未就绪时切 3D：World3D.on ' + onBefore + ' → ' + onWhileLoading + '（应 false）；提示=' + JSON.stringify(toast3d || toastBefore))
   const released = await releasePaused()
   const readyOk = await waitFor('!!(window.ZT.GLB && window.ZT.GLB.ready)', 15000)
+  const autoOn = await waitFor('!!window.ZT.World3D.on', 15000)
   const pillAfter = await ev(`(() => { const a = document.getElementById('asset-loading'); return !!a && !a.classList.contains('hidden') })()`)
-  console.log('   放行 ' + released + ' 个请求 → 模型就绪=' + readyOk + '，pill 消失=' + !pillAfter + '（' + (Date.now() - tStart) + ' ms）')
-  await ev('window.ZT.UI.toggle3D()')
-  await waitFor('!!window.ZT.World3D.on', 15000); await sleep(300)
-  console.log('   就绪后切 3D：on=' + await ev('!!window.ZT.World3D.on') + '，网格数=' + await ev('Object.keys(window.ZT.World3D.mesh || {}).length'))
+  console.log('   放行 ' + released + ' 个请求 → 模型就绪=' + readyOk + '，pill 消失=' + !pillAfter +
+    '，意图补切 3D on=' + autoOn + '（' + (Date.now() - tStart) + ' ms）')
+  await sleep(300)
+  console.log('   就绪后 3D：on=' + await ev('!!window.ZT.World3D.on') + '，网格数=' + await ev('Object.keys(window.ZT.World3D.mesh || {}).length'))
   await shot('06-3d-ready.png')
 
   // ================= 汇总 =================

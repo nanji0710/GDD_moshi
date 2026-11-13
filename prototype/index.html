@@ -39,6 +39,29 @@
   <canvas id="map3d" style="display:none"></canvas>
   <div id="ui"></div>
   <noscript>需要启用 JavaScript。</noscript>
+  <!-- #7：启动层失败态（内联，必须在 22 个外部 script 之前）。任一 classic script 404/加载失败 →
+       #boot-loading 立刻改成「加载失败：请确认文件完整」；另加 10s 兜底，避免永久转圈。
+       不新增 js 文件（多一个请求，且它自己 404 就没人兜底了）。 -->
+  <script>
+  (function () {
+    var el = document.getElementById('boot-loading');
+    function fail() {
+      if (window.__bootFailed) return;
+      window.__bootFailed = true;
+      if (!el) return;
+      el.classList.remove('hidden');
+      el.style.display = '';
+      var i = el.querySelector('i'); if (i) i.style.display = 'none';
+      var b = el.querySelector('b'); if (b && b.parentNode) b.parentNode.removeChild(b);
+      var s = el.querySelector('span'); if (s) s.textContent = '加载失败：请确认文件完整';
+    }
+    window.addEventListener('error', function (e) {
+      var t = e && e.target;
+      if (t && t.tagName === 'SCRIPT' && t.src) fail();
+    }, true);
+    setTimeout(function () { if (el && !el.classList.contains('hidden')) fail(); }, 10000);
+  })();
+  </script>
   <!-- 注意：assets/models-data.js（1.3MB）不在首屏同步引用里，由 js/glb.js 在需要 3D 时
        动态插入 classic <script> 异步加载（file:// 下 fetch()/import() 会被 CORS 拒绝）。 -->
   <script src="js/util.js"></script>

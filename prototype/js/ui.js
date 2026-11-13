@@ -876,21 +876,34 @@ window.ZT = window.ZT || {};
       if (Z.GLB.ready) return true;
       const self = this;
       Z.GLB.ensure(function (err) {
-        self.toast(err ? '模型资源加载失败，3D 视图暂不可用' : (readyTip || '模型资源已就绪'), err ? 'bad' : 'good');
+        self.toast(err ? '模型资源加载失败，点右下角「重试」' : (readyTip || '模型资源已就绪'), err ? 'bad' : 'good');
       });
-      this.toast(Z.GLB.loading ? '模型资源加载中…（首次约 1 秒）' : '准备模型资源…', 'info');
+      // #7 ⑤：只在真的处于加载中时才提示，失败态不再叠加「准备模型资源…」造成自相矛盾
+      if (Z.GLB.loading) this.toast('模型资源加载中…（首次约 1 秒）', 'info');
       return false;
     },
-    toggle3D: function () {
-      if (!Z.World3D) return;
-      const on = !Z.World3D.on;
-      if (on && !this.ensureModels('模型资源已就绪，再按 V / 点 3D 切换')) return;
-      if (!Z.World3D.setMode(on)) { this.toast('这个浏览器不支持 WebGL', 'bad'); return; }
+    // 3D 开/关的唯一落地点（按钮、快捷键、模型就绪后的补切都走这里）
+    apply3D: function (on) {
+      if (!Z.World3D) return false;
+      if (!Z.World3D.setMode(on)) { this.toast('这个浏览器不支持 WebGL', 'bad'); return false; }
       this.toast(on ? '3D 视图（按 V 切回）' : '2D 视图', 'info');
       if (this.refs.btn3d) {
         this.refs.btn3d.classList.toggle('on', on);
         if (this.refs.btn3dLabel) this.refs.btn3dLabel.textContent = on ? '2D' : '3D';
       }
+      return true;
+    },
+    // 模型数据加载成功后，把「用户刚才想切 3D」的意图补完成（#7 D4）
+    finishPending3D: function () {
+      if (Z.GLB) Z.GLB._intent3D = false;
+      if (Z.World3D && !Z.World3D.on) this.apply3D(true);
+    },
+    toggle3D: function () {
+      if (!Z.World3D) return;
+      const on = !Z.World3D.on;
+      if (on && Z.GLB && Z.GLB.ensure && !Z.GLB.ready) Z.GLB._intent3D = true;
+      if (on && !this.ensureModels('模型资源已就绪，再按 V / 点 3D 切换')) return;
+      this.apply3D(on);
     },
 
     toggleRefit: function () {

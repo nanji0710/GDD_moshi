@@ -803,4 +803,14 @@ button.carline.on { border-color: var(--accent); background: rgba(255,179,71,0.1
   animation: bootspin .8s linear infinite;
 }
 #asset-loading.hidden { display: none; }
+/* #7：模型加载失败态 = 可点的重试入口（平时是纯状态条，pointer-events 只在 bad 时打开） */
+#asset-loading.bad {
+  pointer-events: auto; cursor: pointer;
+  border-color: rgba(224, 90, 74, .55); color: #ffd9d4;
+  background: rgba(40, 20, 20, .94);
+}
+#asset-loading.bad::before {
+  animation: none; border-color: #e05a4a; background: #e05a4a;
+}
+#asset-loading.bad:focus-visible { outline: 2px solid #e05a4a; outline-offset: 2px; }
 

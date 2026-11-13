@@ -31,9 +31,11 @@
 
 没有构建、没有 npm install、没有服务器要求。
 
-首屏只同步加载界面脚本与样式（实测 **478,428 B / 26 个请求（467 KiB）**，4× CPU 降速下 DCL≈0.09s（83–107ms）、标题可交互≈0.19s（161–201ms））；
-1.3MB 的 3D 模型数据（`assets/models-data.js`）**进入游戏后才异步加载**，加载期间底部有「模型资源加载中…」提示，
-3D 按钮在就绪前不会硬切（先提示、就绪后再切）。复测命令见「开发」里的 `node tools/perf.mjs`。
+首屏只同步加载界面脚本与样式（实测 **481,922 B / 26 个请求（470.6 KiB）**，4× CPU 降速下 DCL≈0.09s（83–107ms）、标题可交互≈0.19s（161–201ms））；
+**进关不下载模型**：1.3MB 的 3D 模型数据（`assets/models-data.js`）只在**首次切 3D** 时异步加载（视网速约 1–5s），
+加载期间底部有「模型资源加载中…」提示；失败时提示变「模型加载失败，点此重试」（10s 超时、脚本 404 自动重试 1 次），
+3D 按钮在就绪前不会硬切。复测命令见「开发」里的 `node tools/perf.mjs`。
+（#7 前首屏为 478,428 B / 26 请求，差值来自 index.html 内联的启动失败守卫。）
 
 | 操作 | 键 |
 | --- | --- |
@@ -82,7 +84,7 @@
 │   ├── assets/
 │   │   └── models-data.js  内嵌 GLB 资产（1.3MB，进游戏后异步加载，不进首屏）
 │   └── tools/
-│       ├── smoke.mjs       175 条断言的冒烟测试（CDP）
+│       ├── smoke.mjs       181 条断言的冒烟测试（CDP）
 │       ├── shoot.mjs       33 张截图 + console 报错审计（CDP）
 │       ├── perf.mjs        首屏同步字节 / DCL / 加载态 / 404 实测（CDP）
 │       └── export-glb.cjs  程序化模型导出 → models/glb/*.glb + assets/models-data.js
@@ -96,7 +98,7 @@
 
 ```bash
 cd prototype
-node tools/smoke.mjs        # 175 条断言，含存档往返、关卡变异、速度公式
+node tools/smoke.mjs        # 181 条断言，含存档往返、关卡变异、速度公式、模型懒加载与失败重试
 node tools/shoot.mjs        # 出 33 张截图并审计 console 报错
 node tools/perf.mjs         # 首屏实测：同步字节 / DCL / 标题时间 / 加载态 / 404
 node tools/export-glb.cjs   # 重出 3D 资产：models/glb/*.glb + assets/models-data.js

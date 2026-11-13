@@ -599,8 +599,7 @@ window.ZT = window.ZT || {};
   }
 
   // ================= 主程序 =================
-  // 进入游戏才开始异步拉模型数据（首屏不阻塞；只有 3D 视图会用到 assets/models-data.js）
-  function prefetchModels() { if (Z.GLB && Z.GLB.ensure) Z.GLB.ensure(); }
+  // #7：进关不再预取模型数据（2D 玩家不付这 1.3MB）；只有首次切 3D 时由 GLB.ensure() 异步加载。
 
   const Game = Z.Game = {
     speedMul: 1, paused: false, acc: 0,
@@ -616,8 +615,9 @@ window.ZT = window.ZT || {};
       Z.UI.init(run);
       Z.UI.showStart();
       // 首屏脚本跑完、标题已渲染 → 收起启动 loading（元素与关键样式内联在 index.html）
+      // #7：若内联守卫已判「脚本加载失败」（window.__bootFailed），保留失败文案，不要再盖掉
       const bootEl = document.getElementById('boot-loading');
-      if (bootEl) {
+      if (bootEl && !window.__bootFailed) {
         bootEl.classList.add('hidden');
         setTimeout(function () { bootEl.style.display = 'none'; }, 320);
       }
@@ -773,7 +773,6 @@ window.ZT = window.ZT || {};
     startLevel: function (n) {
       const R = Z.R;
       const run = Z.Run;
-      prefetchModels();
       if (Z.Save) Z.Save.clear();
       run.start(n);
       if (Z.Save) Z.Save.save(run);
@@ -790,7 +789,6 @@ window.ZT = window.ZT || {};
     },
     startEndless: function () {
       const R = Z.R, run = Z.Run;
-      prefetchModels();
       run.startEndless();
       const lay = run.train.layout(Z.World);
       const mid = lay[(lay.length / 2) | 0];
@@ -806,7 +804,6 @@ window.ZT = window.ZT || {};
       const snap = Z.Save && Z.Save.get();
       if (!snap) { if (Z.UI) Z.UI.toast('没有可继续的存档', 'bad'); return; }
       const R = Z.R, run = Z.Run;
-      prefetchModels();
       run.restore(snap);
       const lay = run.train.layout(Z.World);
       const mid = lay[(lay.length / 2) | 0];
