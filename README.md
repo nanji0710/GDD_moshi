@@ -102,6 +102,13 @@ node tools/perf.mjs         # 首屏实测：同步字节 / DCL / 标题时间 /
 node tools/export-glb.cjs   # 重出 3D 资产：models/glb/*.glb + assets/models-data.js
 ```
 
+部署装配与线上验收（在**仓库根**跑，不属于游戏运行时）：
+
+```bash
+node tools/stage-site.mjs --out _site                     # 白名单装配 + 写 version.json
+node tools/verify-deploy.mjs --url https://last-train-87y.pages.dev  # 线上 commit/内容/工具暴露校验
+```
+
 ## 发布
 
 游戏是纯静态站点（一个 `index.html` + `css/` + `js/` + `assets/models-data.js`，零构建），推 `main` 会自动发到两个地方：
@@ -115,7 +122,7 @@ node tools/export-glb.cjs   # 重出 3D 资产：models/glb/*.glb + assets/model
 `prototype/tools/`（冒烟/截图/性能脚本与 `shots-*` 测试截图）一律不进站点；同时写入 `_site/version.json`（commit / branch / builtAt / 文件数与字节数）。
 白名单只有这一处实现，本地脚本与 CI 共用，不再各写一份过滤。
 
-上线自检两条（`node tools/stage-site.mjs` 的 `version.json` 就是为此）：
+上线自检两条（`node tools/stage-site.mjs` 的 `version.json` 就是为此；CI 部署后会用 `tools/verify-deploy.mjs` 自动跑，最多重试 3 分钟）：
 - `GET /version.json` 的 `commit` 应等于刚推的 sha；
 - `GET /tools/smoke.mjs` 不应再返回 JavaScript（Cloudflare Pages 对未知路径会回退到 `index.html`，返回 200 text/html，所以按内容/类型判，不按状态码判）。
 

@@ -29,3 +29,12 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy _site --project-name last-train --branch main
+
+      - name: Verify deployed version (retry up to 3 min)
+        run: |
+          for i in $(seq 1 12); do
+            if node tools/verify-deploy.mjs --url https://last-train-87y.pages.dev --commit "${GITHUB_SHA}"; then exit 0; fi
+            sleep 15
+          done
+          echo "线上版本与本次提交不一致，或部署目录带了测试工具" >&2
+          exit 1

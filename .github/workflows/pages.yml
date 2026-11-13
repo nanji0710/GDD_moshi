@@ -36,3 +36,12 @@ jobs:
           path: ./_site
       - id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Verify deployed version (retry up to 3 min)
+        run: |
+          for i in $(seq 1 12); do
+            if node tools/verify-deploy.mjs --url https://nanji0710.github.io/GDD_moshi --commit "${GITHUB_SHA}"; then exit 0; fi
+            sleep 15
+          done
+          echo "线上版本与本次提交不一致，或部署目录带了测试工具" >&2
+          exit 1

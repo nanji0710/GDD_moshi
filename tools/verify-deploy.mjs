@@ -1,0 +1,88 @@
+#!/usr/bin/env node
+/**
+ * 线上部署验收（只读，不发版）：证明「发出去的就是这棵树」，并检查部署目录没有把测试工具带上去。
+ *
+ * 用法：
+ *   node tools/verify-deploy.mjs [--url https://last-train-87y.pages.dev] [--commit <sha>] [--root prototype]
+ *   --commit 省略时取 `git rev-parse HEAD`（仅当本地是待验提交时才可比）
+ *
+ * 判据（全部 PASS 才 exit 0）：
+ *   1. GET /version.json 是 JSON，且 commit === 期望 commit；
+ *   2. GET /tools/smoke.mjs 不再返回 JavaScript（CF Pages 对未知路径回退 index.html，所以判内容不判状态码）；
+ *   3. 关键文件与本地逐字节一致（index.html / css/ui-realism.css / js/ui.js / assets/models-data.js）；
+ *   4. 首页不白屏：body 里有 js/main.js，且体积 > 2KB。
+ */
+import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const args = process.argv.slice(2);
+const arg = (name, fallback) => {
+  const i = args.indexOf('--' + name);
+  const v = i >= 0 ? args[i + 1] : undefined;
+  return v && !v.startsWith('--') ? v : fallback;
+};
+
+const BASE = (arg('url', process.env.DEPLOY_URL || 'https://last-train-87y.pages.dev')).replace(/\/+$/, '');
+const ROOTDIR = path.resolve(ROOT, arg('root', 'prototype'));
+let EXPECT = arg('commit', process.env.EXPECT_COMMIT || '');
+if (!EXPECT) {
+  try { EXPECT = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { EXPECT = ''; }
+}
+
+const results = [];
+const ok = (name, pass, detail) => {
+  results.push({ name, pass, detail });
+  console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
+};
+
+async function get(p) {
+  const r = await fetch(BASE + p, { redirect: 'follow', headers: { 'cache-control': 'no-cache' } });
+  const body = Buffer.from(await r.arrayBuffer());
+  return { status: r.status, type: r.headers.get('content-type') || '', body };
+}
+const sha = (b) => createHash('sha256').update(b).digest('hex');
+const localSha = async (p) => sha(await readFile(path.join(ROOTDIR, p)));
+
+const index = await get('/');
+ok('首页 200 且非空', index.status === 200 && index.body.length > 2048,
+  `${index.status} ${index.type} ${index.body.length} B`);
+const indexHtml = index.body.toString('utf8');
+ok('首页含 js/main.js', /js\/main\.js/.test(indexHtml), '');
+
+const ver = await get('/version.json');
+let verJson = null;
+try { verJson = JSON.parse(ver.body.toString('utf8')); } catch { }
+ok('version.json 可解析且带 commit',
+  !!verJson && typeof verJson.commit === 'string' && verJson.commit.length >= 7,
+  verJson ? `commit=${verJson.commit} files=${verJson.files} bytes=${verJson.bytes}` : `${ver.status} ${ver.type}（${ver.body.length} B，疑似 index.html 回退）`);
+if (EXPECT) {
+  ok('线上 commit === 期望 commit', !!verJson && verJson.commit === EXPECT, `期望 ${EXPECT}`);
+}
+
+// 关键文件逐字节一致：线上产物 = 本地这棵树
+for (const p of ['index.html', 'css/ui-realism.css', 'js/ui.js', 'assets/models-data.js']) {
+  const remote = await get('/' + p);
+  const want = await localSha(p);
+  const got = sha(remote.body);
+  ok(`内容一致 ${p}`, got === want, `${remote.body.length} B sha256 ${got.slice(0, 12)}${got === want ? '' : ` ≠ 本地 ${want.slice(0, 12)}`}`);
+}
+
+// 测试工具不得公开：CF 对未知路径回退 index.html，因此按类型/内容判
+const tool = await get('/tools/smoke.mjs');
+const isIndexFallback = tool.body.equals(index.body);
+const isJs = /javascript|ecmascript/i.test(tool.type);
+ok('测试工具未公开 /tools/smoke.mjs', !isJs && !/CDP/.test(tool.body.toString('utf8')),
+  `${tool.status} ${tool.type}${isIndexFallback ? '（index.html 回退）' : ''}`);
+
+const bad = results.filter((r) => !r.pass);
+console.log(`\n== ${BASE} ==`);
+console.log(`  通过 ${results.length - bad.length} / 失败 ${bad.length}`);
+if (bad.length) {
+  console.log('  失败项：' + bad.map((b) => b.name).join('；'));
+  process.exit(1);
+}
+console.log('  结论：线上版本与本地一致，部署目录未带测试工具');
