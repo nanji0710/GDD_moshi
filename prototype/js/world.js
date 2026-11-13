@@ -451,6 +451,31 @@ window.ZT = window.ZT || {};
           ctx.lineWidth = 1;
           ctx.beginPath(); ctx.moveTo(t[i].x, t[i].y); ctx.lineTo(t[j].x, t[j].y); ctx.stroke();
 
+          // 裂缝：破损的楼身上拉几道不规则暗线
+          if (dmg != null && dmg > 0.22 && Z > 0.7) {
+            const hs3 = R.hashCell(Math.floor(q[i].x / 5), Math.floor(q[i].y / 5), 77);
+            const u0 = 0.18 + hs3 * 0.54;
+            const px = b[i].x + (b[j].x - b[i].x) * u0, py = b[i].y + (b[j].y - b[i].y) * u0;
+            const tx = t[i].x + (t[j].x - t[i].x) * u0, ty = t[i].y + (t[j].y - t[i].y) * u0;
+            ctx.strokeStyle = 'rgba(4,4,5,0.55)';
+            ctx.lineWidth = Math.max(1, Z * 0.32);
+            ctx.beginPath();
+            ctx.moveTo(tx, ty);
+            let cxp = tx, cyp = ty;
+            for (let s2 = 1; s2 <= 4; s2++) {
+              const k = s2 / 4;
+              const jx = (R.hashCell(Math.floor(q[i].x / 5) + s2, Math.floor(q[i].y / 5), 91) - 0.5) * Math.max(2, Z * 3);
+              cxp = tx + (px - tx) * k + jx;
+              cyp = ty + (py - ty) * k;
+              ctx.lineTo(cxp, cyp);
+            }
+            ctx.stroke();
+            // 裂缝边上的亮线（断面的受光边）
+            ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+            ctx.lineWidth = Math.max(0.8, Z * 0.18);
+            ctx.beginPath(); ctx.moveTo(tx + 1, ty); ctx.lineTo(cxp + 1, cyp); ctx.stroke();
+          }
+
           // 窗户：只有够高、够近的楼才画，避免远景噪点
           if (h > 4 && Z > 0.9 && !(dmg != null && dmg > 0.62)) {
             const cols = h > 14 ? 3 : 2;
@@ -561,9 +586,38 @@ window.ZT = window.ZT || {};
           ctx.stroke();
         }
       }
-      if (fire && R.cam.zoom > 1.2) {
-        ctx.fillStyle = 'rgba(255,120,40,0.20)';
-        ctx.beginPath(); ctx.arc(t[0].x, t[0].y, 5, 0, 6.2832); ctx.fill();
+      // 着火 + 冒烟：末世废墟的标志
+      if (fire && R.cam.zoom > 0.55) {
+        const T = performance.now() / 1000;
+        const cx0 = (t[0].x + t[1].x + t[2].x + t[3].x) / 4;
+        const cy0 = (t[0].y + t[1].y + t[2].y + t[3].y) / 4;
+        const sc = Math.max(0.5, R.cam.zoom);
+        // 地面火光
+        ctx.globalAlpha = 0.16 + Math.sin(T * 6) * 0.03;
+        ctx.fillStyle = '#ff8a3a';
+        ctx.beginPath(); ctx.ellipse(cx0, cy0 + sc * 2, sc * 7, sc * 3, 0, 0, 6.2832); ctx.fill();
+        // 火苗：三簇跳动的椭圆
+        for (let i = 0; i < 3; i++) {
+          const ph = (T * 1.6 + i * 0.7) % 1;
+          const fx = cx0 + (i - 1) * sc * 2.2;
+          const fy = cy0 - ph * sc * 4.5;
+          ctx.globalAlpha = (1 - ph) * 0.75;
+          ctx.fillStyle = i === 1 ? '#ffd479' : '#ff7a2a';
+          ctx.beginPath();
+          ctx.ellipse(fx, fy, sc * (1.4 - ph * 0.6), sc * (2.4 - ph * 1.1), 0, 0, 6.2832);
+          ctx.fill();
+        }
+        // 烟柱：缓慢上升、逐渐扩散
+        for (let i = 0; i < 4; i++) {
+          const ph = (T * 0.28 + i * 0.25) % 1;
+          ctx.globalAlpha = (1 - ph) * 0.24;
+          ctx.fillStyle = i % 2 ? '#4a4a48' : '#5c5c58';
+          ctx.beginPath();
+          ctx.arc(cx0 + Math.sin(T * 0.9 + i) * sc * 1.4, cy0 - sc * (3 + ph * 16),
+            sc * (1.6 + ph * 4.2), 0, 6.2832);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
       }
     },
 

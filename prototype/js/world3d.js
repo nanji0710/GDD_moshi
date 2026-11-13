@@ -120,6 +120,9 @@ void main() {
         catch (e) { /* 单个模型失败不影响整体 */ }
       }
       this.ground = this.upload(this.groundMesh());
+      // 曳光弹：动态线段缓冲
+      this.lineBuf = gl.createBuffer();
+      this.lineCol = gl.createBuffer();
       this.track = null; this.trackFor = -1;
       this.ready = true;
       this.resize();
@@ -295,6 +298,28 @@ void main() {
         }
       }
 
+      // 车顶炮塔：跟着武器的瞄准角转
+      if (this.mesh.turret) {
+        for (let k = 0; k < n; k++) {
+          const car = cars[k];
+          if (!car || car.dead) continue;
+          const s2 = midS + ((n - 1) / 2 - k) * pitch;
+          if (s2 < 0 || s2 > path.len) continue;
+          U.posAt(path, s2, tmp);
+          for (let si = 0; si < car.slots.length; si++) {
+            const w = car.slots[si];
+            if (!w) continue;
+            const off = (si - (car.slots.length - 1) / 2) * 2.4;
+            const px = tmp.x - Math.sin(tmp.a) * off;
+            const pz = tmp.y + Math.cos(tmp.a) * off;
+            this.drawModel(this.mesh.turret, px, 2.55, pz, -w.aim, 1);
+          }
+        }
+      }
+
+      // 曳光弹（复用 2D 的 Fx 数据，转成 3D 线段）
+      this.drawTracers(vp);
+
       // 路边建筑（用 building.glb 摆到废墟位置，近处才画）
       if (this.mesh.building && Z.World.ruins) {
         let drawn = 0;
@@ -334,6 +359,44 @@ void main() {
         this.use(mesh);
         gl.drawElements(gl.TRIANGLES, mesh.count, mesh.type, 0);
       }
+    },
+
+    drawTracers: function (vp) {
+      const list = (Z.Fx && Z.Fx.list) ? Z.Fx.list : null;
+      if (!list || !list.length) return;
+      const pos = [], col = [];
+      const hexRgb = function (h) {
+        if (typeof h !== 'string' || h[0] !== '#') return [1, 0.8, 0.4];
+        const v = parseInt(h.slice(1), 16);
+        return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255];
+      };
+      for (const f of list) {
+        if (f.kind !== 'tracer') continue;
+        const o = f.o;
+        const k = Math.min(1, f.t / f.dur);
+        const a = Math.max(0, 1 - k);
+        const c = hexRgb(o.color);
+        pos.push(o.x0, o.h0 || 2.2, o.y0, o.x1, o.h1 || 2.2, o.y1);
+        col.push(c[0] * a, c[1] * a, c[2] * a, c[0] * a, c[1] * a, c[2] * a);
+      }
+      if (!pos.length) return;
+      const gl = this.gl, A = this.A;
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.lineBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pos), gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(A.pos); gl.vertexAttribPointer(A.pos, 3, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.lineCol);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(col), gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(A.col); gl.vertexAttribPointer(A.col, 3, gl.FLOAT, false, 0, 0);
+      // 法线给个固定值，避免残留缓冲
+      gl.disableVertexAttribArray(A.nor);
+      gl.vertexAttrib3f(A.nor, 0, 1, 0);
+      const model = M4.ident();
+      gl.uniformMatrix4fv(this.U.uMVP, false, vp);
+      gl.uniformMatrix4fv(this.U.uModel, false, model);
+      gl.uniformMatrix3fv(this.U.uNrm, false, M4.nrm(model));
+      gl.drawArrays(gl.LINES, 0, pos.length / 3);
+      // 恢复法线属性（后续模型要用）
+      gl.enableVertexAttribArray(A.nor);
     },
 
     // 通用：摆一个模型
