@@ -30,7 +30,8 @@ window.ZT = window.ZT || {};
     buildHUD: function () {
       const R_ = this.refs;
       const top = h('div', { class: 'hud top' },
-        h('div', { class: 'brand' }, h('b', null, '末世列车'), R_.lvl = h('span', null, '第 1 关'), R_.mods = h('em', { class: 'modchip' }, '')),
+        h('div', { class: 'brand' }, h('b', null, '末世列车'), R_.lvl = h('span', null, '第 1 关'),
+          R_.mods = h('em', { class: 'modchip' }, ''), R_.goal = h('em', { class: 'goalchip' }, '')),
         h('div', { class: 'route' },
           h('div', { class: 'route-track' }, R_.fill = h('i', { class: 'route-fill' })),
           h('div', { class: 'route-marks' }),
@@ -101,6 +102,26 @@ window.ZT = window.ZT || {};
       const nx = Z.World.stations[run.stationIdx + 1];
       R_.routeNow.textContent = (run.km / 1000).toFixed(2) + ' / ' + (run.totalKm / 1000).toFixed(1) + ' km'
         + (nx ? ' · 下一站 ' + (nx.km).toFixed(1) + ' km' : '');
+      // 关卡目标
+      if (R_.goal) {
+        const g = run.goal || { type: 'reach' };
+        let txt = '';
+        if (g.type === 'escort') {
+          let cargo = null;
+          for (const c of run.cars) if (c.type === 'cargo') cargo = c;
+          const pct = cargo ? Math.round(cargo.hp / cargo.maxHp * 100) : 0;
+          txt = '护送 · 货柜 ' + (cargo && !cargo.dead ? pct + '%' : '已损毁');
+        } else if (g.type === 'sprint') {
+          const kmh = Math.round(run.speed * 3.6);
+          const over = run.sprintT > 0.2 ? ' ⚠' + run.sprintT.toFixed(1) : '';
+          txt = '限速 · ' + kmh + '/' + (g.minKmh || 80) + over;
+        } else if (run.state === 'hold') {
+          txt = '守站 · ' + Math.max(0, Math.ceil(run.holdT)) + 's';
+        }
+        R_.goal.textContent = txt;
+        R_.goal.classList.toggle('hidden', !txt);
+        R_.goal.classList.toggle('danger', !!(g.type === 'sprint' && run.sprintT > 0.2));
+      }
       R_.scrap.textContent = U.fmt(run.scrap);
       R_.ammo.textContent = CFG.ECON.infiniteAmmo ? '∞' : U.fmt(run.ammo);
       R_.fuel.textContent = CFG.ECON.infiniteFuel ? '∞' : (Math.round(run.fuel) + '%');

@@ -234,6 +234,14 @@ window.ZT = window.ZT || {};
           const a = rp(0.2, v), b2 = rp(0.8, v);
           ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b2.x, b2.y); ctx.stroke();
         }
+      } else if (type === 'cargo') {
+        rquad(0.14, 0.86, 0.16, 0.84, '#7a6a4a', 'rgba(255,255,255,0.12)');
+        ctx.strokeStyle = 'rgba(0,0,0,0.30)';
+        ctx.lineWidth = Math.max(0.8, z * 0.16);
+        for (let v2 = 0.24; v2 < 0.8; v2 += 0.12) {
+          const a1 = rp(0.16, v2), b1 = rp(0.84, v2);
+          ctx.beginPath(); ctx.moveTo(a1.x, a1.y); ctx.lineTo(b1.x, b1.y); ctx.stroke();
+        }
       } else if (type === 'repair') {
         rquad(0.32, 0.68, 0.32, 0.68, '#3e434a', edgeL);
         const ctr = rp(0.5, 0.5);

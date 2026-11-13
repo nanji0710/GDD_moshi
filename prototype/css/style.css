@@ -763,3 +763,13 @@ button.carline.on { border-color: var(--accent); background: rgba(255,179,71,0.1
 .dc-x:hover { background: rgba(224,90,74,.35); color: #fff; }
 .depot-sum { font-size: .72em; color: var(--ink-3); }
 .depot-sum b { color: var(--ink-2); }
+
+
+/* 关卡目标chip */
+.goalchip {
+  margin-top: 2px; padding: 1px 6px; border-radius: 5px; font-style: normal;
+  font-size: .62em; letter-spacing: .06em; font-weight: 700;
+  color: #0f1114; background: var(--accent); align-self: flex-start;
+}
+.goalchip.hidden { display: none; }
+.goalchip.danger { background: #e0564a; color: #fff; }

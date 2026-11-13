@@ -159,6 +159,19 @@ window.ZT = window.ZT || {};
       this.refreshSkills();
       Z.World.generate(20261112 + L.n * 7, this.totalKm, L.biome, L.lm, (L.mods || []));
       if (Z.Zombies && Z.Zombies.reset) Z.Zombies.reset();
+      // 关卡目标
+      this.goal = (L && L.goal) ? Object.assign({}, L.goal) : { type: 'reach' };
+      this.holdT = 0;
+      this.sprintT = 0;
+      this.goalFail = '';
+      if (this.goal.type === 'escort') {
+        this.cars.push(new Car('cargo'));
+        if (Z.Tips) Z.Tips.tip('goalEscort');
+      } else if (this.goal.type === 'sprint') {
+        if (Z.Tips) Z.Tips.tip('goalSprint');
+      } else if (this.goal.type === 'hold') {
+        if (Z.Tips) Z.Tips.tip('goalHold');
+      }
       if (Z.Skills) Z.Skills.reset(this);
       if (Z.Tips) Z.Tips.tip('start');
       return this;
@@ -219,6 +232,9 @@ window.ZT = window.ZT || {};
       if (this.state === 'win' || this.state === 'over') return;
       this.checkWin();
       if (this.state === 'win' || this.state === 'over') return;
+      // 目标判定要放在状态门之前：守站时 state 是 'hold'，否则永远轮不到倒计时
+      this.checkGoal(dt);
+      if (this.state === 'win' || this.state === 'over') return;
       if (this.state !== 'run' && this.state !== 'parked') return;
       if (this.stats) {
         this.stats.t += dt;
@@ -244,7 +260,11 @@ window.ZT = window.ZT || {};
       // 技能冷却
       if (Z.Skills) Z.Skills.update(this, dt);
 
-      if (this.state === 'parked') {
+      if (this.state === 'hold') {
+        // 守站：车停着不动，但武器照常开火
+        this.speed = 0;
+        if (this.train) this.train.updateWeapons(dt, this);
+      } else if (this.state === 'parked') {
         this.parkT += dt;
         this.trackDamage = 100;
         // 停车防守：刷怪更快，车厢照常挨咬
@@ -322,10 +342,62 @@ window.ZT = window.ZT || {};
       const st = this.nextStation();
       if (st != null && this.km >= st) {
         const nextIdx = this.stationIdx + 1;
-        if (nextIdx >= CFG.STATION_AT.length - 1) {         // 最后一站 = 安全点，直接结算
+        if (nextIdx >= CFG.STATION_AT.length - 1) {         // 最后一站 = 安全点
+          if (this.goal && this.goal.type === 'hold' && !this.held) {
+            this.enterHold(); return;
+          }
           this.km = this.totalKm; this.state = 'win'; this.finish(true); return;
         }
         this.km = st; this.openStation(nextIdx);
+      }
+    },
+
+    // 守站：最后一站变成限时防守
+    enterHold: function () {
+      if (this.state === 'hold') return;          // 只进一次，否则倒计时会被反复重置
+      this.km = this.totalKm;
+      this.speed = 0;
+      this.state = 'hold';
+      this.holdT = this.goal.sec || 60;
+      this.boardAcc = 0;
+      if (Z.UI) { Z.UI.toast('守住车站 ' + Math.round(this.holdT) + ' 秒！', 'bad'); Z.UI.closeStation(); }
+      if (Z.Sound) Z.Sound.play('alarm');
+      if (Z.Tips) Z.Tips.tip('goalHold');
+    },
+
+    checkGoal: function (dt) {
+      const g = this.goal;
+      if (!g) return;
+      // 护送：货柜被打爆就失败
+      if (g.type === 'escort') {
+        let cargo = null;
+        for (const c of this.cars) if (c.type === 'cargo') cargo = c;
+        if (!cargo || cargo.dead) {
+          this.goalFail = '货柜被打爆了';
+          this.gameOver();
+        }
+        return;
+      }
+      // 限速：连续低于阈值累计 grace 秒就失败
+      if (g.type === 'sprint' && this.state === 'run') {
+        const kmh = this.speed * 3.6;
+        if (kmh < (g.minKmh || 80)) this.sprintT += dt;
+        else this.sprintT = Math.max(0, this.sprintT - dt * (CFG.GOAL.sprint.recover || 0.6));
+        if (this.sprintT > (g.grace || CFG.GOAL.sprint.grace)) {
+          this.goalFail = '速度掉到 ' + (g.minKmh || 80) + ' km/h 以下太久';
+          this.gameOver();
+        }
+        return;
+      }
+      // 守站：倒计时结束就赢
+      if (this.state === 'hold') {
+        this.holdT -= dt;
+        this.boardAcc = (this.boardAcc || 0) + dt;
+        if (this.holdT <= 0) {
+          this.held = true;
+          this.state = 'win';
+          this.finish(true);
+        }
       }
     },
 
@@ -590,7 +662,12 @@ window.ZT = window.ZT || {};
     checkWin: function () {
       if (this.endless) return;
       if (this.state === 'win') return;
-      if (this.km >= this.totalKm) { this.km = this.totalKm; this.state = 'win'; this.finish(true); }
+      if (this.state === 'hold') return;          // 守站中：交给 checkGoal 计时，别再触发一次
+      if (this.km >= this.totalKm) {
+        // 守站关：到终点先守站，倒计时结束才算赢
+        if (this.goal && this.goal.type === 'hold' && !this.held) { this.enterHold(); return; }
+        this.km = this.totalKm; this.state = 'win'; this.finish(true);
+      }
     },
     gameOver: function () {
       if (this.state === 'over' || this.state === 'win') return;
@@ -669,8 +746,9 @@ window.ZT = window.ZT || {};
         grade = '崩';
         line = '车散了不少，人也走散了——最后只有 ' + ref + ' 个人活着到站。';
       }
+      if (this.goalFail) line = this.goalFail + '。' + line;
       return {
-        grade: grade, line: line, stats: st, carLoss: carLoss, refRate: refRate,
+        grade: grade, line: line, goalFail: this.goalFail || '', stats: st, carLoss: carLoss, refRate: refRate,
         capacity: this.capacity(), deadRefugees: st.deaths, repairs: st.repairs,
         maxSpeed: st.maxSpeed, maxCars: st.maxCars, timeSec: st.t,
         win: !!win, km: km, refugees: ref, kills: this.kills, bossKills: this.bossKills,

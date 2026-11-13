@@ -704,6 +704,41 @@ try {
   })()`))
   check('Boss 出招前就有冷却计时', cd.windup === true && cd.pick === cd.cfgCharge, cd)
   check('冲撞结束后进入冷却', cd.after >= cd.cfgCharge - 1.5, cd)
+  console.log('\n[27] 关卡目标（护送 / 限速 / 守站）')
+  const goal = JSON.parse(await ev(`(() => {
+    const R = ZT.Run, Z = window.ZT;
+    // ---- 护送 ----
+    ZT.Game.startLevel(7);
+    const cargo = R.cars.filter(c => c.type === 'cargo');
+    const hasCargo = cargo.length === 1 && R.cars[R.cars.length - 1].type === 'cargo';
+    R.state = 'run';
+    cargo[0].hp = 0; cargo[0].dead = true;
+    R.tick(1 / 60);
+    const escortFail = R.state === 'over' && /货柜/.test(R.goalFail);
+    // ---- 限速 ----
+    ZT.Game.startLevel(3);
+    R.state = 'run'; R.speed = 5; R.trackDamage = 0;
+    for (let i = 0; i < 60 * 9; i++) { R.speed = 5; R.tick(1 / 60); if (R.state !== 'run') break; }
+    const sprintFail = R.state === 'over' && /速度/.test(R.goalFail);
+    // ---- 守站 ----
+    ZT.Game.startLevel(10);
+    R.state = 'run'; R.speed = 20;
+    R.stationIdx = ZT.CFG.STATION_AT.length - 2;
+    R.km = R.totalKm * ZT.CFG.STATION_AT[ZT.CFG.STATION_AT.length - 2];
+    R.train.s = R.km;
+    for (let i = 0; i < 30 && R.state !== 'hold'; i++) { R.km = R.totalKm; R.tick(1 / 60); }
+    const holdState = R.state === 'hold';
+    R.holdT = 0.05;
+    for (let i = 0; i < 10 && R.state === 'hold'; i++) R.tick(1 / 60);
+    const holdWin = R.state === 'win';
+    return JSON.stringify({ hasCargo: hasCargo, escortFail: escortFail, sprintFail: sprintFail,
+      holdState: holdState, holdWin: holdWin });
+  })()`))
+  check('护送关开局挂一节货柜（在车尾）', goal.hasCargo === true, goal)
+  check('货柜被打爆 → 任务失败', goal.escortFail === true, goal)
+  check('速度长期低于阈值 → 任务失败', goal.sprintFail === true, goal)
+  check('守站关进入倒计时状态', goal.holdState === true, goal)
+  check('守站倒计时结束 → 胜利', goal.holdWin === true, goal)
 } catch (e) {
   fail++
   console.error('冒烟测试中断：', e.message)

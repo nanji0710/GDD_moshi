@@ -111,7 +111,7 @@ window.ZT = window.ZT || {};
     update: function (dt, run) {
       const W = Z.World, P = W.path;
       const L = run.levelDef || CFG.LEVELS[0];
-      if (run.state === 'run' || run.state === 'parked') {
+      if (run.state === 'run' || run.state === 'parked' || run.state === 'hold') {
         const parked = run.state === 'parked';
         const alive = this.countAlive();
         const cap = CFG.ZOMBIE.maxAliveBase + CFG.ZOMBIE.maxAlivePerLevel * (run.level - 1);

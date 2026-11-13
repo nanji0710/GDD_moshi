@@ -396,6 +396,29 @@ try {
   await sleep(220)
   await shot('22-boss')
 
+  console.log('场景：守站（倒计时 + 尸潮）')
+  await evJs(`(() => {
+    ZT.Game.startLevel(10);
+    const R = ZT.Run;
+    R.nextCarKm = 1e9;
+    document.querySelector('.drawer').classList.add('hidden');
+    R.state = 'run'; R.speed = 18; R.km = R.totalKm * 0.55;
+    R.train = new ZT.Train(R); R.train.s = R.km;
+    const me = ZT.U.posAt(ZT.World.path, R.km, {});
+    ZT.Zombies.list.length = 0;
+    for (let i = 0; i < 26; i++) {
+      const a = i * 0.9;
+      const zb = ZT.Zombies.make(me.x + Math.cos(a) * (18 + (i % 5) * 6), me.y + Math.sin(a) * (14 + (i % 4) * 5), { kind: i % 7 === 0 ? 'runner' : 'walker' });
+      ZT.Zombies.list.push(zb);
+    }
+    R.enterHold();
+    ZT.R.cam.cx = me.x; ZT.R.cam.cy = me.y - 4; ZT.R.cam.zoom = 3.4; ZT.R.compute();
+    ZT.Game.setSpeed(1);
+    return 1;
+  })()`)
+  await sleep(700)
+  await shot('23-hold')
+
   const stat = await evJs(`(() => {
     const R = ZT.Run, Z = window.ZT;
     return JSON.stringify({ state: R.state, level: R.level, cars: R.cars.length, weapons: R.weaponCount(),
