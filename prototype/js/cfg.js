@@ -12,7 +12,7 @@ window.ZT = window.ZT || {};
     // ---------------- 列车 ----------------
     TRAIN: {
       carLenM: 22, carGapM: 2.2, carHalfW: 3.4, heightM: 4.6,
-      maxSpeed: 50,            // 基础最高速 m/s（180 km/h）
+      maxSpeed: 24,            // 基础最高速 m/s（86 km/h）——太快的话丧尸完全追不上
       accel: 5.0, brake: 7.0,
       speedPerCar: 0.03,       // 每节 -3%（不设上限，也不设下限）
       powerBonus: 0.08,        // 动力/加速车厢 +8%

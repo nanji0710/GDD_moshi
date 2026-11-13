@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 // 渲染器 + 相机 + 输入 + 主循环。游戏逻辑在 state.js / train.js / zombies.js，界面在 ui.js。
 window.ZT = window.ZT || {};
 (function (Z) {
@@ -403,7 +403,7 @@ window.ZT = window.ZT || {};
         const mp = run.train.slotPos(c, j, {});
         const p = R.P(mp.x, mp.y, mp.h, {});
         // ===== 按 3D 模型的构件重画：同一套局部坐标（前/横/高，单位米）=====
-        const kind = w.k || 'mg';
+        const kind = w.key || 'mg';
         const kd = w.def();
         const form = w.form;
         const col = kd.color || '#ffd479';
@@ -526,6 +526,19 @@ window.ZT = window.ZT || {};
 
 
         const r0 = Math.max(2.0, z * 1.15);   // 屏幕上的炮塔半径（用于形态环与等级点）
+        // 形态 A：再补一根并列炮管；形态 B：炮管加粗（3D 里是同样的处理）
+        if (form === 'A' && kind !== 'mg') {
+          const bore = { flamer: 1.9, flak: 2.9, tesla: 1.7, mortar: 2.1 }[kind] || 2.2;
+          const wd = { flamer: 0.24, flak: 0.13, tesla: 0.08, mortar: 0.16 }[kind] || 0.12;
+          for (const fz3 of [-0.45, 0.45]) {
+            rod(0.45, fz3, bore, wd, HB - 0.02, '#3f474f');
+          }
+        } else if (form === 'B') {
+          const bore2 = { mg: 2.9, flamer: 2.3, flak: 3.1, tesla: 1.9, mortar: 2.4 }[kind] || 2.5;
+          rod(0.5, 0, bore2, { mg: 0.2, flamer: 0.36, flak: 0.24, tesla: 0.14, mortar: 0.28 }[kind] || 0.22,
+            HB + 0.04, col);
+        }
+
         // 选了形态：底座加一圈亮环
         if (form) {
           ctx.strokeStyle = 'rgba(255,212,121,0.75)';

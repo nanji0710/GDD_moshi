@@ -126,7 +126,12 @@ window.ZT = window.ZT || {};
       const t = w.target, n = def.burst || 1;
       const fw = f === 'B' ? 2.8 : (f === 'A' ? 1.1 : 1.5);
       for (let i = 0; i < n; i++) {
-        Fx.tracer(mount.x, mount.y, mount.h, t.x + (Math.random() - 0.5) * 3, t.y + (Math.random() - 0.5) * 3, 1.4, def.color, fw);
+        // 炮口位置：炮塔中心沿瞄准方向推出炮管长度（3D 里才不会从塔里开枪）
+    const BORE = { mg: 2.7, flamer: 1.9, flak: 3.1, tesla: 1.7, mortar: 2.3 };
+    const bore = BORE[w.key] || 2.4;
+    const mx = mount.x + Math.cos(w.aim) * bore;
+    const my = mount.y + Math.sin(w.aim) * bore;
+    Fx.tracer(mx, my, mount.h + (w.form === 'B' ? 0.75 : 0.62), t.x + (Math.random() - 0.5) * 3, t.y + (Math.random() - 0.5) * 3, 1.4, def.color, fw);
       }
       Fx.flash(mount.x, mount.y, mount.h, def.color, f === 'B' ? 3.6 : 2.6);
       hit(t, dmg * n * (run.buffs.ap && t.elite ? CFG.BUFFS.ap.ap : 1), run, elementOf(w.key));

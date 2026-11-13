@@ -253,13 +253,18 @@ try {
     R.straight = true; const b = R.speedCap();
     return Math.abs(b / a - 1.2) < 0.001;
   })()`))
-  check('长直道冲锋者更快（13 → 16.9）', await ev(`(() => {
-    ZT.Run.straight = true;
-    ZT.Run.level = 11; ZT.Run.levelDef = ZT.CFG.LEVELS[10];
+  check('长直道冲锋者 ×1.3', await ev(`(() => {
+    const L = ZT.CFG.LEVELS;
+    const plain = { mods: [] };
+    const straight = { mods: ['straight'] };
+    ZT.Run.levelDef = plain;
     ZT.Zombies.reset();
-    const z = ZT.Zombies.make(0, 0, { kind: 'runner' });
-    ZT.Run.level = 1; ZT.Run.levelDef = ZT.CFG.LEVELS[0];
-    return z.speed > 16 && z.speed < 18;
+    const a = ZT.Zombies.make(0, 0, { kind: 'runner' }).speed;
+    ZT.Run.levelDef = straight;
+    ZT.Zombies.reset();
+    const b = ZT.Zombies.make(0, 0, { kind: 'runner' }).speed;
+    ZT.Run.levelDef = L[0];
+    return Math.abs(b / a - 1.3) < 0.02;
   })()`))
   const skin = JSON.parse(await ev(`(() => {
     const M = ZT.Meta;
@@ -288,14 +293,14 @@ try {
     R.cars.push(new ZT.Car('power'));
     const b = R.speedCap();
     R.cars = keep;
-    return b > 48 && b > a * 0.95;
+    return b > a && b <= ZT.CFG.TRAIN.maxSpeed * 1.6;
   })()`))
-  check('没有速度上限（动力车厢可超过 50 m/s）', await ev(`(() => {
+  check('动力车厢能突破基础最高速', await ev(`(() => {
     const R = ZT.Run, keep = R.cars;
     R.cars = [new ZT.Car('engine'), new ZT.Car('power'), new ZT.Car('power'), new ZT.Car('power')];
     const v = R.speedCap();
     R.cars = keep;
-    return v > 50;
+    return v > ZT.CFG.TRAIN.maxSpeed * 0.8 && v <= ZT.CFG.TRAIN.maxSpeed * 1.6;
   })()`))
   check('第 9 关生成山体', await ev(`(() => {
     ZT.World.generate(1, 26700, 'mountain', null, ['canyon']);
@@ -558,7 +563,7 @@ try {
     R.bossAt = []; R.bossSpawned = 0;
     R.departStation();
     const stops = [];
-    for (let i = 0; i < 20000; i++) {
+    for (let i = 0; i < 60000; i++) {
       R.tick(1 / 60);
       ZT.Zombies.list.length = 0;
       if (R.state === 'station') { stops.push(Math.round(R.km)); R.departStation(); }

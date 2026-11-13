@@ -19,7 +19,7 @@ window.ZT = window.ZT || {};
       const kind = opt.kind || 'walker';
       const base = { walker: 1, runner: 0.72, climber: 1.3, ripper: 1.45, spitter: 1.05, screamer: 0.85, bloater: 1.7 }[kind] || 1;
       let hp = CFG.ZOMBIE.hp * hpMul * base * (0.9 + Math.random() * 0.22);
-      let speed = { walker: 6.0, runner: 13.0, climber: 7.5, ripper: 8.5, spitter: 5.0, screamer: 7.0, bloater: 4.5 }[kind] || 6.0;
+      let speed = { walker: 8.0, runner: 15.0, climber: 9.5, ripper: 10.5, spitter: 7.0, screamer: 8.5, bloater: 6.0 }[kind] || 6.0;
       const lvDef = (Z.Run && Z.Run.levelDef) || null;
       if (kind === 'runner' && lvDef && (lvDef.mods || []).indexOf('straight') >= 0) speed *= 1.3;
       let atk = CFG.ZOMBIE.attack * atkMul;
