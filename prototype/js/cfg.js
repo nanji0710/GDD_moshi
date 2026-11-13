@@ -96,6 +96,8 @@ window.ZT = window.ZT || {};
     // ---------------- 丧尸 ----------------
     ZOMBIE: {
       hp: 26, speed: 2.5, attack: 7, attackRate: 1.1, attackRange: 6,
+      windup: 0.45,        // 起手动作时长：这段时间内不造成伤害
+      reachExtra: 1.2,     // 攻击距离 = 车厢半宽 + 这个值
       maxAliveBase: 120, maxAlivePerLevel: 18,
       scrap: 2, eliteScrap: 5, burnDps: 7, bossScrap: 250, miniScrap: 200,
       eliteHpMul: 3.4, eliteAtkMul: 2.2

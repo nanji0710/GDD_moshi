@@ -293,7 +293,8 @@ void main() {
           const rot = Math.atan2(sc0 - zb.x, sc2 - zb.y);   // 模型正面是 +Z
           const big = zb.boss ? 2.3 : zb.mini ? 1.7 : zb.elite ? 1.25 : 1;
           const bob = Math.sin(zb.phase * 2) * 0.06;
-          this.drawModel(ZM, zb.x, bob, zb.y, rot, big);
+          const windup = zb.atk > 0 ? (1 + (1 - zb.atk / (zb.atkMax || 0.45)) * 0.22) : 1;
+          this.drawModel(ZM, zb.x, bob, zb.y, rot, big * windup);
           zn++;
         }
       }

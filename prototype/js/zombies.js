@@ -30,7 +30,7 @@ window.ZT = window.ZT || {};
         x: x, y: y, hp: hp, maxHp: hp, speed: speed, attack: atk,
         kind: kind, elite: !!opt.elite, boss: !!opt.boss, mini: !!opt.mini,
         dead: false, deadT: 0, flash: 0, cd: Math.random() * 0.7, retarget: Math.random() * 0.4,
-        target: null, phase: Math.random() * 6.28, ripT: 0,
+        target: null, phase: Math.random() * 6.28, ripT: 0, atk: 0, atkMax: 0,
         mode: 'walk', modeT: 0, nextMode: '', aiCd: 4.5, vx: 0, vy: 0
       };
     },
@@ -107,6 +107,38 @@ window.ZT = window.ZT || {};
       return 1 + 0.12 * (lv - 1);
     },
 
+    // 真正造成伤害的一口（由起手动作结束时调用）
+    doBite: function (zb, run, tgt) {
+      const car = tgt.car;
+      if (!car || car.dead) return;
+      let dmg = zb.attack;
+      // 装甲车厢替相邻车厢吸收一部分
+      const idx = run.cars.indexOf(car);
+      for (const k of [idx - 1, idx + 1]) {
+        const nb = run.cars[k];
+        if (nb && !nb.dead && nb.type === 'armor') { dmg *= 1 - CFG.CAR_TYPES.armor.adjacentGuard; break; }
+      }
+      if (Z.Sound) Z.Sound.play('claw', { vol: 0.45 });
+      Fx.shake = Math.min(1, Fx.shake + 0.05);
+      Fx.text(tgt.x, tgt.y, 3.6, '-' + Math.round(dmg), '#ff8f8f');
+      run.damageCar(car, dmg);
+      if (car.dead) {
+        if (Z.Sound) Z.Sound.play('boom', { vol: 0.8 });
+        Fx.boom(tgt.x, tgt.y, 2.2, 10);
+      }
+    },
+
+    // 到车身矩形的距离：先把坐标投到车身轴线，再算横向偏移
+    distToCar: function (zb, tgt) {
+      const dx = zb.x - tgt.x, dy = zb.y - tgt.y;
+      const ca = Math.cos(tgt.a || 0), sa = Math.sin(tgt.a || 0);
+      const along = dx * ca + dy * sa;
+      const lat = -dx * sa + dy * ca;
+      const half = CFG.TRAIN.carLenM * 0.5 - 1.0;
+      const over = Math.abs(along) - half;
+      return Math.hypot(Math.max(0, over), lat);
+    },
+
     // ---------------- 导演 ----------------
     update: function (dt, run) {
       const W = Z.World, P = W.path;
@@ -168,7 +200,8 @@ window.ZT = window.ZT || {};
         if (!tgt) continue;
         const dx = tgt.x - zb.x, dy = tgt.y - zb.y;
         const dist = Math.hypot(dx, dy);
-        const reach = CFG.TRAIN.carLenM * 0.5 + 2.4;
+        const reach = CFG.TRAIN.carHalfW + (CFG.ZOMBIE.reachExtra || 1.2);
+        const distCar = this.distToCar(zb, tgt);
         // Boss 招式：冲撞 / 召唤 / 破坏轨道（蓄力 → 出手，有预警）
         if (zb.boss && this.bossAI(zb, run, dt, dx, dy, dist, reach)) continue;
         // 撬轨者：贴近（34 m）就拆轨道，不咬车
@@ -181,38 +214,32 @@ window.ZT = window.ZT || {};
             continue;
           }
         }
-        if (dist > reach) {
-          // 预判：按"我跑到那儿要多久"，瞄列车届时的位置（最多预判 2 秒）
+        if (distCar > reach) {
+          // 够不着：朝列车跑（带预判拦截）
+          zb.atk = 0;
           const lead = Math.min(2.0, dist / Math.max(0.1, zb.speed));
           const dirS = run.speed || 0;
           const aimX = tgt.x + Math.cos(tgt.a || 0) * dirS * lead * 0.85;
           const aimY = tgt.y + Math.sin(tgt.a || 0) * dirS * lead * 0.85;
-          let ax = aimX - zb.x, ay = aimY - zb.y;
+          const ax = aimX - zb.x, ay = aimY - zb.y;
           const alen = Math.hypot(ax, ay) || 1;
           zb.x += ax / alen * zb.speed * dt;
           zb.y += ay / alen * zb.speed * dt;
           zb.phase += dt * (3.2 + zb.speed * 0.4);
-        } else if (zb.cd <= 0) {
-          zb.cd = 1 / CFG.ZOMBIE.attackRate;
-          zb.phase += 1.2;
-          const car = tgt.car;
-          if (car && !car.dead) {
-            let dmg = zb.attack;
-            // 装甲车厢替相邻车厢吸收 40%
-            const idx = run.cars.indexOf(car);
-            for (const k of [idx - 1, idx + 1]) {
-              const nb = run.cars[k];
-              if (nb && !nb.dead && nb.type === 'armor') { dmg *= 1 - CFG.CAR_TYPES.armor.adjacentGuard; break; }
-            }
-            if (Z.Sound) Z.Sound.play('claw', { vol: 0.45 });
-            Fx.shake = Math.min(1, Fx.shake + 0.05);
-            Fx.text(tgt.x, tgt.y, 3.6, '-' + Math.round(dmg), '#ff8f8f');
-            run.damageCar(car, dmg);
-            if (car.dead) {
-              if (Z.Sound) Z.Sound.play('boom', { vol: 0.8 });
-              Fx.boom(tgt.x, tgt.y, 2.2, 10);
-            }
+        } else if (zb.atk > 0) {
+          // 起手中：站定蓄力，动作走完才结算伤害
+          zb.atk -= dt;
+          zb.phase += dt * 1.6;
+          if (zb.atk <= 0) {
+            zb.atk = 0;
+            zb.cd = 1 / CFG.ZOMBIE.attackRate;
+            // 出手瞬间再确认一次距离：目标跑掉了就落空
+            if (this.distToCar(zb, tgt) <= reach * 1.35) this.doBite(zb, run, tgt);
+            else Fx.text(zb.x, zb.y, 2.4, '落空', '#8a97a6');
           }
+        } else if (zb.cd <= 0) {
+          zb.atk = CFG.ZOMBIE.windup || 0.45;   // 开始起手
+          zb.atkMax = zb.atk;
         }
       }
       // 离场清理
@@ -425,6 +452,15 @@ window.ZT = window.ZT || {};
         ctx.lineTo(p.x + (zb.target.x - zb.x) * z * 0.92, p.y + (zb.target.y - zb.y) * R.cosT * z * 0.92 - r * 0.6);
         ctx.stroke();
         ctx.setLineDash([]);
+      }
+      // 起手预警：脚下红圈 + 前倾，告诉玩家「要挨打了」
+      if (zb.atk > 0) {
+        const k2 = 1 - Math.max(0, zb.atk) / (zb.atkMax || 0.45);
+        ctx.strokeStyle = 'rgba(232,86,74,' + (0.35 + k2 * 0.5) + ')';
+        ctx.lineWidth = Math.max(1.4, z * 0.5);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r * (1.1 + k2 * 0.5), 0, 6.2832);
+        ctx.stroke();
       }
       // 撬轨标记
       if (zb.kind === 'ripper') {

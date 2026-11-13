@@ -784,6 +784,42 @@ try {
     M.levels = keep; M.branch = kb; ZT.UI.showStart();
     return has;
   })()`))
+  console.log('\n[29] 丧尸攻击需要起手与距离')
+  const atk = JSON.parse(await ev(`(() => {
+    const R = ZT.Run, Z = window.ZT;
+    ZT.Game.startLevel(1);
+    R.state = 'run'; R.speed = 0; R.km = R.totalKm * 0.3;
+    R.train = new Z.Train(R); R.train.s = R.km;
+    const lay = R.train.layout(Z.World);
+    const c = lay[1];
+    const nx = -Math.sin(c.a), ny = Math.cos(c.a);
+    // 贴到车身侧面（在攻击距离内）
+    ZT.Zombies.list.length = 0;
+    const near = Z.Zombies.make(c.x + nx * (Z.CFG.TRAIN.carHalfW + 0.6), c.y + ny * (Z.CFG.TRAIN.carHalfW + 0.6), {});
+    near.cd = 0; near.retarget = 0;
+    ZT.Zombies.list.push(near);
+    const hp0 = R.cars[1].hp;
+    ZT.Zombies.update(1 / 60, R);
+    const started = near.atk > 0;                    // 进入起手
+    const noDamageYet = R.cars[1].hp === hp0;        // 还没掉血
+    // 起手走完
+    for (let k = 0; k < 70; k++) ZT.Zombies.update(1 / 60, R);
+    const hurt = R.cars[1].hp < hp0;
+    // 远处的僵尸不会造成伤害
+    ZT.Zombies.list.length = 0;
+    const far = Z.Zombies.make(c.x + nx * 40, c.y + ny * 40, {});
+    far.atk = 0; far.cd = 0;
+    ZT.Zombies.list.push(far);
+    const hp1 = R.cars[1].hp;
+    for (let k = 0; k < 60; k++) ZT.Zombies.update(1 / 60, R);
+    const farNoHit = R.cars[1].hp === hp1;
+    ZT.Zombies.list.length = 0;
+    return JSON.stringify({ started: started, noDamageYet: noDamageYet, hurt: hurt, farNoHit: farNoHit,
+      windup: Z.CFG.ZOMBIE.windup, reach: +(Z.CFG.TRAIN.carHalfW + Z.CFG.ZOMBIE.reachExtra).toFixed(1) });
+  })()`))
+  check('贴身先进入起手（不立刻掉血）', atk.started === true && atk.noDamageYet === true, atk)
+  check('起手结束才造成伤害', atk.hurt === true, atk)
+  check('攻击距离外不造成伤害', atk.farNoHit === true, atk)
 } catch (e) {
   fail++
   console.error('冒烟测试中断：', e.message)
