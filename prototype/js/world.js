@@ -208,7 +208,7 @@ window.ZT = window.ZT || {};
       }
       // 地表的碎屑斑块（不再画成方块网格，避免像 UI 元素）
       ctx.globalAlpha = 0.55;
-      for (let i = 0; i < 260; i++) {
+      for (let i = 0; i < 300; i++) {
         const cx = R.hashCell(i, 3, 11) * 14000 - 1200, cy = R.hashCell(i, 4, 13) * 1800 - 900;
         if (cx < v.x0 - 200 || cx > v.x1 + 200 || cy < v.y0 - 200 || cy > v.y1 + 200) continue;
         const w = 30 + R.hashCell(i, 5, 17) * 130, hgt = 16 + R.hashCell(i, 6, 19) * 70;
@@ -218,6 +218,24 @@ window.ZT = window.ZT || {};
         ctx.fill();
       }
       ctx.globalAlpha = 1;
+
+      // 地表颗粒：一张离屏噪点图平铺，让荒地不再是纯色块
+      if (!this._grain) {
+        const cv = document.createElement('canvas');
+        cv.width = cv.height = 96;
+        const g2 = cv.getContext('2d');
+        for (let i = 0; i < 260; i++) {
+          const gx = Math.random() * 96, gy = Math.random() * 96;
+          const r = 0.4 + Math.random() * 1.5;
+          g2.fillStyle = Math.random() > 0.48 ? 'rgba(210,200,170,0.035)' : 'rgba(0,0,0,0.085)';
+          g2.beginPath(); g2.arc(gx, gy, r, 0, 6.2832); g2.fill();
+        }
+        this._grain = ctx.createPattern(cv, 'repeat');
+      }
+      if (this._grain) {
+        ctx.fillStyle = this._grain;
+        ctx.fillRect(v.x0, v.y0, v.x1 - v.x0, v.y1 - v.y0);
+      }
 
       // 公路
       for (const rd of this.roads) {
@@ -274,10 +292,20 @@ window.ZT = window.ZT || {};
       R.flat(ctx);
       for (const t of this.trees) {
         if (!tin(t.x, t.y, 40)) continue;
-        ctx.fillStyle = 'rgba(0,0,0,0.35)';
-        ctx.beginPath(); ctx.arc(t.x + 2, t.y + 2.4, t.r, 0, 6.2832); ctx.fill();
-        ctx.fillStyle = this.pal.tree[t.k];
+        ctx.fillStyle = 'rgba(0,0,0,0.38)';
+        ctx.beginPath(); ctx.ellipse(t.x + 2.2, t.y + 2.8, t.r * 1.05, t.r * 0.8, 0, 0, 6.2832); ctx.fill();
+        const col = this.pal.tree[t.k];
+        // 树干
+        ctx.strokeStyle = 'rgba(30,24,18,0.85)';
+        ctx.lineWidth = Math.max(1, t.r * 0.28);
+        ctx.beginPath(); ctx.moveTo(t.x, t.y); ctx.lineTo(t.x, t.y + t.r * 0.5); ctx.stroke();
+        // 树冠：底色 + 受光面
+        ctx.fillStyle = col;
         ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, 6.2832); ctx.fill();
+        ctx.fillStyle = U.mix(col, '#c8d8a8', 0.28);
+        ctx.beginPath(); ctx.arc(t.x - t.r * 0.3, t.y - t.r * 0.32, t.r * 0.55, 0, 6.2832); ctx.fill();
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        ctx.beginPath(); ctx.arc(t.x + t.r * 0.28, t.y + t.r * 0.3, t.r * 0.6, 0, 6.2832); ctx.fill();
       }
       R.unflat(ctx);
       // 报废车
@@ -393,23 +421,88 @@ window.ZT = window.ZT || {};
         b.push(R.P(q[i].x, q[i].y, 0, {}));
         t.push(R.P(q[i].x, q[i].y, h, {}));
       }
+      const Z = R.cam.zoom;
       if (h > 0.4) {
-        ctx.fillStyle = wallCol;
         for (let i = 0; i < 4; i++) {
           const j = (i + 1) % 4;
           if (q[j].y - q[i].y <= 0) continue;   // 只画法线朝下（可见）的侧面
+          // 墙面：下暗上亮，做出被天光照到的体积
+          const g = ctx.createLinearGradient(b[i].x, b[i].y, t[i].x, t[i].y);
+          g.addColorStop(0, U.mix(wallCol, '#000000', 0.32));
+          g.addColorStop(0.62, wallCol);
+          g.addColorStop(1, U.mix(wallCol, '#ffffff', 0.15));
+          ctx.fillStyle = g;
           ctx.beginPath();
           ctx.moveTo(b[i].x, b[i].y); ctx.lineTo(b[j].x, b[j].y);
           ctx.lineTo(t[j].x, t[j].y); ctx.lineTo(t[i].x, t[i].y);
           ctx.closePath(); ctx.fill();
+          // 檐口：顶边一道亮线 + 底边暗线
+          ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(t[i].x, t[i].y); ctx.lineTo(t[j].x, t[j].y); ctx.stroke();
+
+          // 窗户：只有够高、够近的楼才画，避免远景噪点
+          if (h > 4 && Z > 0.9 && !(dmg != null && dmg > 0.62)) {
+            const cols = h > 14 ? 3 : 2;
+            const rows = h > 20 ? 3 : 2;
+            const cw = 0.62 / cols, ch = 0.56 / rows;
+            for (let cx = 0; cx < cols; cx++) {
+              for (let ry = 0; ry < rows; ry++) {
+                const u0 = 0.19 + cx * cw, u1 = u0 + cw * 0.52;
+                const v0 = 0.26 + ry * ch, v1 = v0 + ch * 0.48;
+                const x1 = b[i].x + (b[j].x - b[i].x) * u0, y1 = b[i].y + (b[j].y - b[i].y) * u0;
+                const x2 = b[i].x + (b[j].x - b[i].x) * u1, y2 = b[i].y + (b[j].y - b[i].y) * u1;
+                const tx1 = t[i].x + (t[j].x - t[i].x) * u0, ty1 = t[i].y + (t[j].y - t[i].y) * u0;
+                const tx2 = t[i].x + (t[j].x - t[i].x) * u1, ty2 = t[i].y + (t[j].y - t[i].y) * u1;
+                const q1 = { x: x1 + (tx1 - x1) * v0, y: y1 + (ty1 - y1) * v0 };
+                const q2 = { x: x2 + (tx2 - x2) * v0, y: y2 + (ty2 - y2) * v0 };
+                const q3 = { x: x2 + (tx2 - x2) * v1, y: y2 + (ty2 - y2) * v1 };
+                const q4 = { x: x1 + (tx1 - x1) * v1, y: y1 + (ty1 - y1) * v1 };
+                const hs = R.hashCell(Math.floor(q[i].x / 6) + cx * 13, Math.floor(q[i].y / 6) + ry * 29, 41);
+                ctx.fillStyle = hs > 0.82 ? 'rgba(255,206,128,0.80)'
+                  : (hs > 0.55 ? 'rgba(120,132,146,0.45)' : 'rgba(10,11,13,0.62)');
+                ctx.beginPath();
+                ctx.moveTo(q1.x, q1.y); ctx.lineTo(q2.x, q2.y);
+                ctx.lineTo(q3.x, q3.y); ctx.lineTo(q4.x, q4.y);
+                ctx.closePath(); ctx.fill();
+              }
+            }
+          }
         }
       }
-      ctx.fillStyle = roofCol;
+      // 屋顶：亮面渐变 + 边缘光
+      const ty0 = Math.min(t[0].y, t[1].y, t[2].y, t[3].y);
+      const ty1 = Math.max(t[0].y, t[1].y, t[2].y, t[3].y);
       ctx.beginPath();
       ctx.moveTo(t[0].x, t[0].y);
       for (let i = 1; i < 4; i++) ctx.lineTo(t[i].x, t[i].y);
-      ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.055)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.closePath();
+      const rg = ctx.createLinearGradient(0, ty0, 0, ty1);
+      rg.addColorStop(0, U.mix(roofCol, '#ffffff', 0.24));
+      rg.addColorStop(0.6, roofCol);
+      rg.addColorStop(1, U.mix(roofCol, '#000000', 0.26));
+      ctx.fillStyle = rg;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,238,206,0.16)'; ctx.lineWidth = 1; ctx.stroke();
+
+      // 屋顶设备：空调箱 / 水箱（只有大屋顶才画）
+      if (Z > 0.75 && h > 7 && !(dmg != null && dmg > 0.62)) {
+        const rp = function (u, v) {
+          const ax = t[0].x + (t[1].x - t[0].x) * u, ay = t[0].y + (t[1].y - t[0].y) * u;
+          const bx = t[3].x + (t[2].x - t[3].x) * u, by = t[3].y + (t[2].y - t[3].y) * u;
+          return { x: ax + (bx - ax) * v, y: ay + (by - ay) * v };
+        };
+        const hs2 = R.hashCell(Math.floor(q[0].x / 9), Math.floor(q[0].y / 9), 61);
+        const u0 = 0.28 + hs2 * 0.12, v0 = 0.26 + hs2 * 0.1;
+        const p1 = rp(u0, v0), p2 = rp(u0 + 0.3, v0), p3 = rp(u0 + 0.3, v0 + 0.3), p4 = rp(u0, v0 + 0.3);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+        ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y);
+        ctx.closePath();
+        ctx.fillStyle = U.mix(roofCol, '#8b939b', 0.22);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1; ctx.stroke();
+      }
       // 破损：屋顶破洞 + 断柱/钢筋
       if (dmg != null && dmg > 0.35) {
         const nHole = dmg > 0.72 ? 2 : 1;
