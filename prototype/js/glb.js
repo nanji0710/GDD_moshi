@@ -1,6 +1,8 @@
 'use strict';
 // 极简 glTF 2.0 二进制（.glb）解析器：只取 POSITION / NORMAL / COLOR_0 / indices。
-// 资产由 tools/export-glb.cjs 生成，同时以 base64 内嵌在 assets/models-data.js 里（file:// 可直接用）。
+// 资产由 tools/export-glb.cjs 生成：运行时只读内嵌的 assets/models-data.js（base64，file:// 可直接用），
+// .glb 源文件在仓库 models/glb/（供导出/第三方查看，不进部署目录、不进首屏）。
+// 首屏不引 models-data.js：只有 3D 视图需要它，由 GLB.ensure() 动态插 classic <script> 异步加载。
 window.ZT = window.ZT || {};
 (function (Z) {
   function b64ToBuf(b64) {
@@ -24,7 +26,60 @@ window.ZT = window.ZT || {};
     return new TA(bin.buffer, bin.byteOffset + off, a.count * comps);
   }
 
+  // 加载态提示：首屏不显示；只有真正开始拉模型数据时才出现（#asset-loading 在 index.html 里）
+  function showPill(on, text) {
+    const el = document.getElementById('asset-loading');
+    if (!el) return;
+    if (text) el.textContent = text;
+    el.classList.toggle('hidden', !on);
+  }
+
   const GLB = Z.GLB = {
+    ready: false,          // models-data.js 已加载且 GLB_ASSETS 非空
+    error: null,           // 加载失败原因（重试会清掉）
+    loading: false,
+    _waiters: [],
+
+    // 异步加载模型数据（幂等；回调 (err)）。file:// 下唯一可靠的方式是 classic script，
+    // fetch()/动态 import() 在 origin=null 时会被 CORS 拒掉。
+    ensure: function (cb) {
+      if (typeof cb === 'function') {
+        if (this.ready) { cb(null); return; }
+        if (this.error) { cb(this.error); return; }
+        this._waiters.push(cb);
+      }
+      if (this.ready || this.loading) return;
+      this.loading = true;
+      this.error = null;
+      const self = this;
+      const el = document.createElement('script');
+      el.src = 'assets/models-data.js';
+      el.async = true;
+      el.onload = function () {
+        self.loading = false;
+        self.ready = !!(Z.GLB_ASSETS && Object.keys(Z.GLB_ASSETS).length);
+        if (!self.ready) self.error = new Error('models-data.js 已加载但没有 GLB_ASSETS');
+        console.info('[GLB] 模型数据就绪（异步）：' + Object.keys(Z.GLB_ASSETS || {}).length + ' 个模型');
+        showPill(false);
+        self._flush();
+      };
+      el.onerror = function () {
+        self.loading = false;
+        self.error = new Error('models-data.js 加载失败');
+        console.warn('[GLB] 模型数据加载失败（file:// 下检查 assets/models-data.js 是否存在）');
+        showPill(false);
+        if (Z.UI && Z.UI.toast) Z.UI.toast('模型资源加载失败，3D 视图暂不可用', 'bad');
+        self._flush();
+      };
+      console.info('[GLB] 开始异步加载模型数据 assets/models-data.js');
+      showPill(true, '模型资源加载中…');
+      document.head.appendChild(el);
+    },
+    _flush: function () {
+      const list = this._waiters; this._waiters = [];
+      for (const cb of list) { try { cb(this.error) } catch (e) { console.error('GLB.ensure callback', e) } }
+    },
+
     // 解析 .glb 二进制 → 渲染用的顶点数组
     parse: function (buffer) {
       const dv = new DataView(buffer);

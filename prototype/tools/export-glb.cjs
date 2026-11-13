@@ -1,11 +1,12 @@
 ﻿'use strict';
 // 把程序化模型导出成标准 glTF 2.0 二进制（.glb），供任何 3D 引擎/建模软件直接打开。
 // 用法：node tools/export-glb.cjs
+// 输出：仓库根 models/glb/*.glb（源资产，不进部署目录）+ prototype/assets/models-data.js（运行时唯一来源）
 const fs = require('fs');
 const path = require('path');
 const Models = require('../js/models.js');
 
-const OUT = path.join(__dirname, '..', 'assets', 'models');
+const OUT = path.join(__dirname, '..', '..', 'models', 'glb');
 fs.mkdirSync(OUT, { recursive: true });
 
 const pad4 = n => (4 - (n % 4)) % 4;

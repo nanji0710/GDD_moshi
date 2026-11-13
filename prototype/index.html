@@ -5,17 +5,43 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>末世列车</title>
   <meta name="description" content="列车推进 · 车厢编组 · 尸潮防御（GDD v1.2 实现）">
+  <!-- 首屏关键样式内联：脚本还没跑起来就先有加载态，不让玩家看白屏 -->
+  <style>
+    #boot-loading {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+      background: #14161a; color: #e6ebf2; text-align: center;
+      font: 14px/1.6 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      transition: opacity .28s ease;
+    }
+    #boot-loading.hidden { opacity: 0; pointer-events: none; }
+    #boot-loading i {
+      width: 26px; height: 26px; border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, .18); border-top-color: #ffb347;
+      animation: bootspin .8s linear infinite;
+    }
+    #boot-loading b { font-size: 18px; letter-spacing: .14em; font-weight: 600; }
+    #boot-loading span { color: #9aa7b6; font-size: 12px; letter-spacing: .08em; }
+    @keyframes bootspin { to { transform: rotate(360deg); } }
+  </style>
   <link rel="stylesheet" href="css/style.css">
-<link rel="stylesheet" href="css/polish.css">
-<link rel="stylesheet" href="css/ui-realism.css">
+  <link rel="stylesheet" href="css/polish.css">
+  <link rel="stylesheet" href="css/ui-realism.css">
 </head>
 <body>
+  <div id="boot-loading" role="status" aria-live="polite">
+    <i aria-hidden="true"></i>
+    <b>末世列车</b>
+    <span>正在载入…</span>
+  </div>
+  <div id="asset-loading" class="hidden" role="status" aria-live="polite">模型资源加载中…</div>
   <canvas id="map"></canvas>
   <canvas id="map3d" style="display:none"></canvas>
   <div id="ui"></div>
   <noscript>需要启用 JavaScript。</noscript>
+  <!-- 注意：assets/models-data.js（1.3MB）不在首屏同步引用里，由 js/glb.js 在需要 3D 时
+       动态插入 classic <script> 异步加载（file:// 下 fetch()/import() 会被 CORS 拒绝）。 -->
   <script src="js/util.js"></script>
-  <script src="assets/models-data.js"></script>
   <script src="js/glb.js"></script>
   <script src="js/art.js"></script>
   <script src="js/models.js"></script>

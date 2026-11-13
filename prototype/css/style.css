@@ -787,3 +787,20 @@ button.carline.on { border-color: var(--accent); background: rgba(255,179,71,0.1
   width: 100%; height: 100%;
   touch-action: none;
 }
+
+/* 首屏模型资源异步加载提示（#4）：只在真正拉 assets/models-data.js 时出现 */
+#asset-loading {
+  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+  z-index: 90; display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: 999px;
+  background: rgba(20, 23, 28, 0.92); border: 1px solid var(--line);
+  color: var(--ink-2); font-size: 12px; letter-spacing: .04em;
+  box-shadow: var(--shadow); pointer-events: none;
+}
+#asset-loading::before {
+  content: ''; width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.18); border-top-color: var(--accent);
+  animation: bootspin .8s linear infinite;
+}
+#asset-loading.hidden { display: none; }
+

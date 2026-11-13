@@ -599,6 +599,9 @@ window.ZT = window.ZT || {};
   }
 
   // ================= 主程序 =================
+  // 进入游戏才开始异步拉模型数据（首屏不阻塞；只有 3D 视图会用到 assets/models-data.js）
+  function prefetchModels() { if (Z.GLB && Z.GLB.ensure) Z.GLB.ensure(); }
+
   const Game = Z.Game = {
     speedMul: 1, paused: false, acc: 0,
 
@@ -612,6 +615,12 @@ window.ZT = window.ZT || {};
       const run = Z.Run;
       Z.UI.init(run);
       Z.UI.showStart();
+      // 首屏脚本跑完、标题已渲染 → 收起启动 loading（元素与关键样式内联在 index.html）
+      const bootEl = document.getElementById('boot-loading');
+      if (bootEl) {
+        bootEl.classList.add('hidden');
+        setTimeout(function () { bootEl.style.display = 'none'; }, 320);
+      }
 
       // ---- 输入（鼠标 + 触摸共用一套逻辑）----
       let drag = null, down = null;
@@ -764,6 +773,7 @@ window.ZT = window.ZT || {};
     startLevel: function (n) {
       const R = Z.R;
       const run = Z.Run;
+      prefetchModels();
       if (Z.Save) Z.Save.clear();
       run.start(n);
       if (Z.Save) Z.Save.save(run);
@@ -780,6 +790,7 @@ window.ZT = window.ZT || {};
     },
     startEndless: function () {
       const R = Z.R, run = Z.Run;
+      prefetchModels();
       run.startEndless();
       const lay = run.train.layout(Z.World);
       const mid = lay[(lay.length / 2) | 0];
@@ -795,6 +806,7 @@ window.ZT = window.ZT || {};
       const snap = Z.Save && Z.Save.get();
       if (!snap) { if (Z.UI) Z.UI.toast('没有可继续的存档', 'bad'); return; }
       const R = Z.R, run = Z.Run;
+      prefetchModels();
       run.restore(snap);
       const lay = run.train.layout(Z.World);
       const mid = lay[(lay.length / 2) | 0];

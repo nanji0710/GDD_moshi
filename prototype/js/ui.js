@@ -524,7 +524,11 @@ window.ZT = window.ZT || {};
         h('div', { class: 'acts dev-row' },
           h('button', {
             class: 'btn sm ghost', title: '开发工具：GLB 资产预览，不影响存档',
-            onclick: function () { if (Z.View3D) Z.View3D.open(); }
+            onclick: function () {
+              if (!Z.View3D) return;
+              if (!Z.UI.ensureModels('模型资源已就绪，再点一次「3D 资产预览」')) return;
+              Z.View3D.open();
+            }
           }, '3D 资产预览'),
           h('span', { class: 'dev-note' }, '开发用，玩家不需要它')),
         h('div', { class: 'acts' },
@@ -866,9 +870,21 @@ window.ZT = window.ZT || {};
 
     // ---------------- 改装 ----------------
     canOpenRefit: function () { return this.run.state === 'run' || this.run.state === 'parked' || this.run.state === 'station'; },
+    // 模型数据是异步的：所有需要 GLB 的入口共用这一处门禁，避免「点了没反应」
+    ensureModels: function (readyTip) {
+      if (!Z.GLB || !Z.GLB.ensure) return true;      // 旧版同步资产包：就绪
+      if (Z.GLB.ready) return true;
+      const self = this;
+      Z.GLB.ensure(function (err) {
+        self.toast(err ? '模型资源加载失败，3D 视图暂不可用' : (readyTip || '模型资源已就绪'), err ? 'bad' : 'good');
+      });
+      this.toast(Z.GLB.loading ? '模型资源加载中…（首次约 1 秒）' : '准备模型资源…', 'info');
+      return false;
+    },
     toggle3D: function () {
       if (!Z.World3D) return;
       const on = !Z.World3D.on;
+      if (on && !this.ensureModels('模型资源已就绪，再按 V / 点 3D 切换')) return;
       if (!Z.World3D.setMode(on)) { this.toast('这个浏览器不支持 WebGL', 'bad'); return; }
       this.toast(on ? '3D 视图（按 V 切回）' : '2D 视图', 'info');
       if (this.refs.btn3d) {

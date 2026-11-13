@@ -31,6 +31,10 @@
 
 没有构建、没有 npm install、没有服务器要求。
 
+首屏只同步加载界面脚本与样式（实测 **478,428 B / 26 个请求（467 KiB）**，4× CPU 降速下 DCL 91ms、标题可交互 191ms）；
+1.3MB 的 3D 模型数据（`assets/models-data.js`）**进入游戏后才异步加载**，加载期间底部有「模型资源加载中…」提示，
+3D 按钮在就绪前不会硬切（先提示、就绪后再切）。复测命令见「开发」里的 `node tools/perf.mjs`。
+
 | 操作 | 键 |
 | --- | --- |
 | 暂停 / 继续 | `空格` |
@@ -73,10 +77,16 @@
 │   │   ├── sound.js        程序化音频
 │   │   ├── meta.js         局外 6 条强化线 + 涂装 + 存档
 │   │   ├── save.js         局内存档
+│   │   ├── glb.js          GLB 解析 + 模型数据异步加载（file:// 用 classic script）
 │   │   ├── ui.js  main.js  fx.js  skills.js  util.js
+│   ├── assets/
+│   │   └── models-data.js  内嵌 GLB 资产（1.3MB，进游戏后异步加载，不进首屏）
 │   └── tools/
-│       ├── smoke.mjs       60 条断言的冒烟测试（CDP）
-│       └── shoot.mjs       截图 + console 报错审计（CDP）
+│       ├── smoke.mjs       175 条断言的冒烟测试（CDP）
+│       ├── shoot.mjs       33 张截图 + console 报错审计（CDP）
+│       ├── perf.mjs        首屏同步字节 / DCL / 加载态 / 404 实测（CDP）
+│       └── export-glb.cjs  程序化模型导出 → models/glb/*.glb + assets/models-data.js
+├── models/glb/             40 个 .glb 源资产（导出/第三方查看用，不进部署目录）
 └── docs/                   设计文档（GDD、借鉴报告、灵感、数值）
 ```
 
@@ -86,13 +96,15 @@
 
 ```bash
 cd prototype
-node tools/smoke.mjs        # 60 条断言，含存档往返、关卡变异、速度公式
-node tools/shoot.mjs        # 出 17 张截图并审计 console 报错
+node tools/smoke.mjs        # 175 条断言，含存档往返、关卡变异、速度公式
+node tools/shoot.mjs        # 出 33 张截图并审计 console 报错
+node tools/perf.mjs         # 首屏实测：同步字节 / DCL / 标题时间 / 加载态 / 404
+node tools/export-glb.cjs   # 重出 3D 资产：models/glb/*.glb + assets/models-data.js
 ```
 
 ## 发布
 
-游戏是纯静态站点（一个 `index.html` + `css/` + `js/`，零构建），推 `main` 会自动发到两个地方：
+游戏是纯静态站点（一个 `index.html` + `css/` + `js/` + `assets/models-data.js`，零构建），推 `main` 会自动发到两个地方：
 
 | 平台 | 触发方式 | 地址 |
 | --- | --- | --- |
@@ -108,7 +120,9 @@ CI 需要两个仓库密钥（Settings → Secrets and variables → Actions）�
 
 本地手动发一次：`$env:CF_API_TOKEN=...; $env:CF_ACCOUNT_ID=...; pwsh -File tools/deploy-cloudflare.ps1`
 
-`release/last-train-prototype.zip` 是**只含游戏本体**的 60 KB 发布包，可直接拖进 Cloudflare Pages 的 Upload assets。
+`release/last-train-prototype.zip` 是**只含游戏本体**的发布包：**323,531 B（316 KiB，27 项）**，
+解压后根目录就是 `index.html`，可直接拖进 Cloudflare Pages 的 Upload assets。
+模型数据在部署产物里只有 `assets/models-data.js` 一份（40 个 `.glb` 源文件在 `models/glb/`，不进部署目录）。
 完整步骤（含绑域名、国内加速取舍）见 [docs/发布指南.md](docs/发布指南.md)。
 
 ## 设计文档

@@ -2358,6 +2358,8 @@ const TINTS = [
 
 
     setMode: function (on) {
+      // 模型数据是异步的：没就绪就先发起加载并拒绝这次切换（否则 3D 里列车会是空的）
+      if (on && Z.GLB && Z.GLB.ensure && !Z.GLB.ready) { Z.GLB.ensure(); return false; }
       if (on && !this.init()) return false;
       this.on = !!on;
       const c2 = document.getElementById('map');

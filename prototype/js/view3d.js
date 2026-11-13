@@ -1,5 +1,5 @@
 'use strict';
-// 游戏内 3D 视图：把 assets 里的 .glb 模型用 WebGL 渲染出来（拖拽旋转 / 滚轮缩放）。
+// 游戏内 3D 视图：把内嵌模型资产（assets/models-data.js 的 GLB_ASSETS）用 WebGL 渲染出来（拖拽旋转 / 滚轮缩放）。
 window.ZT = window.ZT || {};
 (function (Z) {
   const M4 = {
@@ -92,7 +92,7 @@ void main() {
       root.className = 'v3d';
       root.innerHTML = [
         '<canvas class="v3d-cv"></canvas>',
-        '<div class="v3d-head"><b>3D 模型 · GLB 资产</b><span>由 assets/models/*.glb 加载渲染 · 拖拽旋转 · 滚轮缩放</span></div>',
+        '<div class="v3d-head"><b>3D 模型 · GLB 资产</b><span>读内嵌 GLB 资产（assets/models-data.js，按需异步加载）· 拖拽旋转 · 滚轮缩放</span></div>',
         '<div class="v3d-bar"></div>',
         '<button class="v3d-close" title="关闭">✕</button>'
       ].join('');
