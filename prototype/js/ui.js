@@ -14,7 +14,7 @@ window.ZT = window.ZT || {};
       this.buildHUD();
       this.refs.drawer = h('aside', { class: 'drawer hidden' });
       this.root.appendChild(this.refs.drawer);
-      this.refs.toasts = h('div', { class: 'toasts' });
+      this.refs.toasts = h('div', { class: 'toasts', role: 'status', 'aria-live': 'polite' });
       this.root.appendChild(this.refs.toasts);
       this.refs.screen = h('div', { class: 'screen hidden' });
       this.root.appendChild(this.refs.screen);
@@ -50,7 +50,8 @@ window.ZT = window.ZT || {};
             (R_.speedBtns = R_.speedBtns || []).push(b);
             return b;
           })),
-          h('button', { class: 'btn sm', onclick: function () { Z.UI.toggle3D(); } }, '3D', h('kbd', null, 'V')),
+          (R_.btn3d = h('button', { class: 'btn sm', title: '2D / 2.5D 切换（V）', onclick: function () { Z.UI.toggle3D(); } },
+            R_.btn3dLabel = h('span', null, '3D'), h('kbd', null, 'V'))),
           h('button', { class: 'btn sm', onclick: function () { Z.UI.toggleRefit(); } }, '改装', h('kbd', null, 'Tab')),
           R_.snd = h('button', {
             class: 'btn sm' + (Z.Sound && Z.Sound.enabled ? ' on' : ''),
@@ -692,7 +693,10 @@ window.ZT = window.ZT || {};
       const on = !Z.World3D.on;
       if (!Z.World3D.setMode(on)) { this.toast('这个浏览器不支持 WebGL', 'bad'); return; }
       this.toast(on ? '3D 视图（按 V 切回）' : '2D 视图', 'info');
-      if (this.refs.btn3d) this.refs.btn3d.textContent = on ? '2D' : '3D';
+      if (this.refs.btn3d) {
+        this.refs.btn3d.classList.toggle('on', on);
+        if (this.refs.btn3dLabel) this.refs.btn3dLabel.textContent = on ? '2D' : '3D';
+      }
     },
 
     toggleRefit: function () {
@@ -735,6 +739,90 @@ window.ZT = window.ZT || {};
       box.appendChild(list);
       box.appendChild(h('div', { class: 'dw-foot' }, '改装时游戏暂停 · 关闭后继续 ' + (Z.Game.paused ? '（当前暂停）' : (Z.Game.speedMul + '×'))));
     },
+    // 武器小图标：俯视炮塔剪影，和 3D 模型同一套构件
+    weaponIcon: function (key, form, lv, size) {
+      const S = size || 46;
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(S * 1.6); cv.height = S;
+      cv.className = 'wicon';
+      const g = cv.getContext('2d');
+      if (!g) return cv;
+      const d = CFG.WEAPONS[key] || {};
+      const col = d.color || '#ffd479';
+      const cx = cv.width * 0.34, cy = S * 0.5, s = S / 46;
+      const kind = key;
+      const rot = -0.35;
+      g.save();
+      g.translate(cx, cy); g.rotate(rot);
+      // 底座
+      g.fillStyle = '#2b3037';
+      g.beginPath(); g.arc(0, 0, 9 * s, 0, 6.2832); g.fill();
+      g.fillStyle = '#4e5a66';
+      g.beginPath(); g.arc(0, 0, 7 * s, 0, 6.2832); g.fill();
+      // 塔体
+      g.fillStyle = '#5f6b78';
+      g.fillRect(-6 * s, -5 * s, 12 * s, 10 * s);
+      g.fillStyle = '#6d7b88';
+      g.fillRect(-5 * s, -4 * s, 10 * s, 4 * s);
+      // 各武器构件
+      const lvK = 1 + (Math.min(5, lv || 1) - 1) * 0.07;
+      const barrel = function (len, wid, off) {
+        g.fillStyle = '#3f474f';
+        g.fillRect(4 * s, (off || 0) * s - wid * s / 2, len * s, wid * s);
+      };
+      if (kind === 'flamer' || kind === 'gas') {
+        g.fillStyle = kind === 'gas' ? '#6a8a4a' : '#8a6a3a';
+        g.beginPath(); g.arc(-5 * s, -4 * s, 3 * s, 0, 6.2832); g.fill();
+        g.beginPath(); g.arc(-5 * s, 4 * s, 3 * s, 0, 6.2832); g.fill();
+        barrel(9 * lvK, 3, 0);
+        g.fillStyle = col;
+        g.beginPath(); g.arc((6 + 8 * lvK) * s, 0, 2.2 * s, 0, 6.2832); g.fill();
+      } else if (kind === 'tesla') {
+        g.strokeStyle = col; g.lineWidth = 1.4 * s;
+        for (let k = 0; k < 3; k++) { g.beginPath(); g.arc(0, 0, (3 + k * 2) * s, 0, 6.2832); g.stroke(); }
+        for (const dz of [-3, 0, 3]) {
+          g.fillStyle = col; g.fillRect(2 * s, dz * s - 0.6 * s, 8 * lvK * s, 1.2 * s);
+        }
+      } else if (kind === 'mortar') {
+        g.fillStyle = '#20242a';
+        g.beginPath(); g.arc(0, 0, 5.5 * s, 0, 6.2832); g.fill();
+        barrel(8 * lvK, 4, 0);
+        g.fillStyle = col;
+        g.beginPath(); g.arc((6 + 7 * lvK) * s, 0, 1.8 * s, 0, 6.2832); g.fill();
+      } else if (kind === 'laser') {
+        g.fillStyle = '#3f4a54';
+        g.fillRect(-8 * s, -5 * s, 5 * s, 10 * s);
+        g.fillStyle = '#6a7480';
+        g.fillRect(4 * s, -1.4 * s, 11 * lvK * s, 2.8 * s);
+        for (let k = 0; k < 3; k++) {
+          g.strokeStyle = col; g.lineWidth = 1.2 * s;
+          g.beginPath(); g.arc((6 + k * 2.2) * s, 0, 2 * s, 0, 6.2832); g.stroke();
+        }
+      } else if (kind === 'shotgun') {
+        g.fillStyle = '#7a6f62';
+        g.fillRect(3 * s, -5 * s, 3 * s, 10 * s);
+        barrel(8 * lvK, 1.6, -1.6);
+        barrel(8 * lvK, 1.6, 1.6);
+        g.fillStyle = col;
+        g.fillRect(-2 * s, -4.5 * s, 4 * s, 1.4 * s);
+      } else { // mg / flak
+        const nb = form === 'A' ? 2 : 1;
+        if (kind === 'flak') { g.fillStyle = '#6b7784'; g.fillRect(3 * s, -4.5 * s, 2 * s, 9 * s); }
+        for (let b = 0; b < nb; b++) {
+          const off = nb === 1 ? 0 : (b ? 1.6 : -1.6);
+          barrel(kind === 'flak' ? 12 * lvK : 9 * lvK, kind === 'flak' ? 1.8 : 1.2, off);
+        }
+      }
+      // 等级灯
+      g.fillStyle = '#ffd479';
+      for (let l = 0; l < Math.min(5, lv || 1); l++) {
+        g.beginPath(); g.arc(-9 * s, (-3 + l * 1.5) * s, 1.1 * s, 0, 6.2832); g.fill();
+      }
+      g.restore();
+      return cv;
+    },
+
+
     slotCard: function (run, carIdx, j, w, car) {
       const defs = h('div', { class: 'slotcard' });
       if (!w) {
@@ -750,7 +838,7 @@ window.ZT = window.ZT || {};
               Z.UI.toast('安装 ' + d.name, 'good'); Z.UI.renderRefit();
             }
           },
-            h('div', { class: 'row' }, h('i', { class: 'dot', style: { background: d.color } }), h('b', null, d.name), h('span', { class: 'cost' }, d.cost)),
+            h('div', { class: 'row' }, Z.UI.weaponIcon(key, null, 1, 40), h('i', { class: 'dot', style: { background: d.color } }), h('b', null, d.name), h('span', { class: 'cost' }, d.cost)),
             h('div', { class: 'kv' }, h('span', null, 'DPS ' + d.dps), h('span', null, '射程 ' + d.range + 'm'), h('span', null, d.mode))));
         });
         defs.appendChild(list);
@@ -758,6 +846,7 @@ window.ZT = window.ZT || {};
       }
       const d = w.def(), f = w.formDef();
       const row = h('div', { class: 'row' },
+        Z.UI.weaponIcon(w.key, w.form, w.level, 40),
         h('b', { style: { color: d.color } }, d.short + ' Lv' + w.level),
         h('span', { class: 'lv' }, f ? f.name : (w.level >= CFG.WEAPON.formLevel ? '待选形态' : '')));
       defs.appendChild(row);

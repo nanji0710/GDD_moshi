@@ -72,6 +72,33 @@ window.ZT = window.ZT || {};
           B: { name: '过载', dmgMul: 1.8, stun: 1.5, chainAdd: -2, desc: '单体控场' }
         }
       },
+      laser: {
+        name: '脉冲激光炮', short: '激光', cost: 380, tier: 4,
+        range: 150, dps: 96, rof: 3.0, ammoPerShot: 2, mode: 'beam', pierce: 3,
+        color: '#7ef0ff', aimRate: 4.4,
+        forms: {
+          A: { name: '散射', beamMul: 1.7, dmgMul: 0.55, desc: '三束穿透，清一条线' },
+          B: { name: '聚焦', dmgMul: 2.1, rofMul: 0.8, desc: '一束烧穿精英' }
+        }
+      },
+      shotgun: {
+        name: '12 号霰弹炮', short: '霰弹', cost: 200, tier: 2,
+        range: 58, dps: 118, rof: 2.2, ammoPerShot: 4, mode: 'spread',
+        pellets: 6, targets: 4, color: '#ffb0a0', aimRate: 3.2,
+        forms: {
+          A: { name: '鹿弹', pellets: 9, dmgMul: 0.7, desc: '一大片' },
+          B: { name: '独头', pellets: 1, dmgMul: 3.0, rangeMul: 1.35, desc: '贴脸一发爆' }
+        }
+      },
+      gas: {
+        name: '神经毒气喷射器', short: '毒气', cost: 240, tier: 3,
+        range: 46, dps: 44, rof: 3.2, ammoPerShot: 5, mode: 'cone',
+        coneDeg: 64, targets: 8, color: '#9fe86a', aimRate: 2.6, poison: 5.5,
+        forms: {
+          A: { name: '扩散', coneMul: 1.5, desc: '一大片毒云' },
+          B: { name: '浓缩', dmgMul: 1.9, coneMul: 0.65, desc: '高浓度，慢慢烂' }
+        }
+      },
       mortar: {
         name: '82mm 迫击炮', short: '迫击', cost: 300, tier: 3,
         range: 230, dps: 38, rof: 0.6, ammoPerShot: 1, mode: 'shell', splash: 30, color: '#ffb347', aimRate: 1.2,
@@ -81,7 +108,7 @@ window.ZT = window.ZT || {};
         }
       }
     },
-    WEAPON_ORDER: ['mg', 'flamer', 'flak', 'tesla', 'mortar'],
+    WEAPON_ORDER: ['mg', 'flamer', 'flak', 'shotgun', 'tesla', 'gas', 'mortar', 'laser'],
 
     // 10 级成长：Lv3 选形态，Lv4-10 纯数值
     WEAPON: {

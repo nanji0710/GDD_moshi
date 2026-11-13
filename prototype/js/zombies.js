@@ -517,7 +517,7 @@ window.ZT = window.ZT || {};
         for (let i = 0; i < 3; i++) {
           const ph = (T2 * 6 + i * 2.1) % 1;
           ctx.globalAlpha = 0.55 * (1 - ph);
-          ctx.fillStyle = i === 1 ? '#ffd479' : '#ff8a3a';
+          ctx.fillStyle = zb.burnGas ? (i === 1 ? '#c8ff9a' : '#7fd44a') : (i === 1 ? '#ffd479' : '#ff8a3a');
           ctx.beginPath();
           ctx.ellipse(p.x + Math.sin(T2 * 9 + i) * r * 0.3, cy - r * (0.4 + ph * 1.1),
             r * 0.22 * (1 - ph * 0.5), r * 0.4 * (1 - ph * 0.4), 0, 0, 6.2832);

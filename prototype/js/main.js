@@ -461,6 +461,10 @@ window.ZT = window.ZT || {};
         };
 
         const H0 = mp.h + 0.55;          // 回转台高度（和 3D 的 3.52 对应）
+        // 等级成长（与 3D 同一公式）
+        const wlv2 = Math.min(5, w.level || 1);
+        const lvLen2 = 1 + (wlv2 - 1) * 0.07;
+        const lvThick2 = 1 + (wlv2 - 1) * 0.05;
         const HB = mp.h + 0.55;          // 炮管高度
 
         // 1) 共用底座圈
@@ -472,10 +476,10 @@ window.ZT = window.ZT || {};
           box3(0.75, 0, 0.5, 1.2, H0, 0.42, '#2a2f36', '#1a1e22');          // 弹链箱
           quad(-0.35, 0.55, 0.7, 0.5, H0 + 0.1, col);      // 顶部识别条
           const nb = form === 'A' ? 2 : 1;
-          const far = form === 'B' ? 2.9 : form === 'A' ? 2.1 : 2.5;
+          const far = (form === 'B' ? 2.9 : form === 'A' ? 2.1 : 2.5) * lvLen2;
           for (let bi = 0; bi < nb; bi++) {
             const off = nb === 1 ? 0 : (bi === 0 ? -0.22 : 0.22);
-            rod(0.5, off, far, 0.13, HB, '#3f474f');
+            rod(0.5, off, far, 0.13 * lvThick2, HB, '#3f474f');
             quad(far, off, 0.22, 0.16, HB, '#20242a');
           }
           quad(0.45, 0, 0.5, 0.62, HB, col);
@@ -484,7 +488,7 @@ window.ZT = window.ZT || {};
           disc(-0.55, -0.72, 0.36, H0 + 0.1, '#8a6a3a');    // 燃料罐 ×2
           disc(-0.55, 0.72, 0.36, H0 + 0.1, '#8a6a3a');
           box3(0.85, 0, 0.4, 0.8, H0, 0.50, '#2a2f36', '#1a1e22');
-          rod(0.4, 0, 1.2, 0.3, HB, '#4a525a');
+          rod(0.4, 0, 1.2 * lvLen2, 0.3 * lvThick2, HB, '#4a525a');
           rod(1.2, 0, 1.75, 0.26, HB, '#6a6a6a');
           disc(1.6, 0, 0.2, HB, '#20242a');
           disc(1.72, 0, 0.26, HB, col);                     // 火环
@@ -493,8 +497,8 @@ window.ZT = window.ZT || {};
           box3(0.9, 0, 0.5, 1.5, H0, 0.80, '#7b8a98', '#55606b');            // 炮盾
           box3(-0.5, -0.85, 0.9, 0.35, H0 - 0.1, 0.40, '#6b5836', '#3e3220');
           box3(-0.5, 0.85, 0.9, 0.35, H0 - 0.1, 0.40, '#6b5836', '#3e3220');
-          const far2 = form === 'B' ? 3.1 : 2.9;
-          rod(0.5, 0, far2, 0.16, HB, '#3f474f');
+          const far2 = (form === 'B' ? 3.1 : 2.9) * lvLen2;
+          rod(0.5, 0, far2, 0.16 * lvThick2, HB, '#3f474f');
           quad(far2, 0, 0.4, 0.24, HB, '#20242a');          // 制退器
           quad(0.55, 0, 0.2, 0.4, HB, col);
         } else if (kind === 'tesla') {
@@ -513,12 +517,33 @@ window.ZT = window.ZT || {};
             rod(0.6, fz2, 1.5, 0.1, HB, col);
             disc(1.6, fz2, 0.09, HB, '#e8e0ff');
           }
+        } else if (kind === 'laser') {
+          box3(0, 0, 2.0, 1.7, H0, 0.52, '#6d7b88', '#4a5561');
+          box3(-0.6, 0, 0.5, 1.2, H0, 0.40, '#3f4a54', '#2a323a');     // 冷却罐
+          box3(0, 0, 0.9, 0.5, H0 + 0.52, 0.12, col, col);            // 顶部散热条
+          rod(0.5, 0, 2.4 * lvLen2, 0.14 * lvThick2, HB, '#6a7480');
+          for (let k5 = 0; k5 < 3; k5++) disc(1.2 + k5 * 0.35, 0, 0.20, HB, col);
+          disc(2.5, 0, 0.12, HB, '#e8ffff');
+        } else if (kind === 'shotgun') {
+          box3(0, 0, 1.8, 1.7, H0, 0.56, '#7a6f62', '#554c42');
+          box3(0.85, 0, 0.4, 1.4, H0, 0.66, '#8a7f72', '#5a5148');    // 炮盾
+          box3(-0.5, -0.8, 0.8, 0.3, H0 - 0.1, 0.34, '#5a4a34', '#3a2f20');
+          box3(-0.5, 0.8, 0.8, 0.3, H0 - 0.1, 0.34, '#5a4a34', '#3a2f20');
+          for (const dz of [-0.16, 0.16]) rod(0.5, dz, 2.1 * lvLen2, 0.16 * lvThick2, HB, '#3f474f');
+          disc(2.15, 0, 0.24 * lvThick2, HB, '#2c333a');
+        } else if (kind === 'gas') {
+          box3(0, 0, 1.6, 1.5, H0, 0.56, '#697a55', '#47543a');
+          disc(-0.5, -0.62, 0.34, H0 + 0.1, '#6a8a4a');               // 毒气罐 ×2
+          disc(-0.5, 0.62, 0.34, H0 + 0.1, '#6a8a4a');
+          rod(0.4, 0, 1.3 * lvLen2, 0.26 * lvThick2, HB, '#6a7a5a');
+          disc(1.45, 0, 0.24, HB, '#2c333a');
+          disc(1.62, 0, 0.30, HB, col);                               // 毒雾环
         } else { // mortar
           box3(0, 0, 1.5, 1.4, H0, 0.50, '#69737f', '#434b54');
           disc(0, 0, 0.9, H0 + 0.14, '#20242a');            // 座钣
           quad(-0.6, -0.55, 0.5, 0.4, H0 - 0.05, '#4a535c');
           quad(-0.6, 0.55, 0.5, 0.4, H0 - 0.05, '#4a535c');
-          rod(0.3, 0, 2.0, 0.2, HB, '#3f474f');             // 短粗炮管
+          rod(0.3, 0, 2.0 * lvLen2, 0.2 * lvThick2, HB, '#3f474f');  // 短粗炮管
           rod(0.3, 0, 2.0, 0.07, HB + 0.05, col);
           disc(2.0, 0, 0.2, HB, '#20242a');
           disc(1.7, 0, 0.14, HB + 0.04, col);
@@ -544,6 +569,9 @@ window.ZT = window.ZT || {};
           ctx.strokeStyle = 'rgba(255,212,121,0.75)';
           ctx.lineWidth = Math.max(1, z * 0.3);
           ctx.beginPath(); ctx.arc(p.x, p.y, r0 * 1.15, 0, 6.2832); ctx.stroke();
+        }
+        if (wlv2 >= 5) {
+          box3(0.2, 0, 0.42, 0.5, H0 + 0.55, 0.26, '#b8c2cc', '#7c8894');
         }
         const lvDots = Math.min(5, w.level);
         for (let l = 0; l < lvDots; l++) {

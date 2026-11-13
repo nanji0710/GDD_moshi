@@ -1694,23 +1694,31 @@ void main() {
             const bodyM = M4.mul(M4.trans(px, 3.52, pz), M4.rotY(yaw));
             this.drawModelMat(bodyMesh, bodyM, 0);
             // 迫击炮仰角大、电磁微仰，其余平射
-            const basePitch = kind === 'mortar' ? 0.85 : (kind === 'tesla' ? 0.14 : 0.05);
+            const basePitch = kind === 'mortar' ? 0.85 : (kind === 'tesla' || kind === 'laser' ? 0.12 : 0.05);
             const recoil = Math.max(0, Math.min(0.16, (w.cool || 0) * 0.5));
-            const piv = M4.mul(bodyM, M4.trans(kind === 'tesla' ? 0.5 : 0.75, 0.55, 0));
-            const pitchM = M4.rotX(basePitch - recoil);
+            const piv = M4.mul(bodyM, M4.trans(kind === 'tesla' || kind === 'laser' ? 0.5 : 0.75, 0.55, 0));
+            const pitchM = M4.rotX(basePitch - recoil);
+            // 等级成长：炮管变长变粗（Lv1 → Lv5：长度 +28%、口径 +20%）
+            const wlv = Math.min(5, w.level || 1);
+            const lvLen = 1 + (wlv - 1) * 0.07;
+            const lvThick = 1 + (wlv - 1) * 0.05;
             const form = w.form;
             // 形态 A：双联（两根副炮管）／形态 B：加粗加长
             if (form === 'A') {
               for (const dz of [-0.42, 0.42]) {
-                const bm = M4.mul(M4.mul(M4.mul(piv, M4.trans(0, 0, dz)), pitchM), M4.scale(0.85, 0.85, 0.85));
+                const bm = M4.mul(M4.mul(M4.mul(piv, M4.trans(0, 0, dz)), pitchM), M4.scale(0.85 * lvLen, 0.85 * lvThick, 0.85 * lvThick));
                 this.drawModelMat(barrelMesh, bm, 0);
               }
             } else if (form === 'B') {
-              const bm = M4.mul(M4.mul(piv, pitchM), M4.scale(1.18, 1.55, 1.55));
+              const bm = M4.mul(M4.mul(piv, pitchM), M4.scale(1.18 * lvLen, 1.55 * lvThick, 1.55 * lvThick));
               this.drawModelMat(barrelMesh, bm, 0);
             } else {
-              this.drawModelMat(barrelMesh, M4.mul(piv, pitchM), 0);
+              this.drawModelMat(barrelMesh, M4.mul(M4.mul(piv, pitchM), M4.scale(lvLen, lvThick, lvThick)), 0);
             }
+            if (wlv >= 5) {
+              this.box(px + Math.cos(yaw) * 0.2, 3.95, pz - Math.sin(yaw) * 0.2,
+                0.42, 0.26, 0.5, yaw, 0.72, 0.78, 0.86);
+            }
             // 等级灯：底座一圈最多 5 颗，Lv 越高越亮
             const lv = Math.min(5, w.level || 1);
             for (let li = 0; li < lv; li++) {
@@ -1972,24 +1980,27 @@ const TINTS = [
           if (s < 0 || s > path.len) continue;
           Z.U.posAt(path, s, tmp);
           const nx = -Math.sin(tmp.a), ny = Math.cos(tmp.a);
-          const px = tmp.x + nx * lat, pz = tmp.y + ny * lat;
+          // 双侧站台（与 2D 一致）
+          for (const side of [-1, 1]) {
+          const px = tmp.x + nx * lat * side, pz = tmp.y + ny * lat * side;
           this.box(px, 0.55, pz, 6.2, 1.1, 6.4, tmp.a, r, gg, bb);
-          this.box(tmp.x + nx * (lat - 2.9), 1.12, tmp.y + ny * (lat - 2.9), 5.8, 0.06, 0.35, tmp.a,
+          this.box(tmp.x + nx * (lat - 2.9) * side, 1.12, tmp.y + ny * (lat - 2.9) * side, 5.8, 0.06, 0.35, tmp.a,
             st.ruin ? 0.30 : 0.78, st.ruin ? 0.26 : 0.60, st.ruin ? 0.10 : 0.18);
           if (!st.ruin || seg % 3 !== 0) {
-            this.box(tmp.x + nx * (lat + 0.2), 5.0, tmp.y + ny * (lat + 0.2), 6.4, 0.28, 7.4, tmp.a,
+            this.box(tmp.x + nx * (lat + 0.2) * side, 5.0, tmp.y + ny * (lat + 0.2) * side, 6.4, 0.28, 7.4, tmp.a,
               st.ruin ? 0.20 : 0.30, st.ruin ? 0.19 : 0.32, st.ruin ? 0.18 : 0.34);
           }
           if (seg % 2 === 0 || !st.ruin) {
             for (const dl of [-2.6, 3.0]) {
               if (st.ruin && (seg + dl) % 5 === 0) continue;
-              this.box(tmp.x + nx * (lat + dl), 3.0, tmp.y + ny * (lat + dl), 0.34, 3.8, 0.34, tmp.a,
+              this.box(tmp.x + nx * (lat + dl) * side, 3.0, tmp.y + ny * (lat + dl) * side, 0.34, 3.8, 0.34, tmp.a,
                 st.ruin ? 0.22 : 0.38, st.ruin ? 0.21 : 0.38, st.ruin ? 0.20 : 0.36);
             }
           }
           if (st.ruin && seg % 2 === 1) {
             this.box(px + 1.2, 0.35, pz - 1.0, 1.1, 0.7, 0.9, tmp.a + 0.4, 0.24, 0.23, 0.21);
             this.box(px - 1.6, 0.28, pz + 1.4, 0.8, 0.55, 1.2, tmp.a - 0.3, 0.21, 0.20, 0.19);
+          }
           }
           seg++;
         }

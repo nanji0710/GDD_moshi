@@ -119,10 +119,10 @@ window.ZT = window.ZT || {};
   }
   Train.prototype.fire = function (w, carIdx, lay, mount, run, zs, over) {
     const def = w.def(), f = w.formDef() || {};
-    if (Z.Sound) Z.Sound.play(w.key === 'flamer' ? 'flamer' : (w.key === 'flak' ? 'flak' : (w.key === 'tesla' ? 'tesla' : (w.key === 'mortar' ? 'mortar' : 'mg'))), { vol: volAt(mount.x, mount.y) });
+    if (Z.Sound) Z.Sound.play(w.key, { vol: volAt(mount.x, mount.y) });
     const dmg = w.dps() / Math.max(0.1, w.rof()) * over;
     // 炮口位置（所有特效统一从这里出）
-    const BORE = { mg: 2.7, flamer: 1.9, flak: 3.1, tesla: 1.7, mortar: 2.3 };
+    const BORE = { mg: 2.7, flamer: 1.9, flak: 3.1, tesla: 1.7, mortar: 2.3, laser: 2.6, shotgun: 2.2, gas: 1.8 };
     const bore = BORE[w.key] || 2.4;
     const mzx = mount.x + Math.cos(w.aim) * bore;
     const mzy = mount.y + Math.sin(w.aim) * bore;
@@ -148,7 +148,7 @@ window.ZT = window.ZT || {};
         const dd = Math.hypot(zb.x - mount.x, zb.y - mount.y);
         if (dd > w.range()) continue;
         if (Math.abs(U.angleDiff(w.aim, Math.atan2(zb.y - mount.y, zb.x - mount.x))) > w.coneDeg() / 2 * Math.PI / 180) continue;
-        hit(zb, dmg * 1.6 * (run.flamerMul || 1), run, 'fire'); hits++;
+        hit(zb, dmg * 1.6 * (run.flamerMul || 1), run, elementOf(w.key)); hits++;
       }
     } else if (def.mode === 'chain') {
       let cur = w.target, dd = dmg, seen = [];
@@ -165,6 +165,56 @@ window.ZT = window.ZT || {};
       }
       Fx.chain(pts, def.color);
       Fx.flash(mzx, mzy, mzh, def.color, f === 'B' ? 4.4 : 3.4);
+      w.target = null;
+    } else if (def.mode === 'beam') {
+      // 激光：沿瞄准方向穿透一条线
+      const dx = Math.cos(w.aim), dy = Math.sin(w.aim);
+      const pick = [];
+      for (const zb of zs) {
+        if (zb.dead) continue;
+        const ox = zb.x - mount.x, oy = zb.y - mount.y;
+        const proj = ox * dx + oy * dy;
+        if (proj < 0 || proj > w.range()) continue;
+        if (Math.abs(-ox * dy + oy * dx) > 3.6) continue;
+        pick.push({ zb: zb, d: proj });
+      }
+      pick.sort(function (a, b) { return a.d - b.d; });
+      const pierce = Math.max(1, Math.round((def.pierce || 1) * (f.beamMul || 1)));
+      const n = Math.min(pierce, pick.length);
+      for (let i = 0; i < n; i++) {
+        Fx.tracer(mzx, mzy, mzh, pick[i].zb.x, pick[i].zb.y, 1.4, def.color, 3.4);
+        hit(pick[i].zb, dmg * (i === 0 ? 1 : 0.8), run, elementOf(w.key));
+      }
+      if (!n) Fx.tracer(mzx, mzy, mzh, mzx + dx * w.range(), mzy + dy * w.range(), 1.2, def.color, 3.4);
+      Fx.flash(mzx, mzy, mzh, def.color, f === 'B' ? 4.2 : 3.2);
+      w.target = null;
+    } else if (def.mode === 'spread') {
+      // 霰弹：锥形散射，多目标分摊
+      const pellets = Math.max(1, Math.round(f.pellets || def.pellets || 6));
+      const half = 13 * Math.PI / 180;
+      const pick = [];
+      for (const zb of zs) {
+        if (zb.dead) continue;
+        if (Math.hypot(zb.x - mount.x, zb.y - mount.y) > w.range()) continue;
+        if (Math.abs(U.angleDiff(w.aim, Math.atan2(zb.y - mount.y, zb.x - mount.x))) > half) continue;
+        pick.push(zb);
+      }
+      const maxT = def.targets || 4;
+      const cnt = Math.min(maxT, pick.length);
+      for (let i = 0; i < Math.min(cnt, 3); i++) {
+        Fx.tracer(mzx, mzy, mzh, pick[i].x + (Math.random() - 0.5) * 4, pick[i].y + (Math.random() - 0.5) * 4, 1.4, def.color, 2.2);
+      }
+      if (!cnt) {
+        for (let i = 0; i < 3; i++) {
+          const aa = w.aim + (Math.random() - 0.5) * half * 2;
+          Fx.tracer(mzx, mzy, mzh, mzx + Math.cos(aa) * w.range(), mzy + Math.sin(aa) * w.range(), 1.2, def.color, 2.2);
+        }
+      }
+      for (let i = 0; i < cnt; i++) {
+        hit(pick[i], dmg * 1.2 / Math.max(1, cnt), run, 'bullet');
+        Fx.sparks(pick[i].x, pick[i].y, 1.4, 4, def.color);
+      }
+      Fx.flash(mzx, mzy, mzh, def.color, f === 'B' ? 4.0 : 3.0);
       w.target = null;
     } else if (def.mode === 'shell') {
       const t = w.target, salvo = f.salvo || 1;
@@ -194,7 +244,10 @@ window.ZT = window.ZT || {};
   }
   // 元素：mg/flak = bullet，flamer = fire，tesla = shock，mortar = blast
   function elementOf(key) {
-    return key === 'flamer' ? 'fire' : key === 'tesla' ? 'shock' : key === 'mortar' ? 'blast' : 'bullet';
+    if (key === 'flamer' || key === 'gas') return key === 'gas' ? 'poison' : 'fire';
+    if (key === 'tesla' || key === 'laser') return 'shock';
+    if (key === 'mortar') return 'blast';
+    return 'bullet';
   }
 
   function hit(zb, dmg, run, el) {
@@ -220,6 +273,11 @@ window.ZT = window.ZT || {};
     else if (el === 'shock' && (wet || zb.burn > 0)) { dmg *= 1.35; combo = '导电'; }
     else if (el === 'blast' && zb.burn > 0) { dmg *= 1.5; combo = '殉爆'; zb.burn = 0; }
     if (el === 'fire') { zb.burn = Math.max(zb.burn || 0, 3.5); zb.burnDps = Math.max(zb.burnDps || 0, CFG.ZOMBIE.burnDps || 7); }
+    if (el === 'poison') {
+      zb.burn = Math.max(zb.burn || 0, CFG.WEAPONS.gas.poison || 5);
+      zb.burnDps = Math.max(zb.burnDps || 0, 9);
+      zb.burnGas = true;                       // 2D/3D 用绿色火焰表现中毒
+    }
     if (combo && Math.random() < 0.45) {
       Fx.text(zb.x, zb.y, 2.9, combo, el === 'shock' ? '#a8d8ff' : '#ffab4a');
     }

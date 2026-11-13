@@ -94,7 +94,7 @@ window.ZT = window.ZT || {};
       if (!this.enabled || !this.ctx) return;
       if (this.voices >= this.maxVoices) return;
       const now = this.ctx.currentTime;
-      const throttle = { mg: 0.045, flak: 0.07, flamer: 0.09, tesla: 0.08, mortar: 0.12, hit: 0.03, claw: 0.08 }[name] || 0.02;
+      const throttle = { mg: 0.045, flak: 0.07, flamer: 0.09, tesla: 0.08, mortar: 0.12, laser: 0.11, shotgun: 0.12, gas: 0.10, hit: 0.03, claw: 0.08 }[name] || 0.02;
       if (this.last[name] && now - this.last[name] < throttle) return;
       this.last[name] = now;
       this.voices++;
@@ -119,6 +119,18 @@ window.ZT = window.ZT || {};
         case 'mortar':
           this.noise(0.20, 'lowpass', 400, 0.5, 0.14 * vol, null, t, 120);
           this.tone(70, 0.16, 'sine', 0.14 * vol);
+          break;
+        case 'laser':
+          this.tone(1580, 0.16, 'sine', 0.05 * vol, null, t, 420);
+          this.tone(2400, 0.10, 'triangle', 0.03 * vol, null, t, 900);
+          this.noise(0.06, 'highpass', 4200, 0.6, 0.04 * vol);
+          break;
+        case 'shotgun':
+          this.noise(0.18, 'lowpass', 1600, 0.55, 0.26 * vol, null, t, 180);
+          this.tone(110, 0.14, 'square', 0.10 * vol, null, t, 60);
+          break;
+        case 'gas':
+          this.noise(0.22, 'bandpass', 1100, 0.5, 0.10 * vol, null, t, 600);
           break;
         case 'boom':
           this.noise(0.55, 'lowpass', 900, 0.4, 0.30 * vol, null, t, 70);

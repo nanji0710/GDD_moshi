@@ -787,6 +787,32 @@ window.ZT = window.ZT || {};
       }
     },
 
+    // 斜投影立方体：给站房/雨棚用（和 3D 的 box 同一套参数）
+    _boxAt: function (ctx, R, x, y, rot, len, wid, y0, hgt, topCol, sideCol) {
+      const ca = Math.cos(rot), sa = Math.sin(rot);
+      const nx = -sa, ny = ca;
+      const hs = [[-len / 2, -wid / 2], [len / 2, -wid / 2], [len / 2, wid / 2], [-len / 2, wid / 2]];
+      const pb = [], pt = [];
+      for (let i = 0; i < 4; i++) {
+        const wx = x + ca * hs[i][0] + nx * hs[i][1];
+        const wy = y + sa * hs[i][0] + ny * hs[i][1];
+        pb.push(R.P(wx, wy, y0, {}));
+        pt.push(R.P(wx, wy, y0 + hgt, {}));
+      }
+      for (let i = 0; i < 4; i++) {
+        const j = (i + 1) % 4;
+        ctx.beginPath();
+        ctx.moveTo(pb[i].x, pb[i].y); ctx.lineTo(pb[j].x, pb[j].y);
+        ctx.lineTo(pt[j].x, pt[j].y); ctx.lineTo(pt[i].x, pt[i].y);
+        ctx.closePath();
+        ctx.fillStyle = sideCol; ctx.fill();
+      }
+      ctx.beginPath();
+      for (let i = 0; i < 4; i++) { if (i === 0) ctx.moveTo(pt[0].x, pt[0].y); else ctx.lineTo(pt[i].x, pt[i].y); }
+      ctx.closePath();
+      ctx.fillStyle = topCol; ctx.fill();
+    },
+
     _strokeH: function (ctx, R, list, dh) {
       if (list.length < 2) return;
       ctx.beginPath();
@@ -813,6 +839,26 @@ window.ZT = window.ZT || {};
           }
           this._quad(ctx, R, [q[0], q[1], q[3], q[2]], 1.2, '#4a4a42', st.visited ? '#5e5d50' : '#6a6858');
         }
+        // 站房（与 3D 同参数：26×8×13，横向 15.5 m）
+        const hx = tmp.x + nx * 15.5, hy2 = tmp.y + ny * 15.5;
+        this._boxAt(ctx, R, hx, hy2, tmp.a, 26, 13, 0, 8, '#6b7078', '#4a4f56');
+        this._boxAt(ctx, R, hx, hy2, tmp.a, 27, 14, 0, 1, '#5c6168', '#3f444a');
+        this._boxAt(ctx, R, hx, hy2, tmp.a, 27.4, 14.2, 8.0, 0.7, '#525860', '#3a3f45');
+        // 钟楼
+        this._boxAt(ctx, R, hx, hy2, tmp.a, 5.4, 5.4, 8.0, 8.4, '#70767e', '#4e545c');
+        this._boxAt(ctx, R, hx, hy2, tmp.a, 6.4, 6.4, 16.4, 0.8, '#565c64', '#3c4148');
+        // 门 + 站名牌
+        this._boxAt(ctx, R, hx - nx * 6.5, hy2 - ny * 6.5, tmp.a, 5.4, 0.3, 0, 4.4, '#20242a', '#161a1e');
+        // 雨棚（双侧）
+        for (const side of [-1, 1]) {
+          const cx2 = tmp.x + nx * 6.4 * side, cy2 = tmp.y + ny * 6.4 * side;
+          this._boxAt(ctx, R, cx2, cy2, tmp.a, 66, 7.4, 5.0, 0.28, '#4e535a', '#3a3f45');
+          for (let d = -30; d <= 30; d += 12) {
+            const ax2 = tmp.x + Math.cos(tmp.a) * d, ay2 = tmp.y + Math.sin(tmp.a) * d;
+            this._boxAt(ctx, R, ax2 + nx * 6.4 * side, ay2 + ny * 6.4 * side, tmp.a, 0.34, 0.34, 1.2, 3.8, '#5c6168', '#41464c');
+          }
+        }
+
         // 站牌
         const sign = R.P(tmp.x + nx * 26, tmp.y + ny * 26, 0, {});
         ctx.save();

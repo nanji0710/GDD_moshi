@@ -348,7 +348,7 @@
 
   // ============ 五种武器的炮塔外观 ============
   // 每种武器有独立的「回转台」和「炮管/发射器」，底座圈共用
-  const WCOL = { mg: '#ffd479', flamer: '#ff7a2f', flak: '#9fe0ff', tesla: '#b79bff', mortar: '#ffb347' };
+  const WCOL = { mg: '#ffd479', flamer: '#ff7a2f', flak: '#9fe0ff', tesla: '#b79bff', mortar: '#ffb347', laser: '#7ef0ff', shotgun: '#ffb0a0', gas: '#9fe86a' };
   const WHULL = '#5f6b78', WDARK = '#20242a', WSTEEL = '#8b98a6';
 
   function turretBodyOf(kind) {
@@ -373,6 +373,20 @@
       for (let k = 0; k < 3; k++) b.cyl(0, 0.72 + k * 0.26, 0, 0.62 - k * 0.08, 0.12, 12, c); // 线圈
       b.box(0, 0.55, 0, 1.5, 0.12, 0.12, WSTEEL);            // 支架
       b.box(0, 0.55, 0, 0.12, 0.12, 1.5, WSTEEL);
+    } else if (kind === 'laser') {
+      b.box(0, 0.50, 0, 2.0, 0.52, 1.7, '#5a6470');
+      for (let k = 0; k < 3; k++) b.cyl(0.15, 0.78 + k * 0.1, 0, 0.55 - k * 0.1, 0.1, 12, c);
+      b.box(-0.6, 0.55, 0, 0.5, 0.4, 1.2, '#3a4249');       // 冷却罐
+      b.box(0, 0.9, 0, 0.9, 0.12, 0.5, c);
+    } else if (kind === 'shotgun') {
+      b.box(0, 0.50, 0, 1.8, 0.56, 1.7, '#6a5f52');
+      b.box(0.85, 0.52, 0, 0.4, 0.66, 1.4, '#7a6f62');       // 炮盾
+      for (const dz of [-0.8, 0.8]) b.box(-0.5, 0.42, dz, 0.8, 0.34, 0.3, '#4a3a28'); // 弹药
+      b.box(0, 0.86, 0, 0.7, 0.14, 0.9, c);
+    } else if (kind === 'gas') {
+      b.box(0, 0.50, 0, 1.6, 0.56, 1.5, '#5a6a4a');
+      for (const dz of [-0.62, 0.62]) b.cyl(-0.5, 0.6, dz, 0.34, 1.0, 10, '#6a8a4a'); // 毒气罐
+      b.box(0.8, 0.5, 0, 0.36, 0.46, 0.7, '#3a4a32');
     } else { // mortar
       b.box(0, 0.44, 0, 1.5, 0.5, 1.4, '#5a6470');
       b.cyl(0, 0.72, 0, 0.9, 0.24, 14, WDARK);               // 座钣
@@ -406,6 +420,20 @@
         b.cyl(1.15, 0, dz, 0.06, 0.9, 8, c);                 // 三根放电针
         b.cyl(1.6, 0, dz, 0.04, 0.3, 6, '#e8e0ff');
       }
+    } else if (kind === 'laser') {
+      b.box(0.5, 0, 0, 0.8, 0.3, 0.3, '#3a4249');
+      b.cyl(1.5, 0, 0, 0.14, 2.0, 10, '#6a7480');            // 发射管
+      for (let k = 0; k < 3; k++) b.cyl(1.2 + k * 0.35, 0, 0, 0.2, 0.1, 10, c); // 聚焦环
+      b.cyl(2.6, 0, 0, 0.1, 0.16, 8, '#e8ffff');             // 镜面
+    } else if (kind === 'shotgun') {
+      for (const dz of [-0.16, 0.16]) b.box(1.3, 0, dz, 1.6, 0.16, 0.16, '#3f474f');
+      b.cyl(2.15, 0, 0, 0.24, 0.2, 10, '#2c333a');           // 收口
+      b.box(0.5, 0, 0, 0.5, 0.28, 0.5, c);
+    } else if (kind === 'gas') {
+      b.box(0.4, 0, 0, 0.4, 0.3, 0.34, '#4a5a42');
+      b.box(0.9, 0, 0, 0.9, 0.26, 0.26, '#6a7a5a');
+      b.cyl(1.45, 0, 0, 0.24, 0.22, 10, '#2c333a');          // 喷头
+      b.cyl(1.62, 0, 0, 0.3, 0.08, 10, c);                   // 毒雾环
     } else { // mortar
       b.cyl(0.55, 0, 0, 0.2, 0.5, 10, '#4a525a');
       b.box(1.25, 0, 0, 1.5, 0.2, 0.2, '#3f474f');
@@ -605,7 +633,10 @@
     t_flamer: function () { return turretBodyOf('flamer'); }, t_flamer_b: function () { return turretBarrelOf('flamer'); },
     t_flak: function () { return turretBodyOf('flak'); }, t_flak_b: function () { return turretBarrelOf('flak'); },
     t_tesla: function () { return turretBodyOf('tesla'); }, t_tesla_b: function () { return turretBarrelOf('tesla'); },
-    t_mortar: function () { return turretBodyOf('mortar'); }, t_mortar_b: function () { return turretBarrelOf('mortar'); }, turret_body: buildTurretBody, turret_barrel: buildTurretBarrel, tree: buildTree,
+    t_mortar: function () { return turretBodyOf('mortar'); }, t_mortar_b: function () { return turretBarrelOf('mortar'); },
+    t_laser: function () { return turretBodyOf('laser'); }, t_laser_b: function () { return turretBarrelOf('laser'); },
+    t_shotgun: function () { return turretBodyOf('shotgun'); }, t_shotgun_b: function () { return turretBarrelOf('shotgun'); },
+    t_gas: function () { return turretBodyOf('gas'); }, t_gas_b: function () { return turretBarrelOf('gas'); }, turret_body: buildTurretBody, turret_barrel: buildTurretBarrel, tree: buildTree,
     zbody: function () { return buildZBody("walker"); },
     zbody_walker: function () { return buildZBody("walker"); },
     zbody_runner: function () { return buildZBody("runner"); },
