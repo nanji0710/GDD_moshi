@@ -94,8 +94,8 @@ window.ZT = window.ZT || {};
     const flash = car.flash > 0.4;
 
     // 侧面：上亮下暗的金属渐变 + 高光边，让方块有体积
-    const hullMid = U.mix(hull, '#ffffff', 0.24);
-    const hullTop = U.mix(hullMid, '#ffffff', 0.34);
+    const hullMid = U.mix(hull, '#ffffff', 0.15);
+    const hullTop = U.mix(hullMid, '#ffffff', 0.26);
     const hullBot = U.mix(hull, '#000000', 0.34);
     for (let i = 0; i < 4; i++) {
       const j = (i + 1) % 4;
@@ -113,6 +113,18 @@ window.ZT = window.ZT || {};
       ctx.moveTo(base[i].x, base[i].y); ctx.lineTo(base[j].x, base[j].y);
       ctx.lineTo(top[j].x, top[j].y); ctx.lineTo(top[i].x, top[i].y);
       ctx.closePath(); ctx.fill();
+      // 侧面污渍：两三道纵向脏痕，让车皮不「新得发亮」
+      if (!car.dead && z > 1.0) {
+        ctx.fillStyle = 'rgba(20,18,14,0.13)';
+        for (let d = 0; d < 2; d++) {
+          const t0 = 0.24 + d * 0.34 + ((k * 7 + d * 13) % 10) * 0.012;
+          const x0 = base[i].x + (base[j].x - base[i].x) * t0;
+          const y0 = base[i].y + (base[j].y - base[i].y) * t0;
+          const x1 = top[i].x + (top[j].x - top[i].x) * t0;
+          const y1 = top[i].y + (top[j].y - top[i].y) * t0;
+          ctx.fillRect(x0 - z * 0.35, y0 + (y1 - y0) * 0.22, Math.max(1, z * 0.7), (y0 - y1) * 0.55);
+        }
+      }
       // 上沿高光 / 下沿暗边
       ctx.strokeStyle = 'rgba(255,255,255,0.15)';
       ctx.lineWidth = Math.max(1, z * 0.28);
@@ -182,8 +194,8 @@ window.ZT = window.ZT || {};
     }
 
     // 车顶：中间亮、边缘暗的金属顶
-    const roofMid = U.mix(roof, '#ffffff', 0.30);
-    const roofHi = U.mix(roofMid, '#ffffff', 0.42);
+    const roofMid = U.mix(roof, '#ffffff', 0.20);
+    const roofHi = U.mix(roofMid, '#ffffff', 0.30);
     const roofLo = U.mix(roofMid, '#000000', 0.30);
     const rminY = Math.min(top[0].y, top[1].y, top[2].y, top[3].y);
     const rmaxY = Math.max(top[0].y, top[1].y, top[2].y, top[3].y);

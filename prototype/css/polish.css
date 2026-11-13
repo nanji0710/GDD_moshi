@@ -1,0 +1,113 @@
+/* ============================================================
+   v2 精修层：统一质感、动效、交互反馈（放在最后以覆盖默认值）
+   ============================================================ */
+:root {
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --panel-grad: linear-gradient(178deg, rgba(33, 39, 46, 0.98) 0%, rgba(20, 24, 29, 0.98) 100%);
+  --edge: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --lift: 0 18px 48px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* ---- 面板统一：渐变底 + 顶部内高光 + 深投影 ---- */
+.panel-tech, .panel-map, .drawer, .map-card, .panel, .result-panel {
+  background: var(--panel-grad) !important;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: var(--lift), var(--edge);
+  backdrop-filter: blur(6px);
+}
+
+/* ---- 按钮：统一高度、过渡、按下反馈、键盘焦点 ---- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 31px; line-height: 1;
+  border-radius: 9px;
+  transition: background .14s var(--ease), border-color .14s var(--ease),
+              transform .08s var(--ease), box-shadow .18s var(--ease);
+}
+.btn:hover { border-color: rgba(255, 255, 255, 0.26); }
+.btn:active { transform: translateY(1px) scale(.985); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.primary {
+  box-shadow: 0 4px 16px rgba(255, 179, 71, 0.22), var(--edge);
+}
+.btn.primary:hover { box-shadow: 0 6px 22px rgba(255, 179, 71, 0.32), var(--edge); }
+.btn[disabled] { opacity: .45; pointer-events: none; }
+
+/* ---- 顶栏：更细的分隔和高光 ---- */
+.hud.top {
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.stat b { font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+
+/* ---- 数字变化脉冲 ---- */
+@keyframes numPulse {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.22); color: var(--accent); }
+  100% { transform: scale(1); }
+}
+.stat b.pulse { animation: numPulse .34s var(--ease); display: inline-block; }
+
+/* ---- 画面切换：淡入 + 轻微上浮 ---- */
+@keyframes screenIn {
+  from { opacity: 0; transform: translateY(10px) scale(.995); }
+  to { opacity: 1; transform: none; }
+}
+.screen > * { animation: screenIn .28s var(--ease) both; }
+
+/* ---- 开始页：动态光晕 + 噪点 ---- */
+.start-root { position: fixed; overflow: hidden; }
+.start-root::before {
+  content: ''; position: absolute; inset: -25%; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(46% 34% at 50% 26%, rgba(255, 179, 71, 0.13), transparent 62%),
+    radial-gradient(42% 36% at 72% 82%, rgba(80, 132, 176, 0.10), transparent 66%);
+  animation: drift 22s ease-in-out infinite alternate;
+}
+.start-root::after {
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: .35;
+  background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.028) 0 1px, transparent 1px 3px);
+  mix-blend-mode: overlay;
+}
+.start-wrap { position: relative; z-index: 2; }
+@keyframes drift {
+  from { transform: translate3d(-2%, -1.5%, 0) scale(1.02); }
+  to { transform: translate3d(2%, 2%, 0) scale(1.08); }
+}
+
+/* ---- 开始页大按钮：左侧色条 + 悬停位移 ---- */
+.start-btn { position: relative; overflow: hidden; }
+.start-btn::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: transparent; transition: background .16s var(--ease);
+}
+.start-btn:hover::before, .start-btn.primary::before { background: var(--accent); }
+.start-btn.primary { box-shadow: 0 10px 30px rgba(255, 179, 71, 0.14), var(--edge); }
+
+/* ---- 对话框/弹窗统一 ---- */
+.toast {
+  border-radius: 10px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5), var(--edge);
+  animation: toastIn .22s var(--ease);
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-8px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- 车厢卡 / 列表项 hover ---- */
+.ccard, .carline, .lvl, .skin, .mrow, .dcell {
+  transition: transform .1s var(--ease), background .14s var(--ease), border-color .14s var(--ease);
+}
+.ccard:active, .lvl:active, .skin:active { transform: scale(.97); }
+
+/* ---- 滚动条 ---- */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.14); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.24); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- 移动端：动效减弱 ---- */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

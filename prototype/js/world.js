@@ -436,6 +436,16 @@ window.ZT = window.ZT || {};
           ctx.moveTo(b[i].x, b[i].y); ctx.lineTo(b[j].x, b[j].y);
           ctx.lineTo(t[j].x, t[j].y); ctx.lineTo(t[i].x, t[i].y);
           ctx.closePath(); ctx.fill();
+          // 墙脚积灰：贴地处压暗，楼就不会「浮」在地上
+          if (h > 3) {
+            const fh = 0.18;
+            ctx.fillStyle = 'rgba(0,0,0,0.28)';
+            ctx.beginPath();
+            ctx.moveTo(b[i].x, b[i].y); ctx.lineTo(b[j].x, b[j].y);
+            ctx.lineTo(b[j].x + (t[j].x - b[j].x) * fh, b[j].y + (t[j].y - b[j].y) * fh);
+            ctx.lineTo(b[i].x + (t[i].x - b[i].x) * fh, b[i].y + (t[i].y - b[i].y) * fh);
+            ctx.closePath(); ctx.fill();
+          }
           // 檐口：顶边一道亮线 + 底边暗线
           ctx.strokeStyle = 'rgba(255,255,255,0.10)';
           ctx.lineWidth = 1;
@@ -484,6 +494,20 @@ window.ZT = window.ZT || {};
       ctx.fillStyle = rg;
       ctx.fill();
       ctx.strokeStyle = 'rgba(255,238,206,0.16)'; ctx.lineWidth = 1; ctx.stroke();
+      // 女儿墙：内缩一圈的高光边，屋顶就有了厚度
+      if (Z > 0.8) {
+        const cx0 = (t[0].x + t[1].x + t[2].x + t[3].x) / 4;
+        const cy0 = (t[0].y + t[1].y + t[2].y + t[3].y) / 4;
+        const k2 = 0.86;
+        ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+        ctx.lineWidth = Math.max(1, R.cam.zoom * 0.5);
+        ctx.beginPath();
+        for (let i = 0; i < 4; i++) {
+          const px = cx0 + (t[i].x - cx0) * k2, py = cy0 + (t[i].y - cy0) * k2;
+          if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+        }
+        ctx.closePath(); ctx.stroke();
+      }
 
       // 屋顶设备：空调箱 / 水箱（只有大屋顶才画）
       if (Z > 0.75 && h > 7 && !(dmg != null && dmg > 0.62)) {
@@ -502,6 +526,15 @@ window.ZT = window.ZT || {};
         ctx.fillStyle = U.mix(roofCol, '#8b939b', 0.22);
         ctx.fill();
         ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1; ctx.stroke();
+        // 一部分楼顶加水箱，剪影更有变化
+        if (hs2 > 0.55) {
+          const w1 = rp(u0 + 0.34, v0 + 0.04), w2 = rp(u0 + 0.46, v0 + 0.04);
+          const wr = Math.max(1.2, Math.hypot(w2.x - w1.x, w2.y - w1.y));
+          ctx.fillStyle = 'rgba(30,34,38,0.85)';
+          ctx.beginPath(); ctx.arc(w1.x, w1.y - wr * 1.1, wr, 0, 6.2832); ctx.fill();
+          ctx.fillStyle = 'rgba(120,132,142,0.7)';
+          ctx.beginPath(); ctx.arc(w1.x, w1.y - wr * 1.25, wr * 0.75, 0, 6.2832); ctx.fill();
+        }
       }
       // 破损：屋顶破洞 + 断柱/钢筋
       if (dmg != null && dmg > 0.35) {

@@ -118,6 +118,9 @@ window.ZT = window.ZT || {};
         } else if (run.state === 'hold') {
           txt = '守站 · ' + Math.max(0, Math.ceil(run.holdT)) + 's';
         }
+        if (R_.goal.textContent !== txt) {
+          R_.goal.classList.remove('pulse'); void R_.goal.offsetWidth; R_.goal.classList.add('pulse');
+        }
         R_.goal.textContent = txt;
         R_.goal.classList.toggle('hidden', !txt);
         R_.goal.classList.toggle('danger', !!(g.type === 'sprint' && run.sprintT > 0.2));
@@ -129,6 +132,12 @@ window.ZT = window.ZT || {};
       const hpFrac = run.maxHp() ? run.totalHp() / run.maxHp() : 0;
       R_.hp.textContent = Math.round(hpFrac * 100) + '%';
       R_.hp.className = hpFrac < 0.35 ? 'bad' : (hpFrac < 0.65 ? 'warn' : '');
+      // 耐久明显下降时闪一下，战斗里不看数字也能察觉
+      if (this._prevHp == null) this._prevHp = hpFrac;
+      if (hpFrac < this._prevHp - 0.008) {
+        R_.hp.classList.remove('pulse'); void R_.hp.offsetWidth; R_.hp.classList.add('pulse');
+      }
+      this._prevHp = hpFrac;
       R_.ref.textContent = run.refugees() + '/' + run.capacity();
       R_.spd.textContent = run.speed < 0.3 ? '停转' : (Math.round(run.speed * 3.6) + ' km/h');
       R_.spd.className = run.speed < 0.3 ? 'bad' : (run.speed < run.speedCap() * 0.5 ? 'warn' : '');
