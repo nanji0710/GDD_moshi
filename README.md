@@ -137,9 +137,10 @@ CI 需要两个仓库密钥（Settings → Secrets and variables → Actions）�
 
 本地手动发一次（需要 node；装配与 CI 共用 `tools/stage-site.mjs`）：`$env:CF_API_TOKEN=...; $env:CF_ACCOUNT_ID=...; pwsh -File tools/deploy-cloudflare.ps1`
 
-`release/last-train-prototype.zip` 是**只含游戏本体**的发布包：**322,764 B（315.2 KiB，27 项）**，
-sha256 `419cfc60a754f3032cafa45d2a2eafdd749c934852809c9c6765bf19b6b42581`，用
-`node tools/package-release.mjs` 可逐字节重复重出（与 CI 上传共用 `tools/release-manifest.mjs` 白名单）。
+`release/last-train-prototype.zip` 是**只含游戏本体**的发布包：**324,403 B（316.8 KiB，白名单 29 项）**，
+sha256 `2231c4f8da6d8175ee6d8937eb1a3ea4f1ccab15befc09aaae17a7d118c7a962`，用
+`node tools/package-release.mjs` 可逐字节重复重出（与 CI 上传共用 `tools/release-manifest.mjs` 白名单）；
+29 项 = `index.html` + `js/` 22 + `css/` 3 + `assets/models-data.js` + `404.html` + `_headers`。
 解压后根目录就是 `index.html`，可直接拖进 Cloudflare Pages 的 Upload assets。
 模型数据在部署产物里只有 `assets/models-data.js` 一份（40 个 `.glb` 源文件在 `models/glb/`，不进部署目录）。
 完整步骤（含绑域名、国内加速取舍）见 [docs/发布指南.md](docs/发布指南.md)。
