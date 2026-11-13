@@ -258,6 +258,7 @@ void main() {
       gl.enable(gl.DEPTH_TEST);
       gl.disable(gl.CULL_FACE);
 
+      this.vp = vp;
       gl.useProgram(this.prog);
       gl.uniform3fv(this.U.uEye, eye);
       gl.uniform3fv(this.U.uFog, [0.055, 0.06, 0.05]);
@@ -274,6 +275,24 @@ void main() {
       if (this.track) {
         this.use(this.track);
         gl.drawElements(gl.TRIANGLES, this.track.count, this.track.type, 0);
+      }
+
+      // 丧尸（用 zombie.glb）：按类型缩放、朝列车转身、按距离裁剪
+      const ZM = this.mesh.zombie;
+      if (ZM && Z.Zombies && Z.Zombies.list) {
+        const sc0 = center[0], sc2 = center[2];
+        let zn = 0;
+        for (const zb of Z.Zombies.list) {
+          if (zb.dead || zn >= 70) continue;
+          const dx = zb.x - sc0, dz = zb.y - sc2;
+          const d2 = dx * dx + dz * dz;
+          if (d2 > 190 * 190) continue;
+          const rot = Math.atan2(sc0 - zb.x, sc2 - zb.y);   // 模型正面是 +Z
+          const big = zb.boss ? 2.3 : zb.mini ? 1.7 : zb.elite ? 1.25 : 1;
+          const bob = Math.sin(zb.phase * 2) * 0.06;
+          this.drawModel(ZM, zb.x, bob, zb.y, rot, big);
+          zn++;
+        }
       }
 
       // 路边建筑（用 building.glb 摆到废墟位置，近处才画）
@@ -315,6 +334,20 @@ void main() {
         this.use(mesh);
         gl.drawElements(gl.TRIANGLES, mesh.count, mesh.type, 0);
       }
+    },
+
+    // 通用：摆一个模型
+    drawModel: function (mesh, x, y, z, rot, scl) {
+      if (!mesh) return;
+      const gl = this.gl;
+      let model = M4.mul(M4.trans(x, y, z), M4.rotY(rot));
+      if (scl && scl !== 1) model = M4.mul(model, M4.scale(scl, scl, scl));
+      const mvp = M4.mul(this.vp, model);
+      gl.uniformMatrix4fv(this.U.uMVP, false, mvp);
+      gl.uniformMatrix4fv(this.U.uModel, false, model);
+      gl.uniformMatrix3fv(this.U.uNrm, false, M4.nrm(model));
+      this.use(mesh);
+      gl.drawElements(gl.TRIANGLES, mesh.count, mesh.type, 0);
     },
 
     setMode: function (on) {

@@ -24,6 +24,14 @@ try {
     for (const c of R.cars) for (let i=0;i<c.slots.length;i++) c.slots[i] = new ZT.Weapon('mg', 3);
     document.querySelector('.drawer').classList.add('hidden');
     R.state='run'; R.stationIdx=3; R.km = R.totalKm*0.35; R.train.s = R.km; R.speed = 26;
+    ZT.Zombies.list.length = 0;
+    const me = ZT.U.posAt(ZT.World.path, R.km, {});
+    for (let i = 0; i < 40; i++) {
+      const a2 = i * 0.62, rr = 16 + (i % 6) * 9;
+      const zb = ZT.Zombies.make(me.x + Math.cos(a2) * rr, me.y + Math.sin(a2) * rr, { kind: i % 9 === 0 ? 'runner' : 'walker' });
+      if (i % 13 === 0) zb.boss = true;
+      ZT.Zombies.list.push(zb);
+    }
     return 1; })()`);
   await sleep(2200);
   const shot = await send('Page.captureScreenshot', { format:'png' });
