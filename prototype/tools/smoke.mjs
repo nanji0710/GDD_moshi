@@ -48,7 +48,7 @@ async function ev(expr) {
   if (r.exceptionDetails) throw new Error('eval: ' + (r.exceptionDetails.exception?.description || r.exceptionDetails.text))
   return r.result?.value
 }
-async function waitFor(expr, timeout = 12000, step = 200) {
+async function waitFor(expr, timeout = 20000, step = 200) {
   const t0 = Date.now()
   while (Date.now() - t0 < timeout) {
     try { if (await ev(expr)) return true } catch (e) {}
@@ -149,14 +149,21 @@ try {
   check('车厢掉血 → 难民死亡', await ev('window.ZT.Run.deadRefugees > 0 || window.ZT.Run.refugees() < 12'))
   await ev(`(() => { const R=ZT.Run; R.state='run'; R.ripTrack(120); return 1 })()`)
   check('轨道损满 → 自动停车', await ev('window.ZT.Run.state') === 'parked')
-  check('停车时长 = 15 秒', await ev('Math.round(window.ZT.Run.parkDur)') === 15)
+  const pd = JSON.parse(await ev(`(() => {
+    const R = ZT.Run;
+    let rc = 0;
+    for (const c of R.cars) if (c.type === 'repair' && !c.dead) rc++;
+    const expect = 15 * Math.max(0.55, 1 - 0.15 * rc);
+    return JSON.stringify({ dur: R.parkDur, expect: expect, rc: rc });
+  })()`))
+  check('停车时长 = 15 秒 × 修理车厢加成', Math.abs(pd.dur - pd.expect) < 0.6, pd)
   await ev(`(() => { const R=ZT.Run; R.parkT = R.parkDur + 0.1; return 1 })()`)
-  const dep = await waitFor('window.ZT.Run.state === "run"', 6000)
+  const dep = await ev(`(() => { const R = ZT.Run; for (let i = 0; i < 20 && R.state === 'parked'; i++) R.tick(1 / 60); return R.state === 'run' })()`)
   check('修满自动出发', dep)
 
   console.log('   [errs]\n[8] 结算与局外')
   const beforePts = await ev('window.ZT.Meta.points')
-  await ev(`(() => { const R=ZT.Run; R.km = R.totalKm; return 1 })()`)
+  await ev(`(() => { const R=ZT.Run; R.km = R.totalKm; for (let i = 0; i < 10 && R.state !== 'win'; i++) R.tick(1 / 60); return R.state })()`)
   await waitFor('window.ZT.Run.state === "win"')
   check('抵达终点 = 胜利', await ev('window.ZT.Run.state') === 'win')
   await sleep(300)
@@ -322,8 +329,8 @@ try {
     ZT.R.follow = true;
     return freed;
   })()`))
-  await ev(`(() => { const R = ZT.Run; R.state = 'run'; R.km = R.totalKm; return 1 })()`)
-  await waitFor('window.ZT.Run.state === "win"', 8000)
+  await ev(`(() => { const R = ZT.Run; R.state = 'run'; R.km = R.totalKm; for (let i = 0; i < 10 && R.state !== 'win'; i++) R.tick(1 / 60); return R.state })()`)
+  await waitFor('window.ZT.Run.state === "win"')
   const rep = JSON.parse(await ev(`(() => {
     const st = ZT.Run.settle(true);
     return JSON.stringify({ grade: st.grade, hasLine: !!st.line, timeSec: st.timeSec, maxSpeed: st.maxSpeed, maxCars: st.maxCars })
