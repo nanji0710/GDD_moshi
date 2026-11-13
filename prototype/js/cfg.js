@@ -126,7 +126,9 @@ window.ZT = window.ZT || {};
 
     // ---------------- 局内经济 ----------------
     ECON: {
-      startScrap: 500, startAmmo: 1200, startFuel: 100,
+      startScrap: 500,
+      startScrapPerLevel: 90,     // 越靠后的关起始废料越多（车厢/武器也越贵）
+      startAmmo: 1200, startFuel: 100,
       infiniteAmmo: true, infiniteFuel: true,   // 不再为弹药/燃料发愁，废料是唯一资源
       starterWeapon: 'mg',      // 开局白送一把，否则第一个站之前杀不了怪 = 没有收入
       fuelPerKm: 9.5,

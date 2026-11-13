@@ -134,7 +134,7 @@ window.ZT = window.ZT || {};
       this.level = L.n; this.levelDef = L;
       this.totalKm = L.km * 1000;
       this.km = 0; this.speed = 0; this.trackDamage = 0;
-      this.scrap = CFG.ECON.startScrap;
+      this.scrap = CFG.ECON.startScrap + (CFG.ECON.startScrapPerLevel || 0) * (L.n - 1);
       this.ammo = CFG.ECON.startAmmo;
       this.fuel = CFG.ECON.startFuel;
       this.kills = 0; this.shots = 0; this.bossKills = 0;
@@ -761,6 +761,9 @@ window.ZT = window.ZT || {};
         line = '车散了不少，人也走散了——最后只有 ' + ref + ' 个人活着到站。';
       }
       if (this.goalFail) line = this.goalFail + '。' + line;
+      else if (this.goal && this.goal.type !== 'reach' && win) {
+        line = (this.goal.type === 'escort' ? '货柜 intact' : this.goal.type === 'sprint' ? '全程没有掉速' : '守住了车站') + '。' + line;
+      }
       return {
         grade: grade, line: line, goalFail: this.goalFail || '', stats: st, carLoss: carLoss, refRate: refRate,
         capacity: this.capacity(), deadRefugees: st.deaths, repairs: st.repairs,

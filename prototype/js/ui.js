@@ -38,8 +38,8 @@ window.ZT = window.ZT || {};
           R_.routeNow = h('div', { class: 'route-now' }, '—')),
         h('div', { class: 'stats' },
           this.stat('废料', R_.scrap = h('b', null, '0')),
-          this.stat('弹药', R_.ammo = h('b', null, '0')),
-          this.stat('燃料', R_.fuel = h('b', null, '100%')),
+          !CFG.ECON.infiniteAmmo && this.stat('弹药', R_.ammo = h('b', null, '0')),
+          !CFG.ECON.infiniteFuel && this.stat('燃料', R_.fuel = h('b', null, '100%')),
           this.stat('耐久', R_.hp = h('b', null, '100%')),
           this.stat('难民', R_.ref = h('b', null, '0')),
           this.stat('车速', R_.spd = h('b', null, '0'))),
@@ -123,9 +123,9 @@ window.ZT = window.ZT || {};
         R_.goal.classList.toggle('danger', !!(g.type === 'sprint' && run.sprintT > 0.2));
       }
       R_.scrap.textContent = U.fmt(run.scrap);
-      R_.ammo.textContent = CFG.ECON.infiniteAmmo ? '∞' : U.fmt(run.ammo);
-      R_.fuel.textContent = CFG.ECON.infiniteFuel ? '∞' : (Math.round(run.fuel) + '%');
-      R_.fuel.className = run.fuel < 25 ? 'bad' : (run.fuel < 50 ? 'warn' : '');
+      if (R_.ammo) R_.ammo.textContent = U.fmt(run.ammo);
+      if (R_.fuel) R_.fuel.textContent = Math.round(run.fuel) + '%';
+      if (R_.fuel) R_.fuel.className = run.fuel < 25 ? 'bad' : (run.fuel < 50 ? 'warn' : '');
       const hpFrac = run.maxHp() ? run.totalHp() / run.maxHp() : 0;
       R_.hp.textContent = Math.round(hpFrac * 100) + '%';
       R_.hp.className = hpFrac < 0.35 ? 'bad' : (hpFrac < 0.65 ? 'warn' : '');
@@ -248,6 +248,16 @@ window.ZT = window.ZT || {};
           h('b', null, '第 ' + lv + ' 关 · ' + L.city),
           h('span', null, L.km.toFixed(1) + ' km')));
         card.appendChild(h('div', { class: 'mc-row' }, '招牌：' + (L.tag || '—')));
+        // 关卡目标
+        const g = L.goal || { type: 'reach' };
+        const gTxt = g.type === 'escort' ? '护送 · 车尾货柜不能损毁'
+          : g.type === 'sprint' ? '限速 · 低于 ' + (g.minKmh || 80) + ' km/h 累计 ' + (g.grace || 6) + ' 秒即失败'
+            : g.type === 'hold' ? '守站 · 终点倒计时 ' + (g.sec || 60) + ' 秒'
+              : '抵达 · 开到线路终点';
+        card.appendChild(h('div', { class: 'mc-row goal' }, '目标：' + gTxt));
+        // 难度：按密度与精英概率给星
+        const diff = Math.min(5, Math.max(1, Math.round((L.dens - 80) / 30) + 1));
+        card.appendChild(h('div', { class: 'mc-row' }, '强度：' + '◆'.repeat(diff) + '◇'.repeat(5 - diff)));
         card.appendChild(h('div', { class: 'mc-row' }, '地貌：' + pal + (mods ? ' · ' + mods : '')));
         card.appendChild(h('div', { class: 'mc-row' },
           best ? ('本关最佳 ' + U.fmt(best.points) + ' · 评价 ' + (best.grade || '—')) : '还没通关'));
