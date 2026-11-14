@@ -34,9 +34,7 @@
     <b>末世列车</b>
     <span>正在载入…</span>
   </div>
-  <div id="asset-loading" class="hidden" role="status" aria-live="polite">模型资源加载中…</div>
   <canvas id="map"></canvas>
-  <canvas id="map3d" style="display:none"></canvas>
   <div id="ui"></div>
   <noscript>需要启用 JavaScript。</noscript>
   <!-- #7：启动层失败态（内联，必须在 22 个外部 script 之前）。任一 classic script 404/加载失败 →
@@ -62,12 +60,8 @@
     setTimeout(function () { if (el && !el.classList.contains('hidden')) fail(); }, 10000);
   })();
   </script>
-  <!-- 注意：assets/models-data.js（1.3MB）不在首屏同步引用里，由 js/glb.js 在需要 3D 时
-       动态插入 classic <script> 异步加载（file:// 下 fetch()/import() 会被 CORS 拒绝）。 -->
   <script src="js/util.js"></script>
-  <script src="js/glb.js"></script>
   <script src="js/art.js"></script>
-  <script src="js/models.js"></script>
   <script src="js/cfg.js"></script>
   <script src="js/world.js"></script>
   <script src="js/fx.js"></script>
@@ -82,8 +76,6 @@
   <script src="js/state.js"></script>
   <script src="js/save.js"></script>
   <script src="js/mapscreen.js"></script>
-  <script src="js/world3d.js"></script>
-  <script src="js/view3d.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>
 </body>

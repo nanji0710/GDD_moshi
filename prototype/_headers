@@ -17,9 +17,6 @@
 /*.css
   Cache-Control: no-cache
 
-/assets/models-data.js
-  Cache-Control: no-cache
-
 /version.json
   Cache-Control: no-store
   Content-Type: application/json; charset=utf-8

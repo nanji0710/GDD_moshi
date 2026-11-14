@@ -258,7 +258,6 @@ html, body {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
   background: radial-gradient(circle at 50% 40%, rgba(10, 12, 16, 0.72), rgba(6, 7, 9, 0.94));
-  backdrop-filter: blur(3px);
 }
 .screen.hidden { display: none; }
 .panel-start {
@@ -781,36 +780,5 @@ button.carline.on { border-color: var(--accent); background: rgba(255,179,71,0.1
 .branch span { font-size: .78em; color: var(--ink-3); }
 
 
-/* 3D 世界画布 */
-#map3d {
-  position: fixed; inset: 0; display: none;
-  width: 100%; height: 100%;
-  touch-action: none;
-}
-
-/* 首屏模型资源异步加载提示（#4）：只在真正拉 assets/models-data.js 时出现 */
-#asset-loading {
-  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
-  z-index: 90; display: flex; align-items: center; gap: 8px;
-  padding: 8px 14px; border-radius: 999px;
-  background: rgba(20, 23, 28, 0.92); border: 1px solid var(--line);
-  color: var(--ink-2); font-size: 12px; letter-spacing: .04em;
-  box-shadow: var(--shadow); pointer-events: none;
-}
-#asset-loading::before {
-  content: ''; width: 12px; height: 12px; border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.18); border-top-color: var(--accent);
-  animation: bootspin .8s linear infinite;
-}
-#asset-loading.hidden { display: none; }
-/* #7：模型加载失败态 = 可点的重试入口（平时是纯状态条，pointer-events 只在 bad 时打开） */
-#asset-loading.bad {
-  pointer-events: auto; cursor: pointer;
-  border-color: rgba(224, 90, 74, .55); color: #ffd9d4;
-  background: rgba(40, 20, 20, .94);
-}
-#asset-loading.bad::before {
-  animation: none; border-color: #e05a4a; background: #e05a4a;
-}
-#asset-loading.bad:focus-visible { outline: 2px solid #e05a4a; outline-offset: 2px; }
-
+.hint.danger { color: #ff8a72; font-weight: 600; }
+.shop-item.off { opacity: 0.55; cursor: not-allowed; }

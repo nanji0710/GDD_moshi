@@ -13,7 +13,6 @@
   background: var(--panel-grad) !important;
   border: 1px solid rgba(255, 255, 255, 0.09);
   box-shadow: var(--lift), var(--edge);
-  backdrop-filter: blur(6px);
 }
 
 /* ---- 按钮：统一高度、过渡、按下反馈、键盘焦点 ---- */
@@ -35,7 +34,6 @@
 
 /* ---- 顶栏：更细的分隔和高光 ---- */
 .hud.top {
-  backdrop-filter: blur(8px);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 .stat b { font-variant-numeric: tabular-nums; letter-spacing: .01em; }
@@ -58,16 +56,15 @@
 /* ---- 开始页：动态光晕 + 噪点 ---- */
 .start-root { position: fixed; overflow: hidden; }
 .start-root::before {
-  content: ''; position: absolute; inset: -25%; z-index: 0; pointer-events: none;
+  content: ''; position: absolute; inset: -12%; z-index: 0; pointer-events: none;
+  will-change: transform; contain: paint;
   background:
     radial-gradient(46% 34% at 50% 26%, rgba(255, 179, 71, 0.13), transparent 62%),
     radial-gradient(42% 36% at 72% 82%, rgba(80, 132, 176, 0.10), transparent 66%);
-  animation: drift 22s ease-in-out infinite alternate;
 }
 .start-root::after {
-  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: .35;
-  background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.028) 0 1px, transparent 1px 3px);
-  mix-blend-mode: overlay;
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: .16;
+  background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.05) 0 1px, transparent 1px 3px);
 }
 .start-wrap { position: relative; z-index: 2; }
 @keyframes drift {

@@ -3,9 +3,9 @@
  *
  * 三轮，全部 file:// 冷启动（?perf=nonce 防缓存），CPU 4× 降速：
  *   A. 干净首屏：用 CDP Network 事件统计「DCL 之前发起的请求」字节（= 同步传输），
- *      以及 DCL / 首次内容绘制 / 标题可交互时间；models-data.js 若在 DCL 之后才请求，单列异步。
+ *      以及 DCL / 首次内容绘制 / 标题可交互时间；全部资源都在首屏同步加载（无异步资产）。
  *   B. 加载态取证：重新导航，用 Fetch 域名拦截把 js/main.js 挂起，截图「启动 loading」，
- *      再放行；随后挂起 assets/models-data.js，验证「模型资源加载中…」可见、
+ *      再放行；验证启动 loading 与标题出现时间。
  *      此时切 3D 被拦下（不出现空 3D），放行后 3D 就绪、40 个网格。
  *   C. file:// 实点：主菜单 → 选关 → 站台，统计 console 报错 / 404 / CORS 失败。
  *
@@ -235,7 +235,6 @@ try {
 
   // ================= C1. 干净加载下的实点流程 =================
   console.log('== C1. file:// 实点：主菜单 → 选关 → 站台（干净加载）==')
-  const glbAtTitle = await ev('!!(window.ZT.GLB && ZT.GLB.ready)')
   const clickedStart = await ev(`(() => { const b = [...document.querySelectorAll('.start-btn')].find(x => /开始游戏/.test(x.textContent)); if (!b) return false; b.click(); return true })()`)
   const mapOk = clickedStart && await waitFor('!!document.querySelector(".panel-map")', 8000)
   const picked = await ev(`(() => { const n = document.querySelector('.map-city.current') || document.querySelector('.map-city'); if (!n) return false; n.dispatchEvent(new MouseEvent('click', { bubbles: true })); return true })()`)
@@ -248,25 +247,6 @@ try {
   console.log('   点「开始游戏」' + (clickedStart ? '✅' : '❌') + ' → 关卡地图' + (mapOk ? '✅' : '❌') +
     ' → 选关' + (cardOk ? '✅' : '❌') + ' → 点「出发」' + (go ? '✅' : '❌') +
     ' → Run.state=' + await ev('window.ZT.Run.state') + '，站台面板=' + drawer)
-  console.log('   标题时模型就绪=' + glbAtTitle + '，进站台后模型就绪=' + await ev('!!(window.ZT.GLB && ZT.GLB.ready)'))
-
-  // 模型数据请求的时间线（异步性证明）
-  for (const r of requests) r.start = r.wall * 1000 - nav.timeOrigin
-  const md = requests.find(r => /models-data\.js/.test(r.url))
-  if (md) {
-    console.log('   时间线原始数据：DCL=' + nav.dcl.toFixed(2) + 'ms ｜ 标题可见=' + nav.titleAt.toFixed(2) + 'ms');
-    console.log('   models-data requestWillBeSent：ts(monotonic)=' + md.ts + 's wallTime=' + md.wall + 's → 页面 ' +
-      md.start.toFixed(0) + 'ms ｜ initiator=' + md.initiator + ' ｜ type=' + md.type + ' ｜ bytes=' + fmt(md.bytes))
-    console.log('   → 异步判定：start=' + md.start.toFixed(0) + 'ms ' + (md.start > nav.titleAt ? '>' : '<=') +
-      ' 标题可见=' + nav.titleAt.toFixed(0) + 'ms，initiator 非 parser = ' + (md.initiator !== 'parser') +
-      '；models-data 不在 index.html 同步 script 里')
-    const t3d = Date.now()
-    await ev('window.ZT.UI.toggle3D()')
-    await waitFor('!!window.ZT.World3D.on', 15000); await sleep(300)
-    console.log('   模型就绪后切 3D：on=' + await ev('!!window.ZT.World3D.on') + '，网格数=' +
-      await ev('Object.keys(window.ZT.World3D.mesh || {}).length') + '（' + (Date.now() - t3d) + ' ms）')
-    await shot('03-3d.png')
-  }
 
   // ================= B. 加载态取证（Fetch 挂起） =================
   console.log('== B. 加载态取证（Fetch 拦截挂起，模拟慢网）==')
@@ -283,47 +263,7 @@ try {
   await releasePaused()
   await setHold('')
   await waitFor('!!document.querySelector(".start-root")', 15000)
-  console.log('   挂起请求 ' + heldMain + ' 个后放行 → 标题出现；console 报错=' + consoleErrors.length +
-    '；GLB=' + await ev('JSON.stringify({ready:!!(window.ZT.GLB&&window.ZT.GLB.ready),loading:!!(window.ZT.GLB&&window.ZT.GLB.loading)})') +
-    '；GLB 日志=' + JSON.stringify(allInfos))
-
-  // ================= D. 模型异步加载 + 3D 门禁 =================
-  console.log('== D. 模型数据异步加载 + 首次切 3D 门禁 ==')
-  await setHold('models-data.js')
-  const tStart = Date.now()
-  const clickedStart2 = await ev(`(() => { const b = [...document.querySelectorAll('.start-btn')].find(x => /开始游戏/.test(x.textContent)); if (!b) return false; b.click(); return true })()`)
-  const mapOk2 = clickedStart2 && await waitFor('!!document.querySelector(".panel-map")', 8000)
-  await ev(`(() => { const n = document.querySelector('.map-city.current') || document.querySelector('.map-city'); if (!n) return false; n.dispatchEvent(new MouseEvent('click', { bubbles: true })); return true })()`)
-  await waitFor(`[...document.querySelectorAll('.mc-acts .btn')].some(b => /出发/.test(b.textContent))`, 5000)
-  await ev(`(() => { const b = [...document.querySelectorAll('.mc-acts .btn')].find(x => /出发/.test(x.textContent)); if (!b) return false; b.click(); return true })()`)
-  await waitFor('window.ZT.Run.state === "station"', 15000)
-  // #7：进关不再预取模型数据 —— 必须先点 3D 才会发 models-data 请求；等 Fetch 真正挂住再断言加载态
-  const tPause = Date.now()
-  await ev('window.ZT.UI.toggle3D()')
-  while (paused.length === 0 && Date.now() - tPause < 8000) await sleep(50)
-  const glbState = await ev(`JSON.stringify({ ready: !!(window.ZT.GLB && ZT.GLB.ready), loading: !!(window.ZT.GLB && ZT.GLB.loading), req: (window.ZT.GLB ? 'ensure' : 'none') })`)
-  const pillShown = await waitFor(`(() => { const a = document.getElementById('asset-loading'); return !!a && !a.classList.contains('hidden') })()`, 5000)
-  const pillText = await ev(`(() => { const a = document.getElementById('asset-loading'); return a ? a.textContent : '' })()`)
-  console.log('   进游戏后模型加载中 pill：' + (pillShown ? '可见' : '不可见') + '，文案=' + JSON.stringify(pillText) +
-    '，挂起请求数=' + paused.length + '，GLB 状态=' + glbState)
-  console.log('   GLB 日志=' + JSON.stringify(allInfos))
-  await shot('05-asset-loading.png')
-  const toastBefore = await ev(`(() => { const t = document.querySelector('.toast'); return t ? t.textContent : '' })()`)
-  const onBefore = await ev('!!window.ZT.World3D.on')
-  await ev('window.ZT.UI.toggle3D()')
-  await sleep(220)
-  const onWhileLoading = await ev('!!window.ZT.World3D.on')
-  const toast3d = await ev(`(() => { const t = document.querySelector('.toast'); return t ? t.textContent : '' })()`)
-  console.log('   模型未就绪时切 3D：World3D.on ' + onBefore + ' → ' + onWhileLoading + '（应 false）；提示=' + JSON.stringify(toast3d || toastBefore))
-  const released = await releasePaused()
-  const readyOk = await waitFor('!!(window.ZT.GLB && window.ZT.GLB.ready)', 15000)
-  const autoOn = await waitFor('!!window.ZT.World3D.on', 15000)
-  const pillAfter = await ev(`(() => { const a = document.getElementById('asset-loading'); return !!a && !a.classList.contains('hidden') })()`)
-  console.log('   放行 ' + released + ' 个请求 → 模型就绪=' + readyOk + '，pill 消失=' + !pillAfter +
-    '，意图补切 3D on=' + autoOn + '（' + (Date.now() - tStart) + ' ms）')
-  await sleep(300)
-  console.log('   就绪后 3D：on=' + await ev('!!window.ZT.World3D.on') + '，网格数=' + await ev('Object.keys(window.ZT.World3D.mesh || {}).length'))
-  await shot('06-3d-ready.png')
+  console.log('   挂起请求 ' + heldMain + ' 个后放行 → 标题出现；console 报错=' + consoleErrors.length)
 
   // ================= 汇总 =================
   const bad = requests.filter(r => r.failed && !r.canceled)

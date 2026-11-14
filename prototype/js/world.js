@@ -813,6 +813,21 @@ window.ZT = window.ZT || {};
       ctx.fillStyle = topCol; ctx.fill();
     },
 
+    // 无尽模式：站台必须和「每 6 km 一个补给站」的逻辑同源，否则会停在没站台的地方
+    setEndlessStations: function (total) {
+      const step = (CFG.ENDLESS && CFG.ENDLESS.stationKm ? CFG.ENDLESS.stationKm : 6) * 1000;
+      const list = [];
+      for (let d = 0, i = 0; d < total - 1; d += step, i++) {
+        list.push({
+          idx: i, name: i === 0 ? '出发站' : '补给站 ' + i,
+          km: d / 1000, s: Math.max(1, Math.min(total, d)),
+          wall: i === 0, final: false, visited: false, endless: true
+        });
+      }
+      this.stations = list;
+      return list;
+    },
+
     _strokeH: function (ctx, R, list, dh) {
       if (list.length < 2) return;
       ctx.beginPath();

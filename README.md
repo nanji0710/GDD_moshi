@@ -31,11 +31,8 @@
 
 没有构建、没有 npm install、没有服务器要求。
 
-首屏只同步加载界面脚本与样式（实测 **484,003 B / 26 个请求（472.7 KiB）**，4× CPU 降速下 DCL≈0.09s（83–107ms）、标题可交互≈0.19s（161–201ms））；
-**进关不下载模型**：1.3MB 的 3D 模型数据（`assets/models-data.js`）只在**首次切 3D** 时异步加载（视网速约 1–5s），
-加载期间底部有「模型资源加载中…」提示；失败时提示变「模型加载失败，点此重试」（10s 超时、脚本 404 自动重试 1 次），
-3D 按钮在就绪前不会硬切。复测命令见「开发」里的 `node tools/perf.mjs`。
-（#7 前首屏为 478,428 B / 26 请求；+5,575 B = index.html +1,137 + js +3,979（glb +3,186 / ui +645 / world3d +138 / main +10）+ css +459。）
+首屏只加载界面脚本与样式（实测 **约 375 KB / 22 个请求**，4× CPU 降速下 DCL≈0.13s、标题可交互≈0.2s）。
+纯 2D 渲染，无 WebGL、无 3D 模型资产，双击 `index.html` 即可离线运行。复测命令见「开发」里的 `node tools/perf.mjs`。
 
 | 操作 | 键 |
 | --- | --- |
@@ -44,7 +41,7 @@
 | 改装（车厢 / 武器 / 形态） | `Tab` 或点底部车厢条 |
 | 技能 | `Q` 紧急制动 · `W` 全弹齐射 · `E` 强制过载 |
 | 静音 | `M` |
-| 2D / 2.5D 切换 | `T` |
+| 镜头倾斜 | `T` |
 | 显示射程 | `G` |
 | 镜头回到列车 | `F` |
 | 缩放 / 平移 | 滚轮 / 拖拽 |
@@ -54,7 +51,7 @@
 ## 特性
 
 - **程序化地形**：轨道用弧长参数化，车厢沿曲线排布；2.5D 斜投影，相机跟随。
-- **5 种武器 × 10 级 × 2 形态**（Lv3 二选一，Lv4–10 纯数值），5 种开火模式（hitscan / 锥形 / 连发 / 链式 / 迫击）。
+- **8 种武器 × 10 级 × 2 形态**（Lv3 二选一，Lv4–10 纯数值），7 种开火模式（hitscan / 锥形 / 连发 / 链式 / 迫击 / 穿透光束 / 霰弹）。
 - **7 种丧尸 + 精英 + Boss**，导演按关卡密度刷怪，停车时加压。
 - **能见度系统**：黑暗层 + 挖洞灯光，车灯、枪口、爆炸、废墟火堆都是光源。
 - **程序化音频**：全部 WebAudio 现场合成，无任何音频文件；引擎轰鸣随车速变化。
@@ -79,16 +76,11 @@
 │   │   ├── sound.js        程序化音频
 │   │   ├── meta.js         局外 6 条强化线 + 涂装 + 存档
 │   │   ├── save.js         局内存档
-│   │   ├── glb.js          GLB 解析 + 模型数据异步加载（file:// 用 classic script）
 │   │   ├── ui.js  main.js  fx.js  skills.js  util.js
-│   ├── assets/
-│   │   └── models-data.js  内嵌 GLB 资产（1.3MB，进游戏后异步加载，不进首屏）
 │   └── tools/
 │       ├── smoke.mjs       181 条断言的冒烟测试（CDP）
 │       ├── shoot.mjs       33 张截图 + console 报错审计（CDP）
 │       ├── perf.mjs        首屏同步字节 / DCL / 加载态 / 404 实测（CDP）
-│       └── export-glb.cjs  程序化模型导出 → models/glb/*.glb + assets/models-data.js
-├── models/glb/             40 个 .glb 源资产（导出/第三方查看用，不进部署目录）
 └── docs/                   设计文档（GDD、借鉴报告、灵感、数值）
 ```
 
@@ -98,10 +90,9 @@
 
 ```bash
 cd prototype
-node tools/smoke.mjs        # 181 条断言，含存档往返、关卡变异、速度公式、模型懒加载与失败重试
+node tools/smoke.mjs        # 181 条断言，含存档往返、关卡变异、速度公式、站台经济
 node tools/shoot.mjs        # 出 33 张截图并审计 console 报错
 node tools/perf.mjs         # 首屏实测：同步字节 / DCL / 标题时间 / 加载态 / 404
-node tools/export-glb.cjs   # 重出 3D 资产：models/glb/*.glb + assets/models-data.js
 ```
 
 部署装配与线上验收（在**仓库根**跑，不属于游戏运行时）：
@@ -113,18 +104,18 @@ node tools/verify-deploy.mjs --url https://last-train-87y.pages.dev  # 线上 co
 
 ## 发布
 
-游戏是纯静态站点（一个 `index.html` + `css/` + `js/` + `assets/models-data.js`，零构建），推 `main` 会自动发到两个地方：
+游戏是纯静态站点（一个 `index.html` + `css/` + `js/`，零构建），推 `main` 会自动发到两个地方：
 
 | 平台 | 触发方式 | 地址 |
 | --- | --- | --- |
 | **Cloudflare Pages** | `.github/workflows/deploy-cloudflare.yml`（`node tools/stage-site.mjs` 装配 `_site/` 后上传） | https://last-train-87y.pages.dev |
 | **GitHub Pages** | `.github/workflows/pages.yml`（同一份 `_site/`） | https://nanji0710.github.io/GDD_moshi/ |
 
-两个入口都**先过门禁、再装配**：`node tools/check-release.mjs prototype`（失败即中止发布：models-data 同步引用 0 个、classic script=22、首屏同步 ≤921,600 B、白名单/`_headers`/`404.html`/部署项数齐全）→ `node tools/stage-site.mjs`（白名单唯一实现，来自 `tools/release-manifest.mjs`；`prototype/tools/` 与 `shots-*` 一律不上线）。
-部署产物固定 **31 项**：`index.html` + `js/` 22 个 + `css/` 3 个 + `assets/models-data.js` + `_headers` + `404.html` + 由 stage-site 生成的 `version.json` 与 `functions/[[path]].js`（测试面 404 守卫：Cloudflare 会把上一版删掉的文件继续留在边缘缓存里，路由层直接 404 才能保证马上不可达）。
+两个入口都**先过门禁、再装配**：`node tools/check-release.mjs prototype`（失败即中止发布：classic script=18、首屏同步 ≤921,600 B、白名单/`_headers`/`404.html`/部署项数齐全）→ `node tools/stage-site.mjs`（白名单唯一实现，来自 `tools/release-manifest.mjs`；`prototype/tools/` 与 `shots-*` 一律不上线）。
+部署产物固定 **26 项**：`index.html` + `js/` 18 个 + `css/` 3 个 + `_headers` + `404.html` + 由 stage-site 生成的 `version.json` 与 `functions/[[path]].js`（测试面 404 守卫：Cloudflare 会把上一版删掉的文件继续留在边缘缓存里，路由层直接 404 才能保证马上不可达）。
 
 发版同版本与缓存（**不做 `?v=`**：同一提交内 sha 自指不可能，且会让线上 index 与仓库 index 不再逐字节相等）：
-- `_headers` 对 `/*.js`、`/*.css`、`/index.html`、`/assets/models-data.js` 设 `Cache-Control: no-cache`，发版即取新，杜绝新旧混跑；
+- `_headers` 对 `/*.js`、`/*.css`、`/index.html` 设 `Cache-Control: no-cache`，发版即取新，杜绝新旧混跑；
 - `GET /version.json` 返回 `application/json`，`commit` == 本次部署 sha；
 - `GET /` 的字节数与 sha256 应等于仓库 `prototype/index.html`；
 - `/tools/smoke.mjs`、`/freeze-smoke.log` 等测试面必须不可达；`/nope` 返回 `404.html`，不再由 `index.html` 200 兜底。
@@ -139,12 +130,11 @@ CI 需要两个仓库密钥（Settings → Secrets and variables → Actions）�
 
 本地手动发一次（需要 node；装配与 CI 共用 `tools/stage-site.mjs`）：`$env:CF_API_TOKEN=...; $env:CF_ACCOUNT_ID=...; pwsh -File tools/deploy-cloudflare.ps1`
 
-`release/last-train-prototype.zip` 是**只含游戏本体**的发布包：**324,403 B（316.8 KiB，白名单 29 项）**，
-sha256 `2231c4f8da6d8175ee6d8937eb1a3ea4f1ccab15befc09aaae17a7d118c7a962`，用
+`release/last-train-prototype.zip` 是**只含游戏本体**的发布包：**121,439 B（118.6 KiB，白名单 24 项）**，
+sha256 `8ea2be1ce670f6d6ec0331f0d6eb6e030731515927f15dccba53d12d94d4cb94`，用
 `node tools/package-release.mjs` 可逐字节重复重出（与 CI 上传共用 `tools/release-manifest.mjs` 白名单）；
-29 项 = `index.html` + `js/` 22 + `css/` 3 + `assets/models-data.js` + `404.html` + `_headers`。
+24 项 = `index.html` + `js/` 18 + `css/` 3 + `404.html` + `_headers`。
 解压后根目录就是 `index.html`，可直接拖进 Cloudflare Pages 的 Upload assets。
-模型数据在部署产物里只有 `assets/models-data.js` 一份（40 个 `.glb` 源文件在 `models/glb/`，不进部署目录）。
 完整步骤（含绑域名、国内加速取舍）见 [docs/发布指南.md](docs/发布指南.md)。
 
 ## 设计文档

@@ -195,6 +195,7 @@ window.ZT = window.ZT || {};
       this.level = 1; this.levelDef = CFG.LEVELS[0];
       // 一条很长的走廊（难度不按关卡，按里程）
       Z.World.generate(20261112 + 977, this.totalKm, 'loess', null, []);
+      if (Z.World.setEndlessStations) Z.World.setEndlessStations(this.totalKm);
       this.train = new Z.Train(this);
       this.state = 'station';
       this.station = { idx: -1, endless: true, isStart: true };
@@ -375,7 +376,7 @@ window.ZT = window.ZT || {};
       if (!this.abandon.fired && front >= a0) {
         this.abandon.fired = true;
         if (Z.Zombies && Z.Zombies.platformWave) {
-          Z.Zombies.platformWave(this, this.abandon.s, CFG.ABANDON.entryWave || 26, true);
+          Z.Zombies.platformWave(this, this.abandon.s, Math.max(6, Math.round((CFG.ABANDON.entryWave || 26) * (this.abandon.waveScale || 1))), true);
         }
         if (Z.UI && Z.UI.toast) Z.UI.toast('废弃站台：尸潮从站台涌出！', 'bad');
         if (Z.Sound) Z.Sound.play('boom', { vol: 0.9 });
@@ -392,7 +393,7 @@ window.ZT = window.ZT || {};
         const cap = CFG.ABANDON.cap || 260;
         if (this.abandon.t >= every && Z.Zombies && Z.Zombies.list.length < cap) {
           this.abandon.t = 0;
-          const n2 = Math.round((CFG.ABANDON.trickle || 6) * (stopped ? 1.6 : 1));
+          const n2 = Math.max(2, Math.round((CFG.ABANDON.trickle || 6) * (stopped ? 1.6 : 1) * (this.abandon.waveScale || 1)));
           Z.Zombies.platformWave(this, this.abandon.s, n2, false);
           if (stopped && Z.UI && Math.random() < 0.35) Z.UI.toast('站台尸群持续增援！', 'bad');
         }
@@ -465,7 +466,15 @@ window.ZT = window.ZT || {};
     openEndlessStation: function () {
       this.speed = 0;
       this.state = 'station';
-      this.station = { idx: -1, endless: true, isStart: false };
+      // 绑定到世界里真实存在的那个站台（名字/位置都从 World.stations 来）
+      let match = null, best = 1e9;
+      for (const st of (Z.World.stations || [])) {
+        const d = Math.abs(st.s - this.km);
+        if (d < best) { best = d; match = st; }
+      }
+      this.station = match
+        ? { idx: match.idx, name: match.name, at: match.s, isStart: !!match.isStart, endless: true }
+        : { idx: -1, endless: true, isStart: false };
       this.boardAcc = 0;
       if (Z.Sound) Z.Sound.play('chime', { vol: 0.7 });
       if (Z.UI) Z.UI.openStation(this.station);
@@ -483,6 +492,7 @@ window.ZT = window.ZT || {};
       this.speed = 0;
       this.state = 'station';
       this.boardAcc = 0;
+      this.rescueDone = {};          // 每站每节人员车厢只能抢救一次
       if (Z.Sound) Z.Sound.play('chime', { vol: 0.7 });
       if (idx > 0 && Z.Tips) Z.Tips.tip('station');
       if (Z.UI) Z.UI.openStation(this.station);
@@ -493,6 +503,7 @@ window.ZT = window.ZT || {};
       if (this.state !== 'station') return;
       this.state = 'run';
       this.speed = Math.max(this.speed, 2);
+      this.station = null;                 // 站台只在停靠期间存在
       if (Z.UI) Z.UI.closeStation();
     },
 
@@ -555,14 +566,57 @@ window.ZT = window.ZT || {};
       }
     },
     rescue: function () {
+      if (!this.rescueDone) this.rescueDone = {};
       let n = 0;
       for (const c of this.passengerCars()) {
-        if (c.hp / c.maxHp >= 0.4) {
-          const add = Math.min(CFG.REFUGEE.rescueRate, CFG.REFUGEE.perCar - c.refugees);
-          if (add > 0) { c.refugees += add; n += add; }
-        }
+        const key = this.cars.indexOf(c);
+        if (this.rescueDone[key]) continue;                 // 本站已经抢救过
+        if (c.hp / c.maxHp < 0.4) continue;                 // 受损太重，救不了
+        const add = Math.min(CFG.REFUGEE.rescueRate, CFG.REFUGEE.perCar - c.refugees);
+        if (add > 0) { c.refugees += add; n += add; this.rescueDone[key] = true; }
       }
       return n;
+    },
+
+    // 抢救按钮状态：能不能点、为什么不能点
+    rescueState: function () {
+      const list = this.passengerCars();
+      if (!list.length) return { ok: false, reason: '没有人员车厢' };
+      let usable = false, damaged = false, already = false;
+      for (const c of list) {
+        const key = this.cars.indexOf(c);
+        if (this.rescueDone && this.rescueDone[key]) { already = true; continue; }
+        if (c.hp / c.maxHp < 0.4) { damaged = true; continue; }
+        if (c.refugees < CFG.REFUGEE.perCar) usable = true;
+      }
+      if (usable) return { ok: true, reason: '' };
+      if (damaged && !already) return { ok: false, reason: '人员车厢受损（<40%），无法抢救' };
+      if (already) return { ok: false, reason: '本班已抢救（每站一次）' };
+      return { ok: false, reason: '车厢已满员' };
+    },
+
+    // 部分维修：按现有废料修到上限，优先修车头
+    repairPartial: function (budget) {
+      const list = [];
+      let total = 0;
+      for (const c of this.cars) {
+        if (c.dead) continue;
+        const d = c.maxHp - c.hp;
+        if (d > 0.5) { list.push({ c: c, d: d }); total += d; }
+      }
+      if (!total) return { hp: 0, cost: 0 };
+      const unit = CFG.ECON.repairCostPerHp || 0.6;
+      const hp = Math.min(total, Math.floor(budget / unit));
+      if (hp <= 0) return { hp: 0, cost: 0 };
+      // 车头优先（第一节就是车头，玩家最容易被它判负）
+      list.sort(function (a, b) { return (b.c.type === 'engine' ? 1 : 0) - (a.c.type === 'engine' ? 1 : 0); });
+      let left = hp;
+      for (const it of list) {
+        if (left <= 0) break;
+        const take = Math.min(it.d, left);
+        it.c.hp += take; it.c.tier = 0; left -= take;
+      }
+      return { hp: Math.round(hp), cost: Math.round(hp * unit) };
     },
 
     // ---- 车厢 ----
@@ -786,6 +840,7 @@ window.ZT = window.ZT || {};
       const esc = ref * 40;
       const combat = Math.round(this.kills * 0.5 + this.bossKills * 300);
       const deadCars = this.cars.filter(function (c) { return c.dead; }).length;
+      const engineDead = !!(this.cars[0] && this.cars[0].dead);
       const st = this.stats || { t: 0, maxSpeed: 0, maxCars: this.cars.length, deaths: 0, repairs: 0 };
       // 完美奖励与结算面板的「伤亡」同源：都用 st.deaths（此前误用从未赋值的 this.deadRefugees，
       // 导致 +150 永远发不出来）。见 docs/评审-代码与交互-v1.md P0-1。
@@ -829,7 +884,7 @@ window.ZT = window.ZT || {};
         capacity: this.capacity(), deadRefugees: st.deaths, repairs: st.repairs,
         maxSpeed: st.maxSpeed, maxCars: st.maxCars, timeSec: st.t,
         win: !!win, km: km, refugees: ref, kills: this.kills, bossKills: this.bossKills,
-        deadCars: deadCars, perfect: perfect, leftover: leftover, penalty: penalty,
+        deadCars: deadCars, engineDead: engineDead, perfect: perfect, leftover: leftover, penalty: penalty,
         miles: miles, esc: esc, combat: combat, points: points,
         level: this.level
       };

@@ -57,7 +57,7 @@ window.ZT = window.ZT || {};
           this.stat('废料', R_.scrap = h('b', null, '0')),
           !CFG.ECON.infiniteAmmo && this.stat('弹药', R_.ammo = h('b', null, '0')),
           !CFG.ECON.infiniteFuel && this.stat('燃料', R_.fuel = h('b', null, '100%')),
-          this.stat('耐久', R_.hp = h('b', null, '100%')),
+          this.stat('车况', R_.hp = h('b', null, '100%')),
           this.stat('难民', R_.ref = h('b', null, '0')),
           this.stat('车速', R_.spd = h('b', null, '0'))),
         h('div', { class: 'ctrls' },
@@ -70,8 +70,6 @@ window.ZT = window.ZT || {};
             class: 'btn sm speed-cycle', title: '倍速：1/2/3 键（点击循环 1×→2×→3×）', 'aria-label': '倍速，点击循环',
             onclick: function () { Z.Game.cycleSpeed(); }
           }, '1×')),
-          (R_.btn3d = h('button', { class: 'btn sm', title: '2D / 2.5D 切换（V）', onclick: function () { Z.UI.toggle3D(); } },
-            R_.btn3dLabel = h('span', null, '3D'), h('kbd', null, 'V'))),
           h('button', { class: 'btn sm', onclick: function () { Z.UI.toggleRefit(); } }, '改装', h('kbd', null, 'Tab')),
           R_.snd = h('button', {
             class: 'btn sm sound' + (Z.Sound && Z.Sound.enabled ? ' on' : ''),
@@ -186,8 +184,12 @@ window.ZT = window.ZT || {};
       if (R_.fuel) R_.fuel.textContent = Math.round(run.fuel) + '%';
       if (R_.fuel) R_.fuel.className = run.fuel < 25 ? 'bad' : (run.fuel < 50 ? 'warn' : '');
       const hpFrac = run.maxHp() ? run.totalHp() / run.maxHp() : 0;
-      R_.hp.textContent = Math.round(hpFrac * 100) + '%';
-      R_.hp.className = hpFrac < 0.35 ? 'bad' : (hpFrac < 0.65 ? 'warn' : '');
+      const eng0 = run.cars && run.cars[0];
+      const engFrac = eng0 && !eng0.dead ? eng0.hp / eng0.maxHp : 0;
+      // 真正会判负的是车头：低于 50% 时顶栏直接显示「车头 X%」，不再藏在总耐久里
+      R_.hp.textContent = engFrac < 0.5 ? '车头 ' + Math.round(engFrac * 100) + '%' : Math.round(hpFrac * 100) + '%';
+      R_.hp.className = engFrac < 0.3 ? 'bad' : (engFrac < 0.5 ? 'warn' : (hpFrac < 0.35 ? 'bad' : (hpFrac < 0.65 ? 'warn' : '')));
+      R_.hp.title = '全车 ' + Math.round(hpFrac * 100) + '% · 车头 ' + Math.round(engFrac * 100) + '%';
       // 耐久明显下降时闪一下，战斗里不看数字也能察觉
       if (this._prevHp == null) this._prevHp = hpFrac;
       if (hpFrac < this._prevHp - 0.008) {
@@ -521,16 +523,6 @@ window.ZT = window.ZT || {};
               }
             }, '清除'))),
         h('div', { class: 'set-foot' }, 'v' + CFG.VERSION + ' · 零依赖 · MIT · 游戏内按 M 也可静音'),
-        h('div', { class: 'acts dev-row' },
-          h('button', {
-            class: 'btn sm ghost', title: '开发工具：GLB 资产预览，不影响存档',
-            onclick: function () {
-              if (!Z.View3D) return;
-              if (!Z.UI.ensureModels('模型资源已就绪，再点一次「3D 资产预览」')) return;
-              Z.View3D.open();
-            }
-          }, '3D 资产预览'),
-          h('span', { class: 'dev-note' }, '开发用，玩家不需要它')),
         h('div', { class: 'acts' },
           h('button', { class: 'btn', onclick: function () { Z.UI.showStart(); } }, '返回'),
           h('button', { class: 'btn primary', onclick: function () { Z.UI.showLevels(); } }, '开始游戏'))));
@@ -652,6 +644,8 @@ window.ZT = window.ZT || {};
 
     // ---------------- 站台 ----------------
     openStation: function (st) {
+      // 只有真正停靠时才能开站台面板：防止「回到站台」在行驶中把面板叫出来
+      if (!this.run || this.run.state !== 'station') return;
       this.drawerState = 'station';
       this.renderStation();
       this.refs.drawer.classList.remove('hidden');
@@ -683,7 +677,7 @@ window.ZT = window.ZT || {};
       const kept = this._drawerBody(box);
       const body = kept.body;   // 买完东西不要跳回顶部
       body.appendChild(h('div', { class: 'dw-head' },
-        h('div', null, h('b', null, st.isStart ? '出发站' : '第 ' + (st.idx + 1) + ' 站'), h('div', { class: 'sub' }, '站台停靠中 · 游戏已暂停 · 点「继续出发」才开')),
+        h('div', null, h('b', null, st.name || (st.isStart ? '出发站' : '第 ' + (st.idx + 1) + ' 站')), h('div', { class: 'sub' }, '站台停靠中 · 游戏已暂停 · 点「继续出发」才开')),
         h('button', {
           class: 'dw-close', title: '收起面板（不会出发）', 'aria-label': '收起站台面板',
           onclick: function () { Z.UI.closeStation(); }
@@ -726,26 +720,44 @@ window.ZT = window.ZT || {};
           Z.UI.renderStation();
         }));
       }
-      shop.appendChild(this.shopRow('整车维修', (function () {
-        let need = 0;
-        for (const c of run.cars) if (!c.dead) need += c.maxHp - c.hp;
-        const cost = Math.round(need * CFG.ECON.repairCostPerHp);
-        return cost > 0 ? cost + ' 废料' : '车体完好';
-      })(), function () {
-        let need = 0;
-        for (const c of run.cars) if (!c.dead) need += c.maxHp - c.hp;
-        const cost = Math.round(need * CFG.ECON.repairCostPerHp);
-        if (cost <= 0) return Z.UI.toast('车体完好', 'info');
-        if (run.scrap < cost) return Z.UI.toast('废料不足：' + cost, 'bad');
-        run.scrap -= cost;
-        for (const c of run.cars) if (!c.dead) { c.hp = c.maxHp; c.tier = 0; }
-        Z.UI.toast('整车已修复（-' + cost + '）', 'good'); Z.UI.renderStation();
-      }));
-      shop.appendChild(this.shopRow('抢救难民（每车 +3）', '免费', function () {
+      let repairNeed = 0;
+      for (const c of run.cars) if (!c.dead) repairNeed += c.maxHp - c.hp;
+      const repairCost = Math.round(repairNeed * CFG.ECON.repairCostPerHp);
+      const engine = run.cars[0];
+      const engineFrac = engine && !engine.dead ? engine.hp / engine.maxHp : 0;
+      const poor = repairCost > 0 && run.scrap < repairCost;
+      const cheap = poor ? Math.floor(run.scrap / CFG.ECON.repairCostPerHp) : 0;
+      if (engineFrac < 0.5) {
+        shop.appendChild(h('div', { class: 'hint danger' }, '车头 ' + Math.round(engineFrac * 100) + '% —— 它一爆就结束，优先修它'));
+      }
+      if (repairCost <= 0) {
+        shop.appendChild(this.shopRow('整车维修', '车体完好', function () { Z.UI.toast('车体完好', 'info'); }));
+      } else if (!poor) {
+        shop.appendChild(this.shopRow('整车维修', repairCost + ' 废料', function () {
+          run.scrap -= repairCost;
+          for (const c of run.cars) if (!c.dead) { c.hp = c.maxHp; c.tier = 0; }
+          Z.UI.toast('整车已修复（-' + repairCost + '）', 'good'); Z.UI.renderStation();
+        }));
+      } else {
+        // 买不起：给部分维修（按现有废料修，车头优先）
+        shop.appendChild(this.shopRow('整车维修', repairCost + ' 废料（差 ' + Math.ceil(repairCost - run.scrap) + '）', function () {
+          Z.UI.toast('废料不足，可用下面的部分维修', 'bad');
+        }));
+        shop.appendChild(this.shopRow('部分维修 · 按现有废料修 ' + cheap + ' HP', run.scrap + ' 废料', function () {
+          const res = run.repairPartial(run.scrap);
+          if (!res.hp) return Z.UI.toast('没有可修的车体', 'info');
+          run.scrap -= res.cost;
+          Z.UI.toast('已修复 ' + res.hp + ' HP（-' + res.cost + '）', 'good');
+          Z.UI.renderStation();
+        }));
+      }
+      const rs = run.rescueState ? run.rescueState() : { ok: true, reason: '' };
+      shop.appendChild(this.shopRow('抢救难民（每车 +3）', rs.ok ? '免费' : rs.reason, function () {
+        if (!rs.ok) return Z.UI.toast(rs.reason, 'info');
         const n = run.rescue();
         Z.UI.toast(n ? '抢救回 ' + n + ' 人' : '没有可抢救的车厢', n ? 'good' : 'info');
         Z.UI.renderStation();
-      }));
+      }, false, !rs.ok));
       body.appendChild(shop);
 
       // Buff
@@ -775,9 +787,9 @@ window.ZT = window.ZT || {};
       this._drawerFoot(box, body, kept.keep,
         h('div', { class: 'dw-foot-bar' }, h('button', { class: 'btn primary big', onclick: function () { Z.UI.depart(); } }, '继续出发 →')));
     },
-    shopRow: function (label, price, fn, done) {
-      return h('button', { class: 'shop-item' + (done ? ' done' : ''), onclick: fn },
-        h('b', null, label), h('span', null, done ? '已购买' : price));
+    shopRow: function (label, price, fn, done, disabled) {
+      return h('button', { class: 'shop-item' + (done ? ' done' : '') + (disabled ? ' off' : ''), onclick: fn, disabled: !!disabled },
+        h('b', null, label), h('span', null, disabled ? price : (done ? '已购买' : price)));
     },
     tickStation: function () {
       // 上车进度每帧刷新（不重建 DOM）
@@ -870,42 +882,6 @@ window.ZT = window.ZT || {};
 
     // ---------------- 改装 ----------------
     canOpenRefit: function () { return this.run.state === 'run' || this.run.state === 'parked' || this.run.state === 'station'; },
-    // 模型数据是异步的：所有需要 GLB 的入口共用这一处门禁，避免「点了没反应」
-    ensureModels: function (readyTip) {
-      if (!Z.GLB || !Z.GLB.ensure) return true;      // 旧版同步资产包：就绪
-      if (Z.GLB.ready) return true;
-      const self = this;
-      Z.GLB.ensure(function (err) {
-        self.toast(err ? '模型资源加载失败，点右下角「重试」' : (readyTip || '模型资源已就绪'), err ? 'bad' : 'good');
-      });
-      // #7 ⑤：只在真的处于加载中时才提示，失败态不再叠加「准备模型资源…」造成自相矛盾
-      if (Z.GLB.loading) this.toast('模型资源加载中…（首次约 1 秒）', 'info');
-      return false;
-    },
-    // 3D 开/关的唯一落地点（按钮、快捷键、模型就绪后的补切都走这里）
-    apply3D: function (on) {
-      if (!Z.World3D) return false;
-      if (!Z.World3D.setMode(on)) { this.toast('这个浏览器不支持 WebGL', 'bad'); return false; }
-      this.toast(on ? '3D 视图（按 V 切回）' : '2D 视图', 'info');
-      if (this.refs.btn3d) {
-        this.refs.btn3d.classList.toggle('on', on);
-        if (this.refs.btn3dLabel) this.refs.btn3dLabel.textContent = on ? '2D' : '3D';
-      }
-      return true;
-    },
-    // 模型数据加载成功后，把「用户刚才想切 3D」的意图补完成（#7 D4）
-    finishPending3D: function () {
-      if (Z.GLB) Z.GLB._intent3D = false;
-      if (Z.World3D && !Z.World3D.on) this.apply3D(true);
-    },
-    toggle3D: function () {
-      if (!Z.World3D) return;
-      const on = !Z.World3D.on;
-      if (on && Z.GLB && Z.GLB.ensure && !Z.GLB.ready) Z.GLB._intent3D = true;
-      if (on && !this.ensureModels('模型资源已就绪，再按 V / 点 3D 切换')) return;
-      this.apply3D(on);
-    },
-
     toggleRefit: function () {
       if (this.drawerState === 'refit') this.closeDrawer();
       else if (this.canOpenRefit()) this.openRefit(0);
@@ -1178,6 +1154,17 @@ window.ZT = window.ZT || {};
         return h('div', { class: 'resrow' }, h('span', null, r[0]), h('b', null, (v > 0 ? '+' : '') + U.fmt(v)));
       });
 
+      // 下一把怎么改：失败时给一条具体建议（业务审计 F1-4）
+      let advice = '';
+      if (!win) {
+        advice = res.engineDead
+          ? '车头被打爆了：下一把把废料优先投武器升级（DPS 上去，车体受的伤自然少），站台再买「临时装甲」保车头。'
+          : (res.deadCars >= Math.max(2, res.maxCars - 1)
+            ? '几乎全车损毁：编组里多带 1 节装甲车厢（相邻车厢减伤 40%），并把它排在车头后面。'
+            : '把废料优先投武器升级，比买增益更能保命；车头低于 50% 时站台会出现「部分维修」。');
+      }
+      const nextTime = advice ? h('div', { class: 'hint danger' }, '下次试试：' + advice) : null;
+
       const bestLine = h('div', { class: 'bestline' },
         res.endless
           ? (res.isBest ? ('新纪录 ' + res.km.toFixed(1) + ' km') : ('最佳 ' + (res.bestPoints || 0).toFixed(1) + ' km（本次 ' + res.km.toFixed(1) + ' km）'))
@@ -1194,6 +1181,7 @@ window.ZT = window.ZT || {};
         h('div', { class: 'gradeline' }, res.line),
         grid,
         h('div', { class: 'reslist' }, rows),
+        nextTime,
         bestLine,
         h('div', { class: 'points' }, '获得里程点 ', h('b', null, U.fmt(res.points))),
         h('div', { class: 'acts' },

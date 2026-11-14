@@ -599,8 +599,7 @@ window.ZT = window.ZT || {};
   }
 
   // ================= 主程序 =================
-  // #7：进关不再预取模型数据（2D 玩家不付这 1.3MB）；只有首次切 3D 时由 GLB.ensure() 异步加载。
-
+  
   const Game = Z.Game = {
     speedMul: 1, paused: false, acc: 0,
 
@@ -759,12 +758,21 @@ window.ZT = window.ZT || {};
           Game.saveAcc = (Game.saveAcc || 0) + dt;
           if (Game.saveAcc > 15) { Game.saveAcc = 0; Z.Save.save(run); }
         }
-        R.compute();
-        R.ox += Fx.shakeX; R.oy += Fx.shakeY;
-        try {
-          if (Z.World3D && Z.World3D.on) Z.World3D.render(run);
-          else render(R, run);
-        } catch (e) { console.error('RENDER', e && e.stack || e); }
+        // 全屏面板（标题/选关/科技/设置/结算）打开时不渲染世界：
+        // 面板背后是模糊层，世界每帧重画会让 backdrop-filter 每帧重新模糊一次，标题页直接掉到 ~29 FPS
+        const screenOpen = !!(Z.UI && Z.UI.refs && Z.UI.refs.screen && !Z.UI.refs.screen.classList.contains('hidden'));
+        if (!screenOpen) {
+          R.compute();
+          R.ox += Fx.shakeX; R.oy += Fx.shakeY;
+          try {
+            render(R, run);
+          } catch (e) { console.error('RENDER', e && e.stack || e); }
+        } else if (!Game._clearedForScreen) {
+          // 打开面板的第一帧清一次画布，避免残留上一局的画面
+          Game._clearedForScreen = true;
+          try { const c = R.ctx, cv = R.cv; c.setTransform(1,0,0,1,0,0); c.fillStyle = '#14161a'; c.fillRect(0,0,cv.width,cv.height); } catch (e) {}
+        }
+        if (!screenOpen) Game._clearedForScreen = false;
         try { Z.UI.tick(dt); } catch (e) { console.error('UI', e && e.stack || e); }
       }
       requestAnimationFrame(frame);

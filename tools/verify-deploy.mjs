@@ -9,7 +9,7 @@
  * 判据（全部 PASS 才 exit 0）：
  *   1. GET /version.json 是 JSON，且 commit === 期望 commit；
  *   2. GET /tools/smoke.mjs 不再返回 JavaScript（CF Pages 对未知路径回退 index.html，所以判内容不判状态码）；
- *   3. 关键文件与本地逐字节一致（index.html / css/ui-realism.css / js/ui.js / assets/models-data.js）；
+ *   3. 关键文件与本地逐字节一致（index.html / css/ui-realism.css / js/ui.js）；
  *   4. 首页不白屏：body 里有 js/main.js，且体积 > 2KB。
  */
 import { readFile } from 'node:fs/promises';
@@ -64,7 +64,7 @@ if (EXPECT) {
 }
 
 // 关键文件逐字节一致：线上产物 = 本地这棵树
-for (const p of ['index.html', 'css/ui-realism.css', 'js/ui.js', 'assets/models-data.js']) {
+for (const p of ['index.html', 'css/ui-realism.css', 'js/ui.js']) {
   const remote = await get('/' + p);
   const want = await localSha(p);
   const got = sha(remote.body);

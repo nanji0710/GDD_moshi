@@ -308,8 +308,10 @@ window.ZT = window.ZT || {};
         this.list.push(zb);
       }
       if (withMini) {
+        const miniScale = (run.abandon && run.abandon.miniScale) || 1;
         if (Z.UI && Z.UI.toast) Z.UI.toast('精英守卫出现', 'bad');
         const mini = this.make(p.x + 8, p.y + 5, {});
+        if (miniScale !== 1) { mini.hp = mini.maxHp = Math.round(mini.maxHp * miniScale); }
         mini.mini = true;
         mini.hp = mini.maxHp = (CFG.ABANDON && CFG.ABANDON.miniHp) || 1400;
         mini.attack *= (CFG.ABANDON && CFG.ABANDON.miniMul) || 1.8;
