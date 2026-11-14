@@ -15,6 +15,7 @@
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import https from 'node:https';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -39,10 +40,29 @@ const ok = (name, pass, detail) => {
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
 };
 
-async function get(p) {
-  const r = await fetch(BASE + p, { redirect: 'follow', headers: { 'cache-control': 'no-cache' } });
-  const body = Buffer.from(await r.arrayBuffer());
-  return { status: r.status, type: r.headers.get('content-type') || '', body };
+// 用 node:https + family:4 而不是全局 fetch：CI/本机会同时拿到 IPv4 超时和 IPv6 不可达，
+// undici 的双栈重试会把整个验收拖到超时（部署其实已成功）。强制 IPv4 后稳定。
+function get(p, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(BASE + p);
+    const req = https.request({
+      hostname: u.hostname, port: 443, path: u.pathname + u.search, method: 'GET', family: 4,
+      headers: { 'cache-control': 'no-cache', 'user-agent': 'zt-verify/1' }
+    }, (res) => {
+      const loc = res.headers.location;
+      if ([301, 302, 307, 308].indexOf(res.statusCode) >= 0 && loc && redirects < 5) {
+        res.resume();
+        const n = new URL(loc, BASE + p);
+        return resolve(get(n.pathname + n.search, redirects + 1));
+      }
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => resolve({ status: res.statusCode, type: String(res.headers['content-type'] || ''), body: Buffer.concat(chunks) }));
+    });
+    req.on('error', reject);
+    req.setTimeout(20000, () => req.destroy(new Error('timeout ' + p)));
+    req.end();
+  });
 }
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 const localSha = async (p) => sha(await readFile(path.join(ROOTDIR, p)));

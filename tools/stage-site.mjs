@@ -82,12 +82,17 @@ await mkdir(fnDir, { recursive: true });
 await writeFile(path.join(fnDir, '[[path]].js'), GUARD, 'utf8');
 const guardBytes = Buffer.byteLength(GUARD);
 
+// _routes.json：强制 /tools/* 走 Functions。没有它时 Cloudflare 会优先返回「上一版部署里
+// 仍然留在边缘缓存」的静态文件，守卫函数根本不会被调用（实测 /tools/smoke.mjs 200 + HIT）。
+const ROUTES = JSON.stringify({ version: 1, include: ['/tools/*'], exclude: [] }) + '\n';
+await writeFile(path.join(OUT, '_routes.json'), ROUTES, 'utf8');
+
 const version = {
   commit: COMMIT || 'unknown',
   branch: BRANCH || 'unknown',
   builtAt: new Date().toISOString(),
-  files: staged.length + 2, // + version.json + functions/[[path]].js
-  bytes: bytes + guardBytes,
+  files: staged.length + 3, // + version.json + _routes.json + functions/[[path]].js
+  bytes: bytes + guardBytes + Buffer.byteLength(ROUTES),
 };
 await writeFile(path.join(OUT, 'version.json'), JSON.stringify(version) + '\n', 'utf8');
 
@@ -99,7 +104,8 @@ if (bad.length) {
   process.exit(1);
 }
 const versionBytes = Buffer.byteLength(JSON.stringify(version) + '\n');
-const total = bytes + guardBytes + versionBytes;
+const routesBytes = Buffer.byteLength(ROUTES);
+const total = bytes + guardBytes + versionBytes + routesBytes;
 
 if (!QUIET) {
   console.log('== 部署目录装配 ==');
@@ -108,7 +114,8 @@ if (!QUIET) {
   for (const f of staged) console.log(`  ${f.rel.padEnd(34)} ${String(f.size).padStart(9)} B`);
   console.log(`  functions/[[path]].js              ${String(guardBytes).padStart(9)} B  （测试面 404 守卫）`);
   console.log(`  version.json                       ${String(versionBytes).padStart(9)} B  ${JSON.stringify(version)}`);
-  console.log(`  合计 ${staged.length + 2} 个文件 / ${total} B（${(total / 1024).toFixed(1)} KiB）`);
+  console.log(`  _routes.json                       ${String(routesBytes).padStart(9)} B  ${ROUTES.trim()}`);
+  console.log(`  合计 ${staged.length + 3} 个文件 / ${total} B（${(total / 1024).toFixed(1)} KiB）`);
   if (skipped.length) console.log(`  跳过资产（不进部署）：${skipped.join(', ')}`);
   console.log('  白名单审计：无 tools/ · 无 screenshots · 无日志 ✓');
 }

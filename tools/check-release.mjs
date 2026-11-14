@@ -111,9 +111,9 @@ try {
 
 // ---- 4c. 部署项数（与 CI/本地同一口径：listSiteFiles + version.json + functions 守卫）----
 const deployFiles = await listSiteFiles(SRC);
-const deployCount = deployFiles.files.length + 2;
-ok('部署项数 = 26（24 个站点文件 + functions/[[path]].js 守卫）',
-  deployCount === 26, `${deployCount} 项（不含 version.json/守卫时 ${deployFiles.files.length} 项）`);
+const deployCount = deployFiles.files.length + 3;
+ok('部署项数 = 27（24 个站点文件 + version.json + _routes.json + functions 守卫）',
+  deployCount === 27, `${deployCount} 项（不含 version.json/守卫时 ${deployFiles.files.length} 项）`);
 
 // ---- 5. 部署目录白名单审计（原型里不该有会被误发的条目）----
 // 注意：原型目录本身允许存在 tools/（开发工具），它们由白名单排除；这里审计的是
